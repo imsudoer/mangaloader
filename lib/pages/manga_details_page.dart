@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:mangaloader/providers/manga_provider.dart';
 import 'package:mangaloader/providers/download_provider.dart';
 import 'package:mangaloader/providers/library_provider.dart';
+import 'package:mangaloader/providers/settings_provider.dart';
 import 'package:mangaloader/widgets/download_button.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mangaloader/src/rust/api/storage.dart' as rust_storage;
@@ -592,7 +593,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                               ),
                             ],
                             appDir: appDir.path,
-                            concurrentImages: 10,
+                            concurrentImages: ref.read(downloadConcurrencyImagesProvider),
                           );
                           stream.listen((p) {
                             ref.read(downloadProvider.notifier).addProgress(p);
@@ -763,7 +764,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                                 ),
                               ],
                               appDir: appDir.path,
-                              concurrentImages: 10,
+                              concurrentImages: ref.read(downloadConcurrencyImagesProvider),
                             );
                             stream.listen((p) {
                               ref.read(downloadProvider.notifier).addProgress(p);

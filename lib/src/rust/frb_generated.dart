@@ -132,7 +132,9 @@ abstract class RustLibApi extends BaseApi {
       required Int64List typeIds,
       required Int64List statusIds,
       required Int64List genreIds,
+      required Int64List excludedGenreIds,
       required Int64List tagIds,
+      required Int64List excludedTagIds,
       required Int64List ageIds,
       required Int64List formatIds,
       required Int64List scanlateIds});
@@ -604,7 +606,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       required Int64List typeIds,
       required Int64List statusIds,
       required Int64List genreIds,
+      required Int64List excludedGenreIds,
       required Int64List tagIds,
+      required Int64List excludedTagIds,
       required Int64List ageIds,
       required Int64List formatIds,
       required Int64List scanlateIds}) {
@@ -616,7 +620,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_list_prim_i_64_strict(typeIds, serializer);
         sse_encode_list_prim_i_64_strict(statusIds, serializer);
         sse_encode_list_prim_i_64_strict(genreIds, serializer);
+        sse_encode_list_prim_i_64_strict(excludedGenreIds, serializer);
         sse_encode_list_prim_i_64_strict(tagIds, serializer);
+        sse_encode_list_prim_i_64_strict(excludedTagIds, serializer);
         sse_encode_list_prim_i_64_strict(ageIds, serializer);
         sse_encode_list_prim_i_64_strict(formatIds, serializer);
         sse_encode_list_prim_i_64_strict(scanlateIds, serializer);
@@ -634,7 +640,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         typeIds,
         statusIds,
         genreIds,
+        excludedGenreIds,
         tagIds,
+        excludedTagIds,
         ageIds,
         formatIds,
         scanlateIds
@@ -652,7 +660,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           "typeIds",
           "statusIds",
           "genreIds",
+          "excludedGenreIds",
           "tagIds",
+          "excludedTagIds",
           "ageIds",
           "formatIds",
           "scanlateIds"

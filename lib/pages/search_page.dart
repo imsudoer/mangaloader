@@ -37,6 +37,14 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     {'id': 3, 'label': 'Сингл', 'typeId': 3},
   ];
 
+  final List<Map<String, dynamic>> _statusOptions = [
+    {'id': 0, 'labelRu': 'Все', 'labelEn': 'All', 'statusId': null},
+    {'id': 1, 'labelRu': 'Онгоинг', 'labelEn': 'Ongoing', 'statusId': 1},
+    {'id': 2, 'labelRu': 'Завершён', 'labelEn': 'Completed', 'statusId': 2},
+    {'id': 3, 'labelRu': 'Анонс', 'labelEn': 'Announced', 'statusId': 3},
+    {'id': 4, 'labelRu': 'Приостановлен', 'labelEn': 'On Hold', 'statusId': 4},
+  ];
+
   @override
   void dispose() {
     _searchController.dispose();
@@ -271,6 +279,45 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                             newTypes = [tid];
                           }
                           ref.read(searchProvider.notifier).updateFilter(filter.copyWith(typeIds: newTypes));
+                        },
+                      ),
+                    );
+                  }),
+
+                  const VerticalDivider(width: 12, indent: 6, endIndent: 6, color: Color(0xFF3E3E3E)),
+
+                  // Quick Status Chips
+                  ..._statusOptions.map((opt) {
+                    final sid = opt['statusId'] as int?;
+                    final isSelected = (sid == null && filter.statusIds.isEmpty) || (sid != null && filter.statusIds.contains(sid));
+                    final label = isRu ? opt['labelRu'] as String : opt['labelEn'] as String;
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 6),
+                      child: ChoiceChip(
+                        label: Text(label),
+                        selected: isSelected,
+                        selectedColor: const Color(0xFF8A897C),
+                        backgroundColor: const Color(0xFF2C2C2C),
+                        labelStyle: TextStyle(
+                          fontSize: 12,
+                          color: isSelected ? Colors.white : const Color(0xFFD2D7DF),
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                        ),
+                        side: BorderSide(
+                          color: isSelected ? const Color(0xFF8A897C) : const Color(0xFF3E3E3E),
+                        ),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        visualDensity: VisualDensity.compact,
+                        showCheckmark: false,
+                        onSelected: (_) {
+                          List<int> newStatuses;
+                          if (sid == null) {
+                            newStatuses = [];
+                          } else {
+                            newStatuses = [sid];
+                          }
+                          ref.read(searchProvider.notifier).updateFilter(filter.copyWith(statusIds: newStatuses));
                         },
                       ),
                     );

@@ -560,7 +560,9 @@ fn wire__crate__api__mangalib_client__get_catalog_impl(
             let api_type_ids = <Vec<i64>>::sse_decode(&mut deserializer);
             let api_status_ids = <Vec<i64>>::sse_decode(&mut deserializer);
             let api_genre_ids = <Vec<i64>>::sse_decode(&mut deserializer);
+            let api_excluded_genre_ids = <Vec<i64>>::sse_decode(&mut deserializer);
             let api_tag_ids = <Vec<i64>>::sse_decode(&mut deserializer);
+            let api_excluded_tag_ids = <Vec<i64>>::sse_decode(&mut deserializer);
             let api_age_ids = <Vec<i64>>::sse_decode(&mut deserializer);
             let api_format_ids = <Vec<i64>>::sse_decode(&mut deserializer);
             let api_scanlate_ids = <Vec<i64>>::sse_decode(&mut deserializer);
@@ -574,7 +576,9 @@ fn wire__crate__api__mangalib_client__get_catalog_impl(
                             api_type_ids,
                             api_status_ids,
                             api_genre_ids,
+                            api_excluded_genre_ids,
                             api_tag_ids,
+                            api_excluded_tag_ids,
                             api_age_ids,
                             api_format_ids,
                             api_scanlate_ids,

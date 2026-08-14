@@ -258,7 +258,9 @@ pub async fn get_catalog(
     type_ids: Vec<i64>,
     status_ids: Vec<i64>,
     genre_ids: Vec<i64>,
+    excluded_genre_ids: Vec<i64>,
     tag_ids: Vec<i64>,
+    excluded_tag_ids: Vec<i64>,
     age_ids: Vec<i64>,
     format_ids: Vec<i64>,
     scanlate_ids: Vec<i64>,
@@ -288,8 +290,16 @@ pub async fn get_catalog(
     for gid in genre_ids {
         url.push_str(&format!("&genres[]={}", gid));
     }
+    for egid in excluded_genre_ids {
+        url.push_str(&format!("&exclude_genres[]={}", egid));
+        url.push_str(&format!("&genres_exclude[]={}", egid));
+    }
     for tag_id in tag_ids {
         url.push_str(&format!("&tags[]={}", tag_id));
+    }
+    for etid in excluded_tag_ids {
+        url.push_str(&format!("&exclude_tags[]={}", etid));
+        url.push_str(&format!("&tags_exclude[]={}", etid));
     }
     for age_id in age_ids {
         url.push_str(&format!("&age_restriction[]={}", age_id));

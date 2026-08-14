@@ -19,14 +19,77 @@ class SettingsPage extends ConsumerStatefulWidget {
 }
 
 class _SettingsPageState extends ConsumerState<SettingsPage> {
-  int _imagesConcurrent = 10;
-  int _chaptersConcurrent = 3;
   String _readerDefaultMode = 'vertical';
   String _readerDefaultBg = 'black';
   bool _smartStatusBar = true;
   bool _cropBorders = false;
   String _sharpeningMode = 'subtle';
   bool _isCheckingUpdates = false;
+  bool _isClearingCache = false;
+
+  Future<void> _clearAllCaches(bool isRu) async {
+    setState(() => _isClearingCache = true);
+    try {
+      int bytesFreed = 0;
+
+      // 1. In-memory Flutter image cache
+      PaintingBinding.instance.imageCache.clear();
+      PaintingBinding.instance.imageCache.clearLiveImages();
+
+      // 2. Temp Directory files
+      try {
+        final tempDir = await getTemporaryDirectory();
+        if (await tempDir.exists()) {
+          await for (final entity in tempDir.list(recursive: true, followLinks: false)) {
+            if (entity is File) {
+              try {
+                final len = await entity.length();
+                bytesFreed += len;
+                await entity.delete();
+              } catch (_) {}
+            }
+          }
+        }
+      } catch (_) {}
+
+      // 3. Cache directory files
+      try {
+        final cacheDir = await getApplicationCacheDirectory();
+        if (await cacheDir.exists()) {
+          await for (final entity in cacheDir.list(recursive: true, followLinks: false)) {
+            if (entity is File) {
+              try {
+                final len = await entity.length();
+                bytesFreed += len;
+                await entity.delete();
+              } catch (_) {}
+            }
+          }
+        }
+      } catch (_) {}
+
+      if (!mounted) return;
+      setState(() => _isClearingCache = false);
+
+      final mbFreed = (bytesFreed / (1024 * 1024)).toStringAsFixed(1);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            isRu 
+              ? 'Кэш очищен ($mbFreed МБ освобождено)' 
+              : 'Cache cleared ($mbFreed MB freed)'
+          ),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isClearingCache = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Ошибка очистки: $e')),
+        );
+      }
+    }
+  }
 
   Future<void> _checkUpdates(bool isRu) async {
     setState(() => _isCheckingUpdates = true);
@@ -328,32 +391,32 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(isRu ? 'Параллельные потоки изображений:' : 'Concurrent images:', style: const TextStyle(fontWeight: FontWeight.bold)),
-                      Text('$_imagesConcurrent', style: const TextStyle(color: Color(0xFF8A897C), fontWeight: FontWeight.bold, fontSize: 16)),
+                      Text('${ref.watch(downloadConcurrencyImagesProvider)}', style: const TextStyle(color: Color(0xFF8A897C), fontWeight: FontWeight.bold, fontSize: 16)),
                     ],
                   ),
                   Slider(
-                    value: _imagesConcurrent.toDouble(),
+                    value: ref.watch(downloadConcurrencyImagesProvider).toDouble(),
                     min: 1,
                     max: 30,
                     divisions: 29,
                     activeColor: const Color(0xFF8A897C),
-                    onChanged: (v) => setState(() => _imagesConcurrent = v.toInt()),
+                    onChanged: (v) => ref.read(downloadConcurrencyImagesProvider.notifier).state = v.toInt(),
                   ),
                   const SizedBox(height: 10),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(isRu ? 'Параллельные главы:' : 'Concurrent chapters:', style: const TextStyle(fontWeight: FontWeight.bold)),
-                      Text('$_chaptersConcurrent', style: const TextStyle(color: Color(0xFF8A897C), fontWeight: FontWeight.bold, fontSize: 16)),
+                      Text('${ref.watch(downloadConcurrencyChaptersProvider)}', style: const TextStyle(color: Color(0xFF8A897C), fontWeight: FontWeight.bold, fontSize: 16)),
                     ],
                   ),
                   Slider(
-                    value: _chaptersConcurrent.toDouble(),
+                    value: ref.watch(downloadConcurrencyChaptersProvider).toDouble(),
                     min: 1,
                     max: 5,
                     divisions: 4,
                     activeColor: const Color(0xFF8A897C),
-                    onChanged: (v) => setState(() => _chaptersConcurrent = v.toInt()),
+                    onChanged: (v) => ref.read(downloadConcurrencyChaptersProvider.notifier).state = v.toInt(),
                   ),
                 ],
               ),
@@ -399,17 +462,16 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             ),
             child: ListTile(
               leading: const Icon(Icons.cleaning_services_rounded, color: Color(0xFF8A897C)),
-              title: Text(isRu ? 'Очистить кэш изображений' : 'Clear Image Cache'),
-              subtitle: Text(isRu ? 'Освобождает временную память' : 'Frees in-memory image cache', style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF))),
+              title: Text(isRu ? 'Очистить кэш приложения' : 'Clear Application Cache'),
+              subtitle: Text(
+                isRu ? 'Очищает сетевой дисковый кэш и оперативную память' : 'Clears disk network cache & RAM memory',
+                style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
+              ),
               trailing: OutlinedButton(
-                onPressed: () {
-                  PaintingBinding.instance.imageCache.clear();
-                  PaintingBinding.instance.imageCache.clearLiveImages();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(isRu ? 'Кэш изображений очищен' : 'Image cache cleared')),
-                  );
-                },
-                child: Text(isRu ? 'Очистить' : 'Clear'),
+                onPressed: _isClearingCache ? null : () => _clearAllCaches(isRu),
+                child: _isClearingCache
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                  : Text(isRu ? 'Очистить' : 'Clear'),
               ),
             ),
           ),

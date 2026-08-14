@@ -614,6 +614,23 @@ class _ReaderPageState extends State<ReaderPage> {
     }
   }
 
+  double _baseScale = 1.0;
+
+  void _handleScaleStart(ScaleStartDetails details) {
+    if (details.pointerCount >= 2) {
+      _baseScale = _zoomLevel;
+    }
+  }
+
+  void _handleScaleUpdate(ScaleUpdateDetails details) {
+    if (details.pointerCount >= 2 && details.scale != 1.0) {
+      setState(() {
+        _zoomLevel = (_baseScale * details.scale).clamp(0.5, 4.0);
+        _pageHeights.clear();
+      });
+    }
+  }
+
   void _handlePointerPanZoomUpdate(PointerPanZoomUpdateEvent event) {
     if (event.scale != 1.0) {
       setState(() {
@@ -754,11 +771,15 @@ class _ReaderPageState extends State<ReaderPage> {
       );
     } else if (index < _onlinePages.length) {
       final pageUrl = _resolveImageUrl(_onlinePages[index].url);
+      final screenWidth = MediaQuery.of(context).size.width;
+      final dpr = MediaQuery.of(context).devicePixelRatio;
+      final memWidth = (screenWidth * _zoomLevel * dpr).toInt().clamp(300, 2560);
       
       content = CachedNetworkImage(
         imageUrl: pageUrl,
         httpHeaders: const {'Referer': 'https://mangalib.org/'},
         fit: _resolvedBoxFit,
+        memCacheWidth: memWidth,
         placeholder: (ctx, url) => const AspectRatio(aspectRatio: 0.7, child: Center(child: CircularProgressIndicator())),
         errorWidget: (ctx, url, err) => const AspectRatio(
           aspectRatio: 0.7,
@@ -833,11 +854,15 @@ class _ReaderPageState extends State<ReaderPage> {
       );
     } else if (index < _onlinePages.length) {
       final pageUrl = _resolveImageUrl(_onlinePages[index].url);
+      final dpr = MediaQuery.of(context).devicePixelRatio;
+      final memWidth = (itemWidth * dpr).toInt().clamp(300, 2560);
+
       content = CachedNetworkImage(
         imageUrl: pageUrl,
         httpHeaders: const {'Referer': 'https://mangalib.org/'},
         fit: BoxFit.fitWidth,
         alignment: Alignment.topCenter,
+        memCacheWidth: memWidth,
         placeholder: (ctx, url) => Container(
           height: placeholderHeight,
           color: const Color(0xFF181818),
@@ -1103,6 +1128,14 @@ class _ReaderPageState extends State<ReaderPage> {
           onPointerPanZoomUpdate: _handlePointerPanZoomUpdate,
           child: GestureDetector(
             onTapUp: _handleTap,
+            onDoubleTap: () {
+              setState(() {
+                _zoomLevel = _zoomLevel == 1.0 ? 2.0 : 1.0;
+                _pageHeights.clear();
+              });
+            },
+            onScaleStart: _handleScaleStart,
+            onScaleUpdate: _handleScaleUpdate,
             child: Stack(
               children: [
                 if (_totalPages == 0)

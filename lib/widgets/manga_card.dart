@@ -95,6 +95,8 @@ class MangaCard extends ConsumerWidget {
               imageUrl: manga.coverUrl,
               httpHeaders: const {'Referer': 'https://mangalib.org/'},
               fit: BoxFit.cover,
+              memCacheWidth: 320,
+              memCacheHeight: 480,
               placeholder: (context, url) => Container(color: colorScheme.surfaceContainerHighest),
               errorWidget: (context, url, error) => const Icon(Icons.error_rounded),
             ),

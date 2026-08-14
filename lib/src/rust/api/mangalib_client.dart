@@ -34,7 +34,9 @@ Future<List<MangaSearchResult>> getCatalog(
         required Int64List typeIds,
         required Int64List statusIds,
         required Int64List genreIds,
+        required Int64List excludedGenreIds,
         required Int64List tagIds,
+        required Int64List excludedTagIds,
         required Int64List ageIds,
         required Int64List formatIds,
         required Int64List scanlateIds}) =>
@@ -44,7 +46,9 @@ Future<List<MangaSearchResult>> getCatalog(
         typeIds: typeIds,
         statusIds: statusIds,
         genreIds: genreIds,
+        excludedGenreIds: excludedGenreIds,
         tagIds: tagIds,
+        excludedTagIds: excludedTagIds,
         ageIds: ageIds,
         formatIds: formatIds,
         scanlateIds: scanlateIds);

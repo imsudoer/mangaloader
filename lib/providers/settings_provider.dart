@@ -44,6 +44,10 @@ final appVersionProvider = FutureProvider<String>((ref) async {
   return await UpdateChecker.getCurrentVersion();
 });
 
+// Download Concurrency Providers
+final downloadConcurrencyImagesProvider = StateProvider<int>((ref) => 10);
+final downloadConcurrencyChaptersProvider = StateProvider<int>((ref) => 3);
+
 // Search History Provider
 final searchHistoryProvider = StateNotifierProvider<SearchHistoryNotifier, List<String>>(
   (ref) => SearchHistoryNotifier(),
