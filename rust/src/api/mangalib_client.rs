@@ -412,7 +412,7 @@ pub async fn get_manga_details(slug_url: String) -> Result<MangaDetails> {
         arr.iter().filter_map(|i| i.get("name").and_then(|v| v.as_str()).map(|s| s.to_string())).collect()
     }).unwrap_or_default();
 
-    Ok(MangaDetails {
+    let details = MangaDetails {
         id: data.get("id").and_then(|v| v.as_i64()).unwrap_or(0),
         name: data.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string(),
         rus_name: data.get("rus_name").and_then(|v| v.as_str()).unwrap_or("").to_string(),

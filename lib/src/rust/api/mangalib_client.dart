@@ -5,7 +5,6 @@
 
 import '../frb_generated.dart';
 import 'models.dart';
-
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These functions are ignored because they are not marked as `pub`: `extract_text_from_tiptap`, `get_api_headers`, `get_img_headers`, `parse_manga_item`
@@ -22,59 +21,52 @@ Future<HomePageData> getHomepage() =>
 Future<List<MangaSearchResult>> getTopViews({required String time}) =>
     RustLib.instance.api.crateApiMangalibClientGetTopViews(time: time);
 
-Future<List<MangaSearchResult>> getLatestUpdates({
-  required PlatformInt64 page,
-}) => RustLib.instance.api.crateApiMangalibClientGetLatestUpdates(page: page);
+Future<List<MangaSearchResult>> getLatestUpdates(
+        {required PlatformInt64 page}) =>
+    RustLib.instance.api.crateApiMangalibClientGetLatestUpdates(page: page);
 
-Future<List<MangaSearchResult>> getCatalog({
-  required PlatformInt64 page,
-  required String sortBy,
-  required Int64List typeIds,
-  required Int64List statusIds,
-  required Int64List genreIds,
-  required Int64List tagIds,
-  required Int64List ageIds,
-  required Int64List formatIds,
-  required Int64List scanlateIds,
-}) => RustLib.instance.api.crateApiMangalibClientGetCatalog(
-  page: page,
-  sortBy: sortBy,
-  typeIds: typeIds,
-  statusIds: statusIds,
-  genreIds: genreIds,
-  tagIds: tagIds,
-  ageIds: ageIds,
-  formatIds: formatIds,
-  scanlateIds: scanlateIds,
-);
+Future<List<MangaSearchResult>> getCatalog(
+        {required PlatformInt64 page,
+        required String sortBy,
+        required Int64List typeIds,
+        required Int64List statusIds,
+        required Int64List genreIds,
+        required Int64List tagIds,
+        required Int64List ageIds,
+        required Int64List formatIds,
+        required Int64List scanlateIds}) =>
+    RustLib.instance.api.crateApiMangalibClientGetCatalog(
+        page: page,
+        sortBy: sortBy,
+        typeIds: typeIds,
+        statusIds: statusIds,
+        genreIds: genreIds,
+        tagIds: tagIds,
+        ageIds: ageIds,
+        formatIds: formatIds,
+        scanlateIds: scanlateIds);
 
 Future<MangaConstants> getConstants() =>
     RustLib.instance.api.crateApiMangalibClientGetConstants();
 
-Future<MangaDetails> getMangaDetails({required String slugUrl}) => RustLib
-    .instance
-    .api
-    .crateApiMangalibClientGetMangaDetails(slugUrl: slugUrl);
+Future<MangaDetails> getMangaDetails({required String slugUrl}) =>
+    RustLib.instance.api
+        .crateApiMangalibClientGetMangaDetails(slugUrl: slugUrl);
 
 Future<List<Chapter>> getChapters({required String slugUrl}) =>
     RustLib.instance.api.crateApiMangalibClientGetChapters(slugUrl: slugUrl);
 
-Future<List<ChapterPage>> getChapterPages({
-  required String slugUrl,
-  required String volume,
-  required String number,
-  PlatformInt64? branchId,
-}) => RustLib.instance.api.crateApiMangalibClientGetChapterPages(
-  slugUrl: slugUrl,
-  volume: volume,
-  number: number,
-  branchId: branchId,
-);
+Future<List<ChapterPage>> getChapterPages(
+        {required String slugUrl,
+        required String volume,
+        required String number,
+        PlatformInt64? branchId}) =>
+    RustLib.instance.api.crateApiMangalibClientGetChapterPages(
+        slugUrl: slugUrl, volume: volume, number: number, branchId: branchId);
 
-Future<String> findWorkingCdn({required String testPageUrl}) => RustLib
-    .instance
-    .api
-    .crateApiMangalibClientFindWorkingCdn(testPageUrl: testPageUrl);
+Future<String> findWorkingCdn({required String testPageUrl}) =>
+    RustLib.instance.api
+        .crateApiMangalibClientFindWorkingCdn(testPageUrl: testPageUrl);
 
 Future<Uint8List> downloadImage({required String url}) =>
     RustLib.instance.api.crateApiMangalibClientDownloadImage(url: url);
@@ -82,20 +74,15 @@ Future<Uint8List> downloadImage({required String url}) =>
 String? parseMangaUrl({required String url}) =>
     RustLib.instance.api.crateApiMangalibClientParseMangaUrl(url: url);
 
-Future<CommentsData> getMangaComments({
-  required PlatformInt64 mangaId,
-  required PlatformInt64 page,
-}) => RustLib.instance.api.crateApiMangalibClientGetMangaComments(
-  mangaId: mangaId,
-  page: page,
-);
+Future<CommentsData> getMangaComments(
+        {required PlatformInt64 mangaId, required PlatformInt64 page}) =>
+    RustLib.instance.api
+        .crateApiMangalibClientGetMangaComments(mangaId: mangaId, page: page);
 
 Future<List<MangaRelationItem>> getMangaRelations({required String slugUrl}) =>
-    RustLib.instance.api.crateApiMangalibClientGetMangaRelations(
-      slugUrl: slugUrl,
-    );
+    RustLib.instance.api
+        .crateApiMangalibClientGetMangaRelations(slugUrl: slugUrl);
 
 Future<List<MangaSimilarItem>> getMangaSimilar({required String slugUrl}) =>
-    RustLib.instance.api.crateApiMangalibClientGetMangaSimilar(
-      slugUrl: slugUrl,
-    );
+    RustLib.instance.api
+        .crateApiMangalibClientGetMangaSimilar(slugUrl: slugUrl);

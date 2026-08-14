@@ -1,4 +1,4 @@
-package com.example.mangaloader
+package bshv.mangaloader.app
 
 import io.flutter.embedding.android.FlutterActivity
 

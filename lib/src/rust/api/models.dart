@@ -4,7 +4,6 @@
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
 import '../frb_generated.dart';
-
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
@@ -124,7 +123,11 @@ class ChapterPage {
   final PlatformInt64? width;
   final PlatformInt64? height;
 
-  const ChapterPage({required this.url, this.width, this.height});
+  const ChapterPage({
+    required this.url,
+    this.width,
+    this.height,
+  });
 
   @override
   int get hashCode => url.hashCode ^ width.hashCode ^ height.hashCode;
@@ -226,7 +229,10 @@ class ConstantItem {
   final PlatformInt64 id;
   final String name;
 
-  const ConstantItem({required this.id, required this.name});
+  const ConstantItem({
+    required this.id,
+    required this.name,
+  });
 
   @override
   int get hashCode => id.hashCode ^ name.hashCode;
@@ -302,6 +308,7 @@ enum DownloadState {
   paused,
   completed,
   failed,
+  ;
 }
 
 class DownloadedChapterInfo {
@@ -398,7 +405,10 @@ class Genre {
   final PlatformInt64 id;
   final String name;
 
-  const Genre({required this.id, required this.name});
+  const Genre({
+    required this.id,
+    required this.name,
+  });
 
   @override
   int get hashCode => id.hashCode ^ name.hashCode;
@@ -508,10 +518,12 @@ enum ListType {
   completed,
   dropped,
   favorites,
-  onHold;
+  onHold,
+  ;
 
-  Future<void> asStr() =>
-      RustLib.instance.api.crateApiModelsListTypeAsStr(that: this);
+  Future<void> asStr() => RustLib.instance.api.crateApiModelsListTypeAsStr(
+        that: this,
+      );
 
   static Future<ListType?> fromStr({required String s}) =>
       RustLib.instance.api.crateApiModelsListTypeFromStr(s: s);
@@ -683,7 +695,10 @@ class MangaRelationItem {
   final String relationTitle;
   final MangaSearchResult manga;
 
-  const MangaRelationItem({required this.relationTitle, required this.manga});
+  const MangaRelationItem({
+    required this.relationTitle,
+    required this.manga,
+  });
 
   @override
   int get hashCode => relationTitle.hashCode ^ manga.hashCode;
@@ -809,7 +824,11 @@ class Person {
   final String name;
   final String slug;
 
-  const Person({required this.id, required this.name, required this.slug});
+  const Person({
+    required this.id,
+    required this.name,
+    required this.slug,
+  });
 
   @override
   int get hashCode => id.hashCode ^ name.hashCode ^ slug.hashCode;
@@ -867,7 +886,10 @@ class Tag {
   final PlatformInt64 id;
   final String name;
 
-  const Tag({required this.id, required this.name});
+  const Tag({
+    required this.id,
+    required this.name,
+  });
 
   @override
   int get hashCode => id.hashCode ^ name.hashCode;

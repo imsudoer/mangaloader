@@ -5,7 +5,6 @@
 
 import '../frb_generated.dart';
 import 'models.dart';
-
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These functions are ignored because they are not marked as `pub`: `get_conn`
@@ -21,21 +20,15 @@ Future<void> saveManga({required MangaDetails manga}) =>
 Future<MangaDetails?> getCachedManga({required String slugUrl}) =>
     RustLib.instance.api.crateApiStorageGetCachedManga(slugUrl: slugUrl);
 
-Future<void> addToList({
-  required PlatformInt64 mangaId,
-  required String listType,
-}) => RustLib.instance.api.crateApiStorageAddToList(
-  mangaId: mangaId,
-  listType: listType,
-);
+Future<void> addToList(
+        {required PlatformInt64 mangaId, required String listType}) =>
+    RustLib.instance.api
+        .crateApiStorageAddToList(mangaId: mangaId, listType: listType);
 
-Future<void> removeFromList({
-  required PlatformInt64 mangaId,
-  required String listType,
-}) => RustLib.instance.api.crateApiStorageRemoveFromList(
-  mangaId: mangaId,
-  listType: listType,
-);
+Future<void> removeFromList(
+        {required PlatformInt64 mangaId, required String listType}) =>
+    RustLib.instance.api
+        .crateApiStorageRemoveFromList(mangaId: mangaId, listType: listType);
 
 Future<List<LibraryEntry>> getList({required String listType}) =>
     RustLib.instance.api.crateApiStorageGetList(listType: listType);
@@ -49,33 +42,28 @@ Future<void> saveReadingProgress({required ReadingPosition progress}) =>
 Future<ReadingPosition?> getReadingProgress({required PlatformInt64 mangaId}) =>
     RustLib.instance.api.crateApiStorageGetReadingProgress(mangaId: mangaId);
 
-Future<void> markChapterDownloaded({
-  required PlatformInt64 mangaId,
-  required String volume,
-  required String number,
-  required PlatformInt64 pageCount,
-  required String downloadPath,
-}) => RustLib.instance.api.crateApiStorageMarkChapterDownloaded(
-  mangaId: mangaId,
-  volume: volume,
-  number: number,
-  pageCount: pageCount,
-  downloadPath: downloadPath,
-);
+Future<void> markChapterDownloaded(
+        {required PlatformInt64 mangaId,
+        required String volume,
+        required String number,
+        required PlatformInt64 pageCount,
+        required String downloadPath}) =>
+    RustLib.instance.api.crateApiStorageMarkChapterDownloaded(
+        mangaId: mangaId,
+        volume: volume,
+        number: number,
+        pageCount: pageCount,
+        downloadPath: downloadPath);
 
-Future<bool> isChapterDownloaded({
-  required PlatformInt64 mangaId,
-  required String volume,
-  required String number,
-}) => RustLib.instance.api.crateApiStorageIsChapterDownloaded(
-  mangaId: mangaId,
-  volume: volume,
-  number: number,
-);
+Future<bool> isChapterDownloaded(
+        {required PlatformInt64 mangaId,
+        required String volume,
+        required String number}) =>
+    RustLib.instance.api.crateApiStorageIsChapterDownloaded(
+        mangaId: mangaId, volume: volume, number: number);
 
-Future<List<DownloadedChapterInfo>> getDownloadedChapters({
-  required PlatformInt64 mangaId,
-}) =>
+Future<List<DownloadedChapterInfo>> getDownloadedChapters(
+        {required PlatformInt64 mangaId}) =>
     RustLib.instance.api.crateApiStorageGetDownloadedChapters(mangaId: mangaId);
 
 Future<List<DownloadedChapterInfo>> getAllDownloadedChapters() =>
@@ -84,15 +72,12 @@ Future<List<DownloadedChapterInfo>> getAllDownloadedChapters() =>
 Future<List<DownloadedMangaGroup>> getDownloadedMangaGroups() =>
     RustLib.instance.api.crateApiStorageGetDownloadedMangaGroups();
 
-Future<void> deleteDownloadedChapter({
-  required PlatformInt64 mangaId,
-  required String volume,
-  required String number,
-}) => RustLib.instance.api.crateApiStorageDeleteDownloadedChapter(
-  mangaId: mangaId,
-  volume: volume,
-  number: number,
-);
+Future<void> deleteDownloadedChapter(
+        {required PlatformInt64 mangaId,
+        required String volume,
+        required String number}) =>
+    RustLib.instance.api.crateApiStorageDeleteDownloadedChapter(
+        mangaId: mangaId, volume: volume, number: number);
 
 Future<void> deleteDownloadedManga({required PlatformInt64 mangaId}) =>
     RustLib.instance.api.crateApiStorageDeleteDownloadedManga(mangaId: mangaId);
@@ -100,30 +85,28 @@ Future<void> deleteDownloadedManga({required PlatformInt64 mangaId}) =>
 Future<List<LibraryEntry>> getAllLibraryManga() =>
     RustLib.instance.api.crateApiStorageGetAllLibraryManga();
 
-Future<void> markChapterRead({
-  required PlatformInt64 mangaId,
-  required String volume,
-  required String number,
-  required PlatformInt64 pageIndex,
-  required PlatformInt64 totalPages,
-  required bool isCompleted,
-}) => RustLib.instance.api.crateApiStorageMarkChapterRead(
-  mangaId: mangaId,
-  volume: volume,
-  number: number,
-  pageIndex: pageIndex,
-  totalPages: totalPages,
-  isCompleted: isCompleted,
-);
+Future<void> markChapterRead(
+        {required PlatformInt64 mangaId,
+        required String volume,
+        required String number,
+        required PlatformInt64 pageIndex,
+        required PlatformInt64 totalPages,
+        required bool isCompleted}) =>
+    RustLib.instance.api.crateApiStorageMarkChapterRead(
+        mangaId: mangaId,
+        volume: volume,
+        number: number,
+        pageIndex: pageIndex,
+        totalPages: totalPages,
+        isCompleted: isCompleted);
 
-Future<List<ChapterHistory>> getChapterHistory({
-  required PlatformInt64 mangaId,
-}) => RustLib.instance.api.crateApiStorageGetChapterHistory(mangaId: mangaId);
+Future<List<ChapterHistory>> getChapterHistory(
+        {required PlatformInt64 mangaId}) =>
+    RustLib.instance.api.crateApiStorageGetChapterHistory(mangaId: mangaId);
 
 Future<String> exportBackupJson() =>
     RustLib.instance.api.crateApiStorageExportBackupJson();
 
-Future<bool> importBackupJson({required String jsonContent}) => RustLib
-    .instance
-    .api
-    .crateApiStorageImportBackupJson(jsonContent: jsonContent);
+Future<bool> importBackupJson({required String jsonContent}) =>
+    RustLib.instance.api
+        .crateApiStorageImportBackupJson(jsonContent: jsonContent);

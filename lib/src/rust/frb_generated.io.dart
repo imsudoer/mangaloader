@@ -8,13 +8,10 @@ import 'api/download_engine.dart';
 import 'api/mangalib_client.dart';
 import 'api/models.dart';
 import 'api/storage.dart';
-
 import 'dart:async';
 import 'dart:convert';
 import 'dart:ffi' as ffi;
-
 import 'frb_generated.dart';
-
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated_io.dart';
 
 abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
@@ -30,8 +27,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   RustStreamSink<DownloadProgress> dco_decode_StreamSink_download_progress_Sse(
-    dynamic raw,
-  );
+      dynamic raw);
 
   @protected
   String dco_decode_String(dynamic raw);
@@ -110,8 +106,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<ChapterDownloadRequest> dco_decode_list_chapter_download_request(
-    dynamic raw,
-  );
+      dynamic raw);
 
   @protected
   List<ChapterHistory> dco_decode_list_chapter_history(dynamic raw);
@@ -127,13 +122,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<DownloadedChapterInfo> dco_decode_list_downloaded_chapter_info(
-    dynamic raw,
-  );
+      dynamic raw);
 
   @protected
   List<DownloadedMangaGroup> dco_decode_list_downloaded_manga_group(
-    dynamic raw,
-  );
+      dynamic raw);
 
   @protected
   List<Genre> dco_decode_list_genre(dynamic raw);
@@ -215,8 +208,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   RustStreamSink<DownloadProgress> sse_decode_StreamSink_download_progress_Sse(
-    SseDeserializer deserializer,
-  );
+      SseDeserializer deserializer);
 
   @protected
   String sse_decode_String(SseDeserializer deserializer);
@@ -232,21 +224,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   MangaDetails sse_decode_box_autoadd_manga_details(
-    SseDeserializer deserializer,
-  );
+      SseDeserializer deserializer);
 
   @protected
   ReadingPosition sse_decode_box_autoadd_reading_position(
-    SseDeserializer deserializer,
-  );
+      SseDeserializer deserializer);
 
   @protected
   Chapter sse_decode_chapter(SseDeserializer deserializer);
 
   @protected
   ChapterDownloadRequest sse_decode_chapter_download_request(
-    SseDeserializer deserializer,
-  );
+      SseDeserializer deserializer);
 
   @protected
   ChapterHistory sse_decode_chapter_history(SseDeserializer deserializer);
@@ -271,13 +260,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   DownloadedChapterInfo sse_decode_downloaded_chapter_info(
-    SseDeserializer deserializer,
-  );
+      SseDeserializer deserializer);
 
   @protected
   DownloadedMangaGroup sse_decode_downloaded_manga_group(
-    SseDeserializer deserializer,
-  );
+      SseDeserializer deserializer);
 
   @protected
   double sse_decode_f_64(SseDeserializer deserializer);
@@ -305,13 +292,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<ChapterDownloadRequest> sse_decode_list_chapter_download_request(
-    SseDeserializer deserializer,
-  );
+      SseDeserializer deserializer);
 
   @protected
   List<ChapterHistory> sse_decode_list_chapter_history(
-    SseDeserializer deserializer,
-  );
+      SseDeserializer deserializer);
 
   @protected
   List<ChapterPage> sse_decode_list_chapter_page(SseDeserializer deserializer);
@@ -321,41 +306,34 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<ConstantItem> sse_decode_list_constant_item(
-    SseDeserializer deserializer,
-  );
+      SseDeserializer deserializer);
 
   @protected
   List<DownloadedChapterInfo> sse_decode_list_downloaded_chapter_info(
-    SseDeserializer deserializer,
-  );
+      SseDeserializer deserializer);
 
   @protected
   List<DownloadedMangaGroup> sse_decode_list_downloaded_manga_group(
-    SseDeserializer deserializer,
-  );
+      SseDeserializer deserializer);
 
   @protected
   List<Genre> sse_decode_list_genre(SseDeserializer deserializer);
 
   @protected
   List<LibraryEntry> sse_decode_list_library_entry(
-    SseDeserializer deserializer,
-  );
+      SseDeserializer deserializer);
 
   @protected
   List<MangaRelationItem> sse_decode_list_manga_relation_item(
-    SseDeserializer deserializer,
-  );
+      SseDeserializer deserializer);
 
   @protected
   List<MangaSearchResult> sse_decode_list_manga_search_result(
-    SseDeserializer deserializer,
-  );
+      SseDeserializer deserializer);
 
   @protected
   List<MangaSimilarItem> sse_decode_list_manga_similar_item(
-    SseDeserializer deserializer,
-  );
+      SseDeserializer deserializer);
 
   @protected
   List<Person> sse_decode_list_person(SseDeserializer deserializer);
@@ -380,13 +358,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   MangaRelationItem sse_decode_manga_relation_item(
-    SseDeserializer deserializer,
-  );
+      SseDeserializer deserializer);
 
   @protected
   MangaSearchResult sse_decode_manga_search_result(
-    SseDeserializer deserializer,
-  );
+      SseDeserializer deserializer);
 
   @protected
   MangaSimilarItem sse_decode_manga_similar_item(SseDeserializer deserializer);
@@ -402,13 +378,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   MangaDetails? sse_decode_opt_box_autoadd_manga_details(
-    SseDeserializer deserializer,
-  );
+      SseDeserializer deserializer);
 
   @protected
   ReadingPosition? sse_decode_opt_box_autoadd_reading_position(
-    SseDeserializer deserializer,
-  );
+      SseDeserializer deserializer);
 
   @protected
   Person sse_decode_person(SseDeserializer deserializer);
@@ -427,15 +401,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_AnyhowException(
-    AnyhowException self,
-    SseSerializer serializer,
-  );
+      AnyhowException self, SseSerializer serializer);
 
   @protected
   void sse_encode_StreamSink_download_progress_Sse(
-    RustStreamSink<DownloadProgress> self,
-    SseSerializer serializer,
-  );
+      RustStreamSink<DownloadProgress> self, SseSerializer serializer);
 
   @protected
   void sse_encode_String(String self, SseSerializer serializer);
@@ -445,42 +415,30 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_box_autoadd_i_64(
-    PlatformInt64 self,
-    SseSerializer serializer,
-  );
+      PlatformInt64 self, SseSerializer serializer);
 
   @protected
   void sse_encode_box_autoadd_list_type(
-    ListType self,
-    SseSerializer serializer,
-  );
+      ListType self, SseSerializer serializer);
 
   @protected
   void sse_encode_box_autoadd_manga_details(
-    MangaDetails self,
-    SseSerializer serializer,
-  );
+      MangaDetails self, SseSerializer serializer);
 
   @protected
   void sse_encode_box_autoadd_reading_position(
-    ReadingPosition self,
-    SseSerializer serializer,
-  );
+      ReadingPosition self, SseSerializer serializer);
 
   @protected
   void sse_encode_chapter(Chapter self, SseSerializer serializer);
 
   @protected
   void sse_encode_chapter_download_request(
-    ChapterDownloadRequest self,
-    SseSerializer serializer,
-  );
+      ChapterDownloadRequest self, SseSerializer serializer);
 
   @protected
   void sse_encode_chapter_history(
-    ChapterHistory self,
-    SseSerializer serializer,
-  );
+      ChapterHistory self, SseSerializer serializer);
 
   @protected
   void sse_encode_chapter_page(ChapterPage self, SseSerializer serializer);
@@ -496,24 +454,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_download_progress(
-    DownloadProgress self,
-    SseSerializer serializer,
-  );
+      DownloadProgress self, SseSerializer serializer);
 
   @protected
   void sse_encode_download_state(DownloadState self, SseSerializer serializer);
 
   @protected
   void sse_encode_downloaded_chapter_info(
-    DownloadedChapterInfo self,
-    SseSerializer serializer,
-  );
+      DownloadedChapterInfo self, SseSerializer serializer);
 
   @protected
   void sse_encode_downloaded_manga_group(
-    DownloadedMangaGroup self,
-    SseSerializer serializer,
-  );
+      DownloadedMangaGroup self, SseSerializer serializer);
 
   @protected
   void sse_encode_f_64(double self, SseSerializer serializer);
@@ -541,87 +493,61 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_list_chapter_download_request(
-    List<ChapterDownloadRequest> self,
-    SseSerializer serializer,
-  );
+      List<ChapterDownloadRequest> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_chapter_history(
-    List<ChapterHistory> self,
-    SseSerializer serializer,
-  );
+      List<ChapterHistory> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_chapter_page(
-    List<ChapterPage> self,
-    SseSerializer serializer,
-  );
+      List<ChapterPage> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_comment_item(
-    List<CommentItem> self,
-    SseSerializer serializer,
-  );
+      List<CommentItem> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_constant_item(
-    List<ConstantItem> self,
-    SseSerializer serializer,
-  );
+      List<ConstantItem> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_downloaded_chapter_info(
-    List<DownloadedChapterInfo> self,
-    SseSerializer serializer,
-  );
+      List<DownloadedChapterInfo> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_downloaded_manga_group(
-    List<DownloadedMangaGroup> self,
-    SseSerializer serializer,
-  );
+      List<DownloadedMangaGroup> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_genre(List<Genre> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_library_entry(
-    List<LibraryEntry> self,
-    SseSerializer serializer,
-  );
+      List<LibraryEntry> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_manga_relation_item(
-    List<MangaRelationItem> self,
-    SseSerializer serializer,
-  );
+      List<MangaRelationItem> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_manga_search_result(
-    List<MangaSearchResult> self,
-    SseSerializer serializer,
-  );
+      List<MangaSearchResult> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_manga_similar_item(
-    List<MangaSimilarItem> self,
-    SseSerializer serializer,
-  );
+      List<MangaSimilarItem> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_person(List<Person> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_prim_i_64_strict(
-    Int64List self,
-    SseSerializer serializer,
-  );
+      Int64List self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_prim_u_8_strict(
-    Uint8List self,
-    SseSerializer serializer,
-  );
+      Uint8List self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_tag(List<Tag> self, SseSerializer serializer);
@@ -631,66 +557,48 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_manga_constants(
-    MangaConstants self,
-    SseSerializer serializer,
-  );
+      MangaConstants self, SseSerializer serializer);
 
   @protected
   void sse_encode_manga_details(MangaDetails self, SseSerializer serializer);
 
   @protected
   void sse_encode_manga_relation_item(
-    MangaRelationItem self,
-    SseSerializer serializer,
-  );
+      MangaRelationItem self, SseSerializer serializer);
 
   @protected
   void sse_encode_manga_search_result(
-    MangaSearchResult self,
-    SseSerializer serializer,
-  );
+      MangaSearchResult self, SseSerializer serializer);
 
   @protected
   void sse_encode_manga_similar_item(
-    MangaSimilarItem self,
-    SseSerializer serializer,
-  );
+      MangaSimilarItem self, SseSerializer serializer);
 
   @protected
   void sse_encode_opt_String(String? self, SseSerializer serializer);
 
   @protected
   void sse_encode_opt_box_autoadd_i_64(
-    PlatformInt64? self,
-    SseSerializer serializer,
-  );
+      PlatformInt64? self, SseSerializer serializer);
 
   @protected
   void sse_encode_opt_box_autoadd_list_type(
-    ListType? self,
-    SseSerializer serializer,
-  );
+      ListType? self, SseSerializer serializer);
 
   @protected
   void sse_encode_opt_box_autoadd_manga_details(
-    MangaDetails? self,
-    SseSerializer serializer,
-  );
+      MangaDetails? self, SseSerializer serializer);
 
   @protected
   void sse_encode_opt_box_autoadd_reading_position(
-    ReadingPosition? self,
-    SseSerializer serializer,
-  );
+      ReadingPosition? self, SseSerializer serializer);
 
   @protected
   void sse_encode_person(Person self, SseSerializer serializer);
 
   @protected
   void sse_encode_reading_position(
-    ReadingPosition self,
-    SseSerializer serializer,
-  );
+      ReadingPosition self, SseSerializer serializer);
 
   @protected
   void sse_encode_tag(Tag self, SseSerializer serializer);
@@ -710,9 +618,9 @@ class RustLibWire implements BaseWire {
 
   /// Holds the symbol lookup function.
   final ffi.Pointer<T> Function<T extends ffi.NativeType>(String symbolName)
-  _lookup;
+      _lookup;
 
   /// The symbols are looked up in [dynamicLibrary].
   RustLibWire(ffi.DynamicLibrary dynamicLibrary)
-    : _lookup = dynamicLibrary.lookup;
+      : _lookup = dynamicLibrary.lookup;
 }

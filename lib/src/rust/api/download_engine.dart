@@ -5,7 +5,6 @@
 
 import '../frb_generated.dart';
 import 'models.dart';
-
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 void pauseDownloads() =>
@@ -17,16 +16,15 @@ void resumeDownloads() =>
 void cancelDownloads() =>
     RustLib.instance.api.crateApiDownloadEngineCancelDownloads();
 
-Stream<DownloadProgress> startChapterDownload({
-  required String slugUrl,
-  required PlatformInt64 mangaId,
-  required List<ChapterDownloadRequest> chapters,
-  required String appDir,
-  required PlatformInt64 concurrentImages,
-}) => RustLib.instance.api.crateApiDownloadEngineStartChapterDownload(
-  slugUrl: slugUrl,
-  mangaId: mangaId,
-  chapters: chapters,
-  appDir: appDir,
-  concurrentImages: concurrentImages,
-);
+Stream<DownloadProgress> startChapterDownload(
+        {required String slugUrl,
+        required PlatformInt64 mangaId,
+        required List<ChapterDownloadRequest> chapters,
+        required String appDir,
+        required PlatformInt64 concurrentImages}) =>
+    RustLib.instance.api.crateApiDownloadEngineStartChapterDownload(
+        slugUrl: slugUrl,
+        mangaId: mangaId,
+        chapters: chapters,
+        appDir: appDir,
+        concurrentImages: concurrentImages);

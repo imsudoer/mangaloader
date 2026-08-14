@@ -4,42 +4,36 @@
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
 import '../frb_generated.dart';
-
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-Future<String> exportChapterAsCbz({
-  required String mangaSlug,
-  required String volume,
-  required String number,
-  required String appDir,
-  required String outputPath,
-}) => RustLib.instance.api.crateApiCbzExportExportChapterAsCbz(
-  mangaSlug: mangaSlug,
-  volume: volume,
-  number: number,
-  appDir: appDir,
-  outputPath: outputPath,
-);
+Future<String> exportChapterAsCbz(
+        {required String mangaSlug,
+        required String volume,
+        required String number,
+        required String appDir,
+        required String outputPath}) =>
+    RustLib.instance.api.crateApiCbzExportExportChapterAsCbz(
+        mangaSlug: mangaSlug,
+        volume: volume,
+        number: number,
+        appDir: appDir,
+        outputPath: outputPath);
 
-Future<List<String>> exportMangaAsCbz({
-  required String mangaSlug,
-  required PlatformInt64 mangaId,
-  required String appDir,
-  required String outputDir,
-}) => RustLib.instance.api.crateApiCbzExportExportMangaAsCbz(
-  mangaSlug: mangaSlug,
-  mangaId: mangaId,
-  appDir: appDir,
-  outputDir: outputDir,
-);
+Future<List<String>> exportMangaAsCbz(
+        {required String mangaSlug,
+        required PlatformInt64 mangaId,
+        required String appDir,
+        required String outputDir}) =>
+    RustLib.instance.api.crateApiCbzExportExportMangaAsCbz(
+        mangaSlug: mangaSlug,
+        mangaId: mangaId,
+        appDir: appDir,
+        outputDir: outputDir);
 
 Future<PlatformInt64> getCbzPageCount({required String cbzPath}) =>
     RustLib.instance.api.crateApiCbzExportGetCbzPageCount(cbzPath: cbzPath);
 
-Future<Uint8List> readCbzPage({
-  required String cbzPath,
-  required PlatformInt64 pageIndex,
-}) => RustLib.instance.api.crateApiCbzExportReadCbzPage(
-  cbzPath: cbzPath,
-  pageIndex: pageIndex,
-);
+Future<Uint8List> readCbzPage(
+        {required String cbzPath, required PlatformInt64 pageIndex}) =>
+    RustLib.instance.api
+        .crateApiCbzExportReadCbzPage(cbzPath: cbzPath, pageIndex: pageIndex);
