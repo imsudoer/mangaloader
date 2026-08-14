@@ -6,6 +6,7 @@ A high-performance, cross-platform manga, manhwa, and manhua reader and download
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Android-37474F?style=flat-square)](https://github.com/imsudoer/mangaloader/releases/latest)
 [![Flutter](https://img.shields.io/badge/Flutter-3.29-02569B?style=flat-square)](https://flutter.dev)
 [![Rust](https://img.shields.io/badge/Rust-1.80+-DEA584?style=flat-square)](https://rustup.rs)
+[![License: GPL-3.0](https://img.shields.io/badge/License-GPL%203.0-455A64?style=flat-square)](LICENSE)
 
 [Downloads](https://github.com/imsudoer/mangaloader/releases/latest) • [Features](#features) • [Keyboard Shortcuts](#keyboard-shortcuts-pc) • [Architecture](#architecture) • [Building from Source](#building-from-source)
 
@@ -130,4 +131,4 @@ Generated APK files will be located in `build/app/outputs/flutter-apk/`.
 
 ## License
 
-MangaLoader is distributed for personal, non-commercial use. All rights to manga materials belong to their respective authors and publishers.
+This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
