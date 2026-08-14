@@ -64,362 +64,46 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
           final libraryList = ref.watch(libraryProvider).value ?? [];
           final isInLibrary = libraryList.any((e) => e.mangaId == manga.id);
 
-          return NestedScrollView(
-            headerSliverBuilder: (context, innerBoxIsScrolled) {
-              return [
-                // Collapsible Hero Banner Header
-                SliverAppBar(
-                  expandedHeight: 320,
-                  pinned: true,
-                  leading: IconButton(
-                    icon: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.5),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(Icons.arrow_back_rounded, color: Colors.white, size: 20),
-                    ),
-                    onPressed: () => context.pop(),
-                  ),
-                  actions: [
-                    IconButton(
-                      icon: Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.5),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(Icons.share_rounded, color: Colors.white, size: 18),
-                      ),
-                      onPressed: () {
-                        SharePlus.instance.share(
-                          ShareParams(
-                            text: 'https://mangalib.org/ru/manga/${manga.slugUrl}',
-                            subject: manga.rusName.isNotEmpty ? manga.rusName : manga.name,
-                          ),
-                        );
-                      },
-                    ),
-                    IconButton(
-                      icon: Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.5),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(Icons.open_in_browser_rounded, color: Colors.white, size: 18),
-                      ),
-                      onPressed: () async {
-                        final uri = Uri.parse('https://mangalib.org/ru/manga/${manga.slugUrl}');
-                        if (await canLaunchUrl(uri)) {
-                          await launchUrl(uri, mode: LaunchMode.externalApplication);
-                        }
-                      },
-                    ),
-                  ],
-                  flexibleSpace: FlexibleSpaceBar(
-                    background: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        // Background cover with blur
-                        CachedNetworkImage(
-                          imageUrl: manga.coverUrl,
-                          httpHeaders: const {'Referer': 'https://mangalib.org/'},
-                          fit: BoxFit.cover,
-                          alignment: Alignment.topCenter,
-                        ),
-                        DecoratedBox(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                Colors.black.withValues(alpha: 0.3),
-                                const Color(0xFF1E1E1E).withValues(alpha: 0.8),
-                                const Color(0xFF1E1E1E),
-                              ],
-                              stops: const [0.0, 0.6, 1.0],
-                            ),
-                          ),
-                        ),
-                        // Foreground info card
-                        Positioned(
-                          left: 16,
-                          right: 16,
-                          bottom: 16,
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              // Cover Thumbnail
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(10),
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    border: Border.all(color: const Color(0xFF8A897C).withValues(alpha: 0.4), width: 1.5),
-                                    borderRadius: BorderRadius.circular(10),
-                                    boxShadow: const [
-                                      BoxShadow(color: Colors.black54, blurRadius: 10, offset: Offset(0, 4)),
-                                    ],
-                                  ),
-                                  child: CachedNetworkImage(
-                                    imageUrl: manga.coverUrl,
-                                    httpHeaders: const {'Referer': 'https://mangalib.org/'},
-                                    width: 90,
-                                    height: 130,
-                                    fit: BoxFit.cover,
-                                    placeholder: (_, __) => Container(width: 90, height: 130, color: const Color(0xFF353535)),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 14),
-                              // Title and Badges (with multi-line wrapping)
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    // Type & Status Badges
-                                    Wrap(
-                                      spacing: 6,
-                                      runSpacing: 4,
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                                          decoration: BoxDecoration(
-                                            color: const Color(0xFF8A897C),
-                                            borderRadius: BorderRadius.circular(6),
-                                          ),
-                                          child: Text(
-                                            manga.mangaType,
-                                            style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-                                          ),
-                                        ),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                                          decoration: BoxDecoration(
-                                            color: const Color(0xFF3E3E3E),
-                                            borderRadius: BorderRadius.circular(6),
-                                          ),
-                                          child: Text(
-                                            manga.status,
-                                            style: const TextStyle(color: Color(0xFFD2D7DF), fontSize: 11),
-                                          ),
-                                        ),
-                                        if (manga.ageRestriction.isNotEmpty)
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                                            decoration: BoxDecoration(
-                                              color: const Color(0xFF3E3E3E),
-                                              borderRadius: BorderRadius.circular(6),
-                                            ),
-                                            child: Text(
-                                              manga.ageRestriction,
-                                              style: const TextStyle(color: Color(0xFFBDBBB0), fontSize: 11),
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 6),
-                                    // Main Russian / Original Title
-                                    Text(
-                                      manga.rusName.isNotEmpty ? manga.rusName : manga.name,
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                        height: 1.25,
-                                      ),
-                                      maxLines: 3,
-                                      overflow: TextOverflow.ellipsis,
-                                      softWrap: true,
-                                    ),
-                                    if (manga.rusName.isNotEmpty && manga.name.isNotEmpty) ...[
-                                      const SizedBox(height: 3),
-                                      Text(
-                                        manga.name,
-                                        style: const TextStyle(color: Color(0xFFBDBBB0), fontSize: 12),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ],
-                                    const SizedBox(height: 6),
-                                    // Rating & Stats Row
-                                    Row(
-                                      children: [
-                                        if (manga.ratingAverage != "0") ...[
-                                          const Icon(Icons.star_rounded, color: Colors.amber, size: 16),
-                                          const SizedBox(width: 3),
-                                          Text(
-                                            manga.ratingAverage,
-                                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
-                                          ),
-                                          if (manga.ratingVotes != "0")
-                                            Text(
-                                              ' (${manga.ratingVotes})',
-                                              style: const TextStyle(color: Color(0xFFBDBBB0), fontSize: 11),
-                                            ),
-                                          const SizedBox(width: 12),
-                                        ],
-                                        const Icon(Icons.menu_book_rounded, color: Color(0xFFBDBBB0), size: 14),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          '${manga.chaptersCount} ${isRu ? "глав" : "chapters"}',
-                                          style: const TextStyle(color: Color(0xFFBDBBB0), fontSize: 12),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                // Action Bar: Read & Library
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                    child: Row(
-                      children: [
-                        // Primary "Start Reading" / "Continue" Button
-                        Expanded(
-                          flex: 3,
-                          child: FilledButton.icon(
-                            style: FilledButton.styleFrom(
-                              backgroundColor: const Color(0xFF8A897C),
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 13),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                            ),
-                            onPressed: () {
-                              chaptersAsync.whenData((chapters) {
-                                if (chapters.isEmpty) return;
-
-                                final history = historyAsync.value ?? [];
-                                final lastProg = history.firstOrNull;
-
-                                if (lastProg != null) {
-                                  context.push('/read/${manga.slugUrl}/${lastProg.volume}/${lastProg.number}');
-                                } else {
-                                  // Sort chapters ascending by volume and number
-                                  final sorted = List<Chapter>.from(chapters);
-                                  sorted.sort((a, b) {
-                                    final va = double.tryParse(a.volume) ?? 0.0;
-                                    final vb = double.tryParse(b.volume) ?? 0.0;
-                                    if (va != vb) return va.compareTo(vb);
-                                    final na = double.tryParse(a.number) ?? 0.0;
-                                    final nb = double.tryParse(b.number) ?? 0.0;
-                                    return na.compareTo(nb);
-                                  });
-                                  final firstCh = sorted.firstWhere((c) => !c.isPaid, orElse: () => sorted.first);
-                                  context.push('/read/${manga.slugUrl}/${firstCh.volume}/${firstCh.number}?branchId=${firstCh.branchId ?? ""}');
-                                }
-                              });
-                            },
-                            icon: const Icon(Icons.play_arrow_rounded, size: 20),
-                            label: Builder(
-                              builder: (context) {
-                                final history = historyAsync.value ?? [];
-                                final lastProg = history.firstOrNull;
-                                if (lastProg != null) {
-                                  return Text(
-                                    isRu ? 'Продолжить (Т.${lastProg.volume} Гл.${lastProg.number})' : 'Continue (V.${lastProg.volume} C.${lastProg.number})',
-                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  );
-                                }
-                                return Text(
-                                  isRu ? 'Начать чтение' : 'Start Reading',
-                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                                );
-                              },
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        // Secondary "In Library" Button
-                        Expanded(
-                          flex: 2,
-                          child: OutlinedButton.icon(
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: isInLibrary ? const Color(0xFFD2D7DF) : const Color(0xFFBDBBB0),
-                              side: BorderSide(
-                                color: isInLibrary ? const Color(0xFF8A897C) : const Color(0xFF3E3E3E),
-                                width: 1.5,
-                              ),
-                              backgroundColor: isInLibrary ? const Color(0xFF8A897C).withValues(alpha: 0.15) : Colors.transparent,
-                              padding: const EdgeInsets.symmetric(vertical: 13),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                            ),
-                            onPressed: () async {
-                              await rust_storage.saveManga(manga: manga);
-                              if (!context.mounted) return;
-                              if (!isInLibrary) {
-                                await ref.read(libraryProvider.notifier).addToList(manga.id, 'reading');
-                                ref.invalidate(libraryProvider);
-                                setState(() {});
-                                if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text(isRu ? 'Добавлено в библиотеку (Читаю)' : 'Added to library (Reading)')),
-                                  );
-                                }
-                              } else {
-                                _showLibrarySheet(context, ref, manga, isRu);
-                              }
-                            },
-                            icon: Icon(
-                              isInLibrary ? Icons.bookmark_added_rounded : Icons.bookmark_add_outlined,
-                              size: 18,
-                              color: isInLibrary ? const Color(0xFFD2D7DF) : const Color(0xFFBDBBB0),
-                            ),
-                            label: Text(
-                              isInLibrary ? (isRu ? 'В списке' : 'In list') : (isRu ? 'В библиотеку' : 'Bookmark'),
-                              style: const TextStyle(fontSize: 13),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                // Tab Bar
-                SliverPersistentHeader(
-                  pinned: true,
-                  delegate: _SliverTabBarDelegate(
-                    TabBar(
-                      controller: _tabController,
-                      indicatorColor: const Color(0xFF8A897C),
-                      indicatorWeight: 3,
-                      labelColor: Colors.white,
-                      unselectedLabelColor: const Color(0xFFBDBBB0),
-                      tabs: [
-                        Tab(text: isRu ? 'О тайтле' : 'About'),
-                        Tab(text: isRu ? 'Главы' : 'Chapters'),
-                        Tab(text: isRu ? 'Комментарии' : 'Comments'),
-                      ],
-                    ),
-                  ),
-                ),
-              ];
-            },
-            body: TabBarView(
-              controller: _tabController,
+          return SafeArea(
+            bottom: false,
+            child: Column(
               children: [
-                // Tab 1: About / Details
-                _buildAboutTab(manga, isRu),
+                // Permanent Sticky Header (Cover, Badges, Titles, Stats, Action Buttons)
+                _buildStickyHeader(context, ref, manga, isRu, chaptersAsync, historyAsync, isInLibrary),
 
-                // Tab 2: Chapters List
-                _buildChaptersTab(context, ref, manga, chaptersAsync, historyAsync, downloadList, isRu),
+                // Pinned Tab Bar
+                Container(
+                  color: const Color(0xFF1E1E1E),
+                  child: TabBar(
+                    controller: _tabController,
+                    indicatorColor: const Color(0xFF8A897C),
+                    indicatorWeight: 3,
+                    labelColor: Colors.white,
+                    unselectedLabelColor: const Color(0xFFBDBBB0),
+                    tabs: [
+                      Tab(text: isRu ? 'Главы' : 'Chapters'),
+                      Tab(text: isRu ? 'О тайтле' : 'About'),
+                      Tab(text: isRu ? 'Комментарии' : 'Comments'),
+                    ],
+                  ),
+                ),
 
-                // Tab 3: Reviews / Comments
-                _buildCommentsTab(manga.id, isRu),
+                // Scrollable Tabs Content
+                Expanded(
+                  child: TabBarView(
+                    controller: _tabController,
+                    children: [
+                      // Tab 1: Chapters List
+                      _buildChaptersTab(context, ref, manga, chaptersAsync, historyAsync, downloadList, isRu),
+
+                      // Tab 2: About / Details
+                      _buildAboutTab(manga, isRu),
+
+                      // Tab 3: Reviews / Comments
+                      _buildCommentsTab(manga.id, isRu),
+                    ],
+                  ),
+                ),
               ],
             ),
           );
@@ -447,6 +131,321 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildStickyHeader(
+    BuildContext context,
+    WidgetRef ref,
+    MangaDetails manga,
+    bool isRu,
+    AsyncValue<List<Chapter>> chaptersAsync,
+    AsyncValue<List<ChapterHistory>> historyAsync,
+    bool isInLibrary,
+  ) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFF1E1E1E),
+        border: Border(bottom: BorderSide(color: Color(0xFF2E2E2E), width: 1)),
+      ),
+      child: Stack(
+        children: [
+          // Subtle blurred background cover
+          Positioned.fill(
+            child: Opacity(
+              opacity: 0.12,
+              child: CachedNetworkImage(
+                imageUrl: manga.coverUrl,
+                httpHeaders: const {'Referer': 'https://mangalib.org/'},
+                fit: BoxFit.cover,
+                alignment: Alignment.topCenter,
+              ),
+            ),
+          ),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Top Nav Bar
+              Padding(
+                padding: const EdgeInsets.fromLTRB(6, 4, 6, 2),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.arrow_back_rounded, color: Colors.white, size: 22),
+                      tooltip: isRu ? 'Назад' : 'Back',
+                      onPressed: () => context.pop(),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.share_rounded, color: Color(0xFFD2D7DF), size: 20),
+                      tooltip: isRu ? 'Поделиться' : 'Share',
+                      onPressed: () {
+                        SharePlus.instance.share(
+                          ShareParams(
+                            text: 'https://mangalib.org/ru/manga/${manga.slugUrl}',
+                            subject: manga.rusName.isNotEmpty ? manga.rusName : manga.name,
+                          ),
+                        );
+                      },
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.open_in_browser_rounded, color: Color(0xFFD2D7DF), size: 20),
+                      tooltip: isRu ? 'Открыть на MangaLib' : 'Open on MangaLib',
+                      onPressed: () async {
+                        final uri = Uri.parse('https://mangalib.org/ru/manga/${manga.slugUrl}');
+                        if (await canLaunchUrl(uri)) {
+                          await launchUrl(uri, mode: LaunchMode.externalApplication);
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ),
+
+              // Manga Identity Row (Cover + Badges + Titles + Stats)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Cover Thumbnail
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          border: Border.all(color: const Color(0xFF8A897C).withValues(alpha: 0.4), width: 1),
+                          borderRadius: BorderRadius.circular(8),
+                          boxShadow: const [
+                            BoxShadow(color: Colors.black45, blurRadius: 6, offset: Offset(0, 2)),
+                          ],
+                        ),
+                        child: CachedNetworkImage(
+                          imageUrl: manga.coverUrl,
+                          httpHeaders: const {'Referer': 'https://mangalib.org/'},
+                          width: 76,
+                          height: 108,
+                          fit: BoxFit.cover,
+                          placeholder: (_, __) => Container(width: 76, height: 108, color: const Color(0xFF353535)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+
+                    // Info Column
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Badges (Type, Status, Age Restriction)
+                          Wrap(
+                            spacing: 4,
+                            runSpacing: 4,
+                            children: [
+                              if (manga.mangaType.isNotEmpty)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF8A897C),
+                                    borderRadius: BorderRadius.circular(5),
+                                  ),
+                                  child: Text(
+                                    manga.mangaType,
+                                    style: const TextStyle(color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                              if (manga.status.isNotEmpty)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF353535),
+                                    borderRadius: BorderRadius.circular(5),
+                                  ),
+                                  child: Text(
+                                    manga.status,
+                                    style: const TextStyle(color: Color(0xFFD2D7DF), fontSize: 10.5),
+                                  ),
+                                ),
+                              if (manga.ageRestriction.isNotEmpty)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF353535),
+                                    borderRadius: BorderRadius.circular(5),
+                                  ),
+                                  child: Text(
+                                    manga.ageRestriction,
+                                    style: const TextStyle(color: Color(0xFFBDBBB0), fontSize: 10.5),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 5),
+
+                          // Main Russian Title
+                          Text(
+                            manga.rusName.isNotEmpty ? manga.rusName : manga.name,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              height: 1.2,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+
+                          // Original Title
+                          if (manga.rusName.isNotEmpty && manga.name.isNotEmpty && manga.name != manga.rusName) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              manga.name,
+                              style: const TextStyle(color: Color(0xFFBDBBB0), fontSize: 11),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+
+                          const SizedBox(height: 5),
+                          // Rating & Stats Row
+                          Row(
+                            children: [
+                              if (manga.ratingAverage != "0") ...[
+                                const Icon(Icons.star_rounded, color: Colors.amber, size: 15),
+                                const SizedBox(width: 3),
+                                Text(
+                                  manga.ratingAverage,
+                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                                ),
+                                if (manga.ratingVotes != "0")
+                                  Text(
+                                    ' (${manga.ratingVotes})',
+                                    style: const TextStyle(color: Color(0xFFBDBBB0), fontSize: 10.5),
+                                  ),
+                                const SizedBox(width: 10),
+                              ],
+                              const Icon(Icons.menu_book_rounded, color: Color(0xFFBDBBB0), size: 13),
+                              const SizedBox(width: 3),
+                              Text(
+                                '${manga.chaptersCount} ${isRu ? "глав" : "chapters"}',
+                                style: const TextStyle(color: Color(0xFFBDBBB0), fontSize: 11),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Action Buttons Row
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 2, 14, 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: FilledButton.icon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFF8A897C),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 11),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
+                        ),
+                        onPressed: () {
+                          chaptersAsync.whenData((chapters) {
+                            if (chapters.isEmpty) return;
+
+                            final history = historyAsync.value ?? [];
+                            final lastProg = history.firstOrNull;
+
+                            if (lastProg != null) {
+                              context.push('/read/${manga.slugUrl}/${lastProg.volume}/${lastProg.number}');
+                            } else {
+                              final sorted = List<Chapter>.from(chapters);
+                              sorted.sort((a, b) {
+                                final va = double.tryParse(a.volume) ?? 0.0;
+                                final vb = double.tryParse(b.volume) ?? 0.0;
+                                if (va != vb) return va.compareTo(vb);
+                                final na = double.tryParse(a.number) ?? 0.0;
+                                final nb = double.tryParse(b.number) ?? 0.0;
+                                return na.compareTo(nb);
+                              });
+                              final firstCh = sorted.firstWhere((c) => !c.isPaid, orElse: () => sorted.first);
+                              context.push('/read/${manga.slugUrl}/${firstCh.volume}/${firstCh.number}?branchId=${firstCh.branchId ?? ""}');
+                            }
+                          });
+                        },
+                        icon: const Icon(Icons.play_arrow_rounded, size: 18),
+                        label: Builder(
+                          builder: (context) {
+                            final history = historyAsync.value ?? [];
+                            final lastProg = history.firstOrNull;
+                            if (lastProg != null) {
+                              return Text(
+                                isRu ? 'Продолжить (Т.${lastProg.volume} Гл.${lastProg.number})' : 'Continue (V.${lastProg.volume} C.${lastProg.number})',
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              );
+                            }
+                            return Text(
+                              isRu ? 'Начать чтение' : 'Start Reading',
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      flex: 2,
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: isInLibrary ? const Color(0xFFD2D7DF) : const Color(0xFFBDBBB0),
+                          side: BorderSide(
+                            color: isInLibrary ? const Color(0xFF8A897C) : const Color(0xFF3E3E3E),
+                            width: 1.5,
+                          ),
+                          backgroundColor: isInLibrary ? const Color(0xFF8A897C).withValues(alpha: 0.15) : Colors.transparent,
+                          padding: const EdgeInsets.symmetric(vertical: 11),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
+                        ),
+                        onPressed: () async {
+                          await rust_storage.saveManga(manga: manga);
+                          if (!context.mounted) return;
+                          if (!isInLibrary) {
+                            await ref.read(libraryProvider.notifier).addToList(manga.id, 'reading');
+                            ref.invalidate(libraryProvider);
+                            setState(() {});
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text(isRu ? 'Добавлено в библиотеку (Читаю)' : 'Added to library (Reading)')),
+                              );
+                            }
+                          } else {
+                            _showLibrarySheet(context, ref, manga, isRu);
+                          }
+                        },
+                        icon: Icon(
+                          isInLibrary ? Icons.bookmark_added_rounded : Icons.bookmark_add_outlined,
+                          size: 16,
+                          color: isInLibrary ? const Color(0xFFD2D7DF) : const Color(0xFFBDBBB0),
+                        ),
+                        label: Text(
+                          isInLibrary ? (isRu ? 'В списке' : 'In list') : (isRu ? 'В библиотеку' : 'Bookmark'),
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -1356,28 +1355,5 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
         ),
       ),
     );
-  }
-}
-
-class _SliverTabBarDelegate extends SliverPersistentHeaderDelegate {
-  final TabBar tabBar;
-  const _SliverTabBarDelegate(this.tabBar);
-
-  @override
-  double get minExtent => tabBar.preferredSize.height;
-  @override
-  double get maxExtent => tabBar.preferredSize.height;
-
-  @override
-  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
-    return Container(
-      color: const Color(0xFF1E1E1E),
-      child: tabBar,
-    );
-  }
-
-  @override
-  bool shouldRebuild(_SliverTabBarDelegate oldDelegate) {
-    return false;
   }
 }
