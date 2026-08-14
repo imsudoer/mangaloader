@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 class ReleaseAsset {
   final String name;
@@ -110,11 +111,25 @@ class AppUpdateInfo {
 }
 
 class UpdateChecker {
-  static const String currentVersion = '1.4.4';
+  static String? _cachedCurrentVersion;
   static const String defaultRepo = 'imsudoer/mangaloader';
+
+  static Future<String> getCurrentVersion() async {
+    if (_cachedCurrentVersion != null) return _cachedCurrentVersion!;
+    try {
+      final info = await PackageInfo.fromPlatform();
+      _cachedCurrentVersion = info.version;
+      return info.version;
+    } catch (_) {
+      return '1.4.5';
+    }
+  }
+
+  static String get currentVersion => _cachedCurrentVersion ?? '1.4.5';
 
   static Future<AppUpdateInfo?> checkForUpdates({String repo = defaultRepo}) async {
     try {
+      final curVer = await getCurrentVersion();
       final client = HttpClient();
       client.connectionTimeout = const Duration(seconds: 10);
       
@@ -132,8 +147,8 @@ class UpdateChecker {
       final json = jsonDecode(body) as Map<String, dynamic>;
 
       final rawTag = json['tag_name'] as String? ?? '';
-      final cleanTag = rawTag.replaceAll('v', '').replaceAll('+', '.').trim();
-      final hasUpdate = _isNewerVersion(currentVersion, cleanTag);
+      final cleanTag = rawTag.replaceAll(RegExp(r'^[vV]'), '').replaceAll('+', '.').trim();
+      final hasUpdate = _isNewerVersion(curVer, cleanTag);
 
       final assetsJson = json['assets'] as List<dynamic>? ?? [];
       final assets = assetsJson.map((a) => ReleaseAsset.fromJson(a as Map<String, dynamic>)).toList();

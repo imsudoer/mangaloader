@@ -37,6 +37,8 @@ class AppUpdateBottomSheet extends ConsumerWidget {
       archInfo = Platform.version;
     }
 
+    final appVersionAsync = ref.watch(appVersionProvider);
+    final currentVerStr = appVersionAsync.value ?? UpdateChecker.currentVersion;
     final bestAsset = update.getBestAsset(archInfo);
     final targetLabel = update.targetArchitectureLabel;
 
@@ -116,7 +118,7 @@ class AppUpdateBottomSheet extends ConsumerWidget {
                         Row(
                           children: [
                             Text(
-                              'v${UpdateChecker.currentVersion}',
+                              'v$currentVerStr',
                               style: const TextStyle(
                                 fontSize: 12,
                                 color: Color(0xFFBDBBB0),

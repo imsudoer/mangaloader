@@ -42,12 +42,15 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         return;
       }
 
+      final currentVer = await UpdateChecker.getCurrentVersion();
+      if (!mounted) return;
+
       if (!updateInfo.hasUpdate) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(isRu 
-              ? 'У вас установлена последняя версия (${UpdateChecker.currentVersion})' 
-              : 'You have the latest version (${UpdateChecker.currentVersion})'),
+              ? 'У вас установлена последняя версия ($currentVer)' 
+              : 'You have the latest version ($currentVer)'),
           ),
         );
         return;
@@ -129,6 +132,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final currentLocaleCode = selectedLocale == null ? 'system' : selectedLocale.languageCode;
     final availableUpdate = ref.watch(availableUpdateProvider);
     final downloadState = ref.watch(updateDownloadStateProvider);
+    final appVersionAsync = ref.watch(appVersionProvider);
+    final currentVersionStr = appVersionAsync.value ?? UpdateChecker.currentVersion;
 
     return Scaffold(
       appBar: AppBar(title: Text(isRu ? 'Настройки' : 'Settings')),
@@ -430,7 +435,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                             Row(
                               children: [
                                 Text(
-                                  isRu ? 'Версия: v${UpdateChecker.currentVersion}' : 'Version: v${UpdateChecker.currentVersion}',
+                                  isRu ? 'Версия: v$currentVersionStr' : 'Version: v$currentVersionStr',
                                   style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white),
                                 ),
                                 if (availableUpdate != null && availableUpdate.hasUpdate) ...[
@@ -563,7 +568,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 children: [
                   const Text('Manga Loader', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
                   const SizedBox(height: 4),
-                  const Text('Версия 1.3.1 (Flutter + Rust Core Engine)', style: TextStyle(fontSize: 12, color: Color(0xFFD2D7DF))),
+                  Text('Версия $currentVersionStr (Flutter + Rust Core Engine)', style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF))),
                   const SizedBox(height: 8),
                   Text(
                     isRu

@@ -40,6 +40,9 @@ class LocaleNotifier extends StateNotifier<Locale?> {
 final autoCheckUpdatesProvider = StateProvider<bool>((ref) => true);
 final availableUpdateProvider = StateProvider<AppUpdateInfo?>((ref) => null);
 final updateDownloadStateProvider = StateProvider<UpdateDownloadState>((ref) => const UpdateDownloadState());
+final appVersionProvider = FutureProvider<String>((ref) async {
+  return await UpdateChecker.getCurrentVersion();
+});
 
 // Search History Provider
 final searchHistoryProvider = StateNotifierProvider<SearchHistoryNotifier, List<String>>(

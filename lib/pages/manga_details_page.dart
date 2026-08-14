@@ -83,8 +83,8 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                       labelColor: Colors.white,
                       unselectedLabelColor: const Color(0xFFBDBBB0),
                       tabs: [
-                        Tab(text: isRu ? 'Главы' : 'Chapters'),
                         Tab(text: isRu ? 'О тайтле' : 'About'),
+                        Tab(text: isRu ? 'Главы' : 'Chapters'),
                         Tab(text: isRu ? 'Комментарии' : 'Comments'),
                       ],
                     ),
@@ -95,11 +95,11 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
               body: TabBarView(
                 controller: _tabController,
                 children: [
-                  // Tab 1: Chapters List
-                  _buildChaptersTab(context, ref, manga, chaptersAsync, historyAsync, downloadList, isRu),
-
-                  // Tab 2: About / Details
+                  // Tab 1: About / Details
                   _buildAboutTab(manga, isRu),
+
+                  // Tab 2: Chapters List
+                  _buildChaptersTab(context, ref, manga, chaptersAsync, historyAsync, downloadList, isRu),
 
                   // Tab 3: Reviews / Comments
                   _buildCommentsTab(manga.id, isRu),
