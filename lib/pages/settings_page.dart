@@ -478,6 +478,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               ),
             ),
           ),
+          const SizedBox(height: 20),
+
           // 5. Updates
           _buildSectionHeader(isRu ? 'Обновления' : 'Updates', Icons.system_update_rounded),
           Card(

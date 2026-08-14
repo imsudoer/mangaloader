@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
   // Brand Palette: ["#353535", "#ffffff", "#d2d7df", "#bdbbb0", "#8a897c"]
@@ -43,76 +42,97 @@ class AppTheme {
   static const _lightOnTertiary = Color(0xFFFFFFFF);
   static const _lightError = Color(0xFFD32F2F);
 
+  static const List<String> _fontFallbacks = [
+    'Segoe UI',
+    'Roboto',
+    'Helvetica Neue',
+    'Arial',
+    'sans-serif',
+  ];
+
   static TextTheme _buildTextTheme(Color onSurface, Color onSurfaceVariant) {
     return TextTheme(
-      displayLarge: GoogleFonts.nunito(
+      displayLarge: TextStyle(
+        fontFamilyFallback: _fontFallbacks,
         fontSize: 28,
         fontWeight: FontWeight.w800,
         color: onSurface,
         letterSpacing: -0.5,
       ),
-      displayMedium: GoogleFonts.nunito(
+      displayMedium: TextStyle(
+        fontFamilyFallback: _fontFallbacks,
         fontSize: 24,
         fontWeight: FontWeight.w700,
         color: onSurface,
         letterSpacing: -0.3,
       ),
-      headlineLarge: GoogleFonts.nunito(
+      headlineLarge: TextStyle(
+        fontFamilyFallback: _fontFallbacks,
         fontSize: 20,
         fontWeight: FontWeight.w700,
         color: onSurface,
       ),
-      headlineMedium: GoogleFonts.nunito(
+      headlineMedium: TextStyle(
+        fontFamilyFallback: _fontFallbacks,
         fontSize: 18,
         fontWeight: FontWeight.w600,
         color: onSurface,
       ),
-      titleLarge: GoogleFonts.inter(
+      titleLarge: TextStyle(
+        fontFamilyFallback: _fontFallbacks,
         fontSize: 16,
         fontWeight: FontWeight.w600,
         color: onSurface,
       ),
-      titleMedium: GoogleFonts.inter(
+      titleMedium: TextStyle(
+        fontFamilyFallback: _fontFallbacks,
         fontSize: 14,
         fontWeight: FontWeight.w600,
         color: onSurface,
       ),
-      titleSmall: GoogleFonts.inter(
+      titleSmall: TextStyle(
+        fontFamilyFallback: _fontFallbacks,
         fontSize: 13,
         fontWeight: FontWeight.w500,
         color: onSurfaceVariant,
       ),
-      bodyLarge: GoogleFonts.inter(
+      bodyLarge: TextStyle(
+        fontFamilyFallback: _fontFallbacks,
         fontSize: 15,
         fontWeight: FontWeight.w400,
         color: onSurface,
         height: 1.5,
       ),
-      bodyMedium: GoogleFonts.inter(
+      bodyMedium: TextStyle(
+        fontFamilyFallback: _fontFallbacks,
         fontSize: 13,
         fontWeight: FontWeight.w400,
         color: onSurface,
         height: 1.5,
       ),
-      bodySmall: GoogleFonts.inter(
+      bodySmall: TextStyle(
+        fontFamilyFallback: _fontFallbacks,
         fontSize: 12,
         fontWeight: FontWeight.w400,
         color: onSurfaceVariant,
         height: 1.4,
       ),
-      labelLarge: GoogleFonts.inter(
+      labelLarge: TextStyle(
+        fontFamilyFallback: _fontFallbacks,
         fontSize: 13,
         fontWeight: FontWeight.w700,
         color: onSurface,
         letterSpacing: 0.3,
       ),
-      labelMedium: GoogleFonts.inter(
+      labelMedium: TextStyle(
+        fontFamilyFallback: _fontFallbacks,
         fontSize: 11,
         fontWeight: FontWeight.w600,
         color: onSurfaceVariant,
         letterSpacing: 0.3,
       ),
-      labelSmall: GoogleFonts.inter(
+      labelSmall: TextStyle(
+        fontFamilyFallback: _fontFallbacks,
         fontSize: 10,
         fontWeight: FontWeight.w500,
         color: onSurfaceVariant,

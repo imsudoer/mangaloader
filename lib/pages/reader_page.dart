@@ -214,17 +214,36 @@ class _ReaderPageState extends State<ReaderPage> {
           throw Exception("Не удалось прочитать страницы из локального CBZ файла");
         }
       } else {
-        final cached = await rust_storage.getCachedManga(slugUrl: widget.slugUrl);
-        if (cached != null) {
-          _mangaId = cached.id;
-          
-          _isDownloaded = await rust_storage.isChapterDownloaded(
-            mangaId: _mangaId, volume: widget.volume, number: widget.number
-          );
-          
-          final progress = await rust_storage.getReadingProgress(mangaId: _mangaId);
-          if (progress != null && progress.chapterVolume == widget.volume && progress.chapterNumber == widget.number) {
-            _currentPageIndex = progress.pageIndex.toInt();
+        if (widget.slugUrl.isNotEmpty) {
+          var cached = await rust_storage.getCachedManga(slugUrl: widget.slugUrl);
+          if (cached == null) {
+            try {
+              final remote = await rust_api.getMangaDetails(slugUrl: widget.slugUrl);
+              _mangaId = remote.id;
+            } catch (_) {}
+          } else {
+            _mangaId = cached.id;
+          }
+
+          if (_mangaId > 0) {
+            // Auto-enroll into library as reading if not already in any category
+            try {
+              final existingType = await rust_storage.getMangaListType(mangaId: _mangaId);
+              if (existingType == null || existingType.isEmpty) {
+                await rust_storage.addToList(mangaId: _mangaId, listType: 'reading');
+              }
+            } catch (e) {
+              debugPrint("Auto add to library error: $e");
+            }
+
+            _isDownloaded = await rust_storage.isChapterDownloaded(
+              mangaId: _mangaId, volume: widget.volume, number: widget.number
+            );
+            
+            final progress = await rust_storage.getReadingProgress(mangaId: _mangaId);
+            if (progress != null && progress.chapterVolume == widget.volume && progress.chapterNumber == widget.number) {
+              _currentPageIndex = progress.pageIndex.toInt();
+            }
           }
         }
 
@@ -329,10 +348,12 @@ class _ReaderPageState extends State<ReaderPage> {
           if (pages.isNotEmpty) {
             for (int i = 0; i < 3 && i < pages.length; i++) {
               final url = _resolveImageUrl(pages[i].url);
-              precacheImage(
-                CachedNetworkImageProvider(url, headers: const {'Referer': 'https://mangalib.org/'}), 
-                context
-              );
+              if (mounted) {
+                precacheImage(
+                  CachedNetworkImageProvider(url, headers: const {'Referer': 'https://mangalib.org/'}), 
+                  context
+                );
+              }
             }
           }
         }
@@ -404,15 +425,23 @@ class _ReaderPageState extends State<ReaderPage> {
   }
 
   void _scheduleSaveProgress() {
-    if (_mangaId == 0) return;
     _saveTimer?.cancel();
-    _saveTimer = Timer(const Duration(seconds: 1), () {
-      // Auto-add to library as "reading" if not already in any list
-      rust_storage.getMangaListType(mangaId: _mangaId).then((existingType) {
-        if (existingType == null) {
-          rust_storage.addToList(mangaId: _mangaId, listType: "reading");
+    _saveTimer = Timer(const Duration(seconds: 1), () async {
+      if (_mangaId == 0 && widget.slugUrl.isNotEmpty) {
+        final cached = await rust_storage.getCachedManga(slugUrl: widget.slugUrl);
+        if (cached != null) {
+          _mangaId = cached.id;
         }
-      }).catchError((_) {});
+      }
+      if (_mangaId == 0) return;
+
+      // Auto-add to library as "reading" if not already in any list
+      try {
+        final existingType = await rust_storage.getMangaListType(mangaId: _mangaId);
+        if (existingType == null || existingType.isEmpty) {
+          await rust_storage.addToList(mangaId: _mangaId, listType: "reading");
+        }
+      } catch (_) {}
 
       rust_storage.saveReadingProgress(
         progress: ReadingPosition(
@@ -895,10 +924,51 @@ class _ReaderPageState extends State<ReaderPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isRu = Localizations.localeOf(context).languageCode == 'ru';
+
     if (_isLoading) {
-      return const Scaffold(
-        backgroundColor: Colors.black, 
-        body: Center(child: CircularProgressIndicator()),
+      return Scaffold(
+        backgroundColor: _resolvedBgColor,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+            onPressed: () => context.pop(),
+          ),
+          title: Text(
+            _chapterTitle.isNotEmpty ? _chapterTitle : (isRu ? 'Загрузка главы...' : 'Loading chapter...'),
+            style: const TextStyle(fontSize: 15, color: Colors.white),
+          ),
+        ),
+        body: Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+            decoration: BoxDecoration(
+              color: const Color(0xFF2C2C2C),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFF3E3E3E)),
+              boxShadow: const [
+                BoxShadow(color: Colors.black45, blurRadius: 10, offset: Offset(0, 4)),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(
+                  width: 18, 
+                  height: 18, 
+                  child: CircularProgressIndicator(strokeWidth: 2.2, color: Color(0xFF8A897C)),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  isRu ? 'Загрузка страниц...' : 'Loading pages...',
+                  style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
+                ),
+              ],
+            ),
+          ),
+        ),
       );
     }
 
