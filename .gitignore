@@ -67,3 +67,7 @@ Cargo.lock.bak
 *.dylib
 *.pdb
 *.obj
+*.jks
+*.keystore
+key.properties
+keystore_base64.txt

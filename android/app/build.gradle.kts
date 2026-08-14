@@ -4,6 +4,15 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+import java.util.Properties
+import java.io.FileInputStream
+
+val keystoreProperties = Properties()
+val keystorePropertiesFile = rootProject.file("key.properties")
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+}
+
 android {
     namespace = "bshv.mangaloader.app"
     compileSdk = flutter.compileSdkVersion
@@ -16,23 +25,53 @@ android {
 
     defaultConfig {
         applicationId = "bshv.mangaloader.app"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = 30
         targetSdk = flutter.targetSdkVersion
-        // Uses the version code from pubspec.yaml. When using split APKs, 1000 * ABI_VERSION
-        // is added automatically by Flutter. (https://developer.android.com/studio/build/configure-apk-splits#configure-APK-versions)
-        // You can force using the value of versionCode by specifying the `-P force-version-code-ignoring-abi=true`
-        // flag during build.
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        create("release") {
+            val keyProps = keystorePropertiesFile
+            if (keyProps.exists()) {
+                val keyFileStr = keystoreProperties.getProperty("storeFile") ?: "mangaloader-release.jks"
+                val keyFile = file(keyFileStr)
+                if (keyFile.exists()) {
+                    storeFile = keyFile
+                    storePassword = keystoreProperties.getProperty("storePassword")
+                    keyAlias = keystoreProperties.getProperty("keyAlias")
+                    keyPassword = keystoreProperties.getProperty("keyPassword")
+                    enableV1Signing = true
+                    enableV2Signing = true
+                    enableV3Signing = true
+                    enableV4Signing = true
+                }
+            } else {
+                val defaultKey = file("mangaloader-release.jks")
+                if (defaultKey.exists()) {
+                    storeFile = defaultKey
+                    storePassword = "mangaloader2026"
+                    keyAlias = "mangaloader"
+                    keyPassword = "mangaloader2026"
+                    enableV1Signing = true
+                    enableV2Signing = true
+                    enableV3Signing = true
+                    enableV4Signing = true
+                }
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            val hasPropsKey = keystorePropertiesFile.exists() && file(keystoreProperties.getProperty("storeFile") ?: "mangaloader-release.jks").exists()
+            val hasDefaultKey = file("mangaloader-release.jks").exists()
+            if (hasPropsKey || hasDefaultKey) {
+                signingConfig = signingConfigs.getByName("release")
+            } else {
+                signingConfig = signingConfigs.getByName("debug")
+            }
         }
     }
 }
