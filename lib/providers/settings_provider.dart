@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mangaloader/services/update_checker.dart';
 
 // Theme mode provider
 final themeModeProvider = StateNotifierProvider<ThemeModeNotifier, ThemeMode>(
@@ -30,6 +31,10 @@ class LocaleNotifier extends StateNotifier<Locale?> {
     state = locale;
   }
 }
+
+// Auto update check providers
+final autoCheckUpdatesProvider = StateProvider<bool>((ref) => true);
+final availableUpdateProvider = StateProvider<AppUpdateInfo?>((ref) => null);
 
 // Cookies provider
 final cookiesProvider = StateProvider<String>((ref) => '');

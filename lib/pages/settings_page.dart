@@ -485,40 +485,55 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               borderRadius: BorderRadius.circular(14),
               side: const BorderSide(color: Color(0xFF353535)),
             ),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          isRu ? 'Версия: v${UpdateChecker.currentVersion}' : 'Version: v${UpdateChecker.currentVersion}',
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white),
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              isRu ? 'Версия: v${UpdateChecker.currentVersion}' : 'Version: v${UpdateChecker.currentVersion}',
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              isRu ? 'Проверка новых релизов на GitHub' : 'Check for new releases on GitHub',
+                              style: const TextStyle(color: Color(0xFFBDBBB0), fontSize: 12),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          isRu ? 'Проверка новых релизов на GitHub' : 'Check for new releases on GitHub',
-                          style: const TextStyle(color: Color(0xFFBDBBB0), fontSize: 12),
+                      ),
+                      const SizedBox(width: 12),
+                      FilledButton.icon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFF8A897C),
+                          foregroundColor: Colors.white,
                         ),
-                      ],
-                    ),
+                        onPressed: _isCheckingUpdates ? null : () => _checkUpdates(isRu),
+                        icon: _isCheckingUpdates 
+                          ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : const Icon(Icons.refresh_rounded, size: 18),
+                        label: Text(isRu ? 'Проверить' : 'Check'),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 12),
-                  FilledButton.icon(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFF8A897C),
-                      foregroundColor: Colors.white,
-                    ),
-                    onPressed: _isCheckingUpdates ? null : () => _checkUpdates(isRu),
-                    icon: _isCheckingUpdates 
-                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : const Icon(Icons.refresh_rounded, size: 18),
-                    label: Text(isRu ? 'Проверить' : 'Check'),
+                ),
+                const Divider(height: 1, indent: 16, endIndent: 16),
+                SwitchListTile(
+                  secondary: const Icon(Icons.schedule_rounded, color: Color(0xFF8A897C)),
+                  title: Text(isRu ? 'Проверять при запуске' : 'Check updates on launch'),
+                  subtitle: Text(
+                    isRu ? 'Тихий поиск свежих версий на главной' : 'Silent background check on startup',
+                    style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
                   ),
-                ],
-              ),
+                  value: ref.watch(autoCheckUpdatesProvider),
+                  onChanged: (val) => ref.read(autoCheckUpdatesProvider.notifier).state = val,
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 20),
