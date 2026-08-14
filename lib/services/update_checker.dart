@@ -110,7 +110,7 @@ class AppUpdateInfo {
 }
 
 class UpdateChecker {
-  static const String currentVersion = '1.4.3';
+  static const String currentVersion = '1.4.4';
   static const String defaultRepo = 'imsudoer/mangaloader';
 
   static Future<AppUpdateInfo?> checkForUpdates({String repo = defaultRepo}) async {

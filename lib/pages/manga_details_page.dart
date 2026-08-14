@@ -66,45 +66,45 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
 
           return SafeArea(
             bottom: false,
-            child: Column(
-              children: [
-                // Permanent Sticky Header (Cover, Badges, Titles, Stats, Action Buttons)
-                _buildStickyHeader(context, ref, manga, isRu, chaptersAsync, historyAsync, isInLibrary),
-
-                // Pinned Tab Bar
-                Container(
-                  color: const Color(0xFF1E1E1E),
-                  child: TabBar(
-                    controller: _tabController,
-                    indicatorColor: const Color(0xFF8A897C),
-                    indicatorWeight: 3,
-                    labelColor: Colors.white,
-                    unselectedLabelColor: const Color(0xFFBDBBB0),
-                    tabs: [
-                      Tab(text: isRu ? 'Главы' : 'Chapters'),
-                      Tab(text: isRu ? 'О тайтле' : 'About'),
-                      Tab(text: isRu ? 'Комментарии' : 'Comments'),
-                    ],
-                  ),
+            child: NestedScrollView(
+              headerSliverBuilder: (context, innerBoxIsScrolled) => [
+                // Collapsible Header (Cover, Badges, Titles, Stats, Action Buttons)
+                SliverToBoxAdapter(
+                  child: _buildStickyHeader(context, ref, manga, isRu, chaptersAsync, historyAsync, isInLibrary),
                 ),
-
-                // Scrollable Tabs Content
-                Expanded(
-                  child: TabBarView(
-                    controller: _tabController,
-                    children: [
-                      // Tab 1: Chapters List
-                      _buildChaptersTab(context, ref, manga, chaptersAsync, historyAsync, downloadList, isRu),
-
-                      // Tab 2: About / Details
-                      _buildAboutTab(manga, isRu),
-
-                      // Tab 3: Reviews / Comments
-                      _buildCommentsTab(manga.id, isRu),
-                    ],
+                // Pinned Tab Bar
+                SliverPersistentHeader(
+                  pinned: true,
+                  delegate: _SliverTabBarDelegate(
+                    TabBar(
+                      controller: _tabController,
+                      indicatorColor: const Color(0xFF8A897C),
+                      indicatorWeight: 3,
+                      labelColor: Colors.white,
+                      unselectedLabelColor: const Color(0xFFBDBBB0),
+                      tabs: [
+                        Tab(text: isRu ? 'Главы' : 'Chapters'),
+                        Tab(text: isRu ? 'О тайтле' : 'About'),
+                        Tab(text: isRu ? 'Комментарии' : 'Comments'),
+                      ],
+                    ),
                   ),
                 ),
               ],
+              // Scrollable Tabs Content
+              body: TabBarView(
+                controller: _tabController,
+                children: [
+                  // Tab 1: Chapters List
+                  _buildChaptersTab(context, ref, manga, chaptersAsync, historyAsync, downloadList, isRu),
+
+                  // Tab 2: About / Details
+                  _buildAboutTab(manga, isRu),
+
+                  // Tab 3: Reviews / Comments
+                  _buildCommentsTab(manga.id, isRu),
+                ],
+              ),
             ),
           );
         },
@@ -1392,3 +1392,36 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
     );
   }
 }
+
+class _SliverTabBarDelegate extends SliverPersistentHeaderDelegate {
+  final TabBar _tabBar;
+
+  _SliverTabBarDelegate(this._tabBar);
+
+  @override
+  double get minExtent => _tabBar.preferredSize.height;
+  @override
+  double get maxExtent => _tabBar.preferredSize.height;
+
+  @override
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E1E),
+        border: Border(
+          bottom: BorderSide(
+            color: overlapsContent ? const Color(0xFF8A897C).withValues(alpha: 0.3) : const Color(0xFF2E2E2E),
+            width: 1,
+          ),
+        ),
+      ),
+      child: _tabBar,
+    );
+  }
+
+  @override
+  bool shouldRebuild(_SliverTabBarDelegate oldDelegate) {
+    return _tabBar != oldDelegate._tabBar;
+  }
+}
+
