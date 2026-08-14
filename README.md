@@ -1,148 +1,133 @@
-# 📖 MangaLoader
+# MangaLoader
 
-<div align="center">
+A high-performance, cross-platform manga, manhwa, and manhua reader and downloader built with Flutter and a native Rust core engine.
 
-![MangaLoader Banner](assets/icon_monet.png)
+[![Latest Release](https://img.shields.io/github/v/release/imsudoer/mangaloader?style=flat-square&color=607D8B&label=Release)](https://github.com/imsudoer/mangaloader/releases/latest)
+[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Android-37474F?style=flat-square)](https://github.com/imsudoer/mangaloader/releases/latest)
+[![Flutter](https://img.shields.io/badge/Flutter-3.29-02569B?style=flat-square)](https://flutter.dev)
+[![Rust](https://img.shields.io/badge/Rust-1.80+-DEA584?style=flat-square)](https://rustup.rs)
 
-### Высокопроизводительный кроссплатформенный клиент и ридер манги, манхв и маньхуа
-**Flutter UI • Rust Core Engine • Аппаратное ускорение • Оффлайн CBZ**
-
-<p align="center">
-  <a href="https://github.com/imsudoer/mangaloader/releases/latest">
-    <img src="https://img.shields.io/github/v/release/imsudoer/mangaloader?style=for-the-badge&color=8A897C&label=Latest%20Release&logo=github" alt="Latest Release" />
-  </a>
-  <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Android-353535?style=for-the-badge&logo=android&logoColor=white" alt="Platforms" />
-  <img src="https://img.shields.io/badge/Flutter-3.29-02569B?style=for-the-badge&logo=flutter&logoColor=white" alt="Flutter" />
-  <img src="https://img.shields.io/badge/Rust-1.80+-orange?style=for-the-badge&logo=rust&logoColor=white" alt="Rust" />
-</p>
-
-[Скачать для Windows и Android](https://github.com/imsudoer/mangaloader/releases/latest) • [Возможности](#-основные-возможности) • [Управление и горячие клавиши](#-управление-на-пк) • [Сборка из исходников](#-сборка-из-исходников)
-
-</div>
+[Downloads](https://github.com/imsudoer/mangaloader/releases/latest) • [Features](#features) • [Keyboard Shortcuts](#keyboard-shortcuts-pc) • [Architecture](#architecture) • [Building from Source](#building-from-source)
 
 ---
 
-## ⚡ О проекте
+## Overview
 
-**MangaLoader** — это современное и быстрое приложение для поиска, чтения и оффлайн-загрузки манги, манхв и маньхуа. Приложение сочетает плавный и минималистичный интерфейс на **Flutter** с мощным высокоскоростным сетевым и файловым движком на **Rust** через `flutter_rust_bridge`.
-
----
-
-## 🚀 Основные возможности
-
-### 📖 Продвинутый ридер
-- **Плавная вертикальная лента (Webtoon)**: Идеально оптимизирована для длинных полос корейских манхв без дерганий, артефактов и обрезки.
-- **Классические режимы**: Постраничное чтение справа-налево (Manga RTL) и слева-направо (LTR).
-- **Аппаратные фильтры и постобработка**:
-  - Фильтры резкости (*Subtle / High*) для четкости текста и контуров.
-  - Цветовые режимы: Инверсия (*Dark Invert*), Сепия и стандартный.
-  - Умная обрезка белых полей (*Crop white borders*) с регулировкой процента.
-- **Smart HUD**: Ненавязчивый индикатор в углу экрана с текущим временем, зарядом аккумулятора и прогрессом чтения.
-- **Плавный автоскролл**: Регулируемая скорость автопрокрутки для чтения без касаний.
-- **Полноэкранный режим**: Погружение в чтение без рамок и панелей задач на ПК и смартфонах.
+MangaLoader combines a reactive, minimalistic Flutter user interface with a multi-threaded Rust core engine connected via `flutter_rust_bridge`. It is designed for fast browsing, high-throughput batch downloads, and comfortable reading across desktop (Windows) and mobile (Android) devices.
 
 ---
 
-### 📥 Высокоскоростной загрузчик (Rust Engine)
-- **Многопоточное скачивание**: Параллельная загрузка глав и страниц на движке `tokio` + `reqwest`.
-- **Экспорт в архив CBZ**: Автоматическая упаковка загруженных глав в стандартные оффлайн-архивы `.cbz`.
-- **Генерация ComicInfo.xml**: В каждый CBZ-архив встраиваются метаданные (авторы, описание, жанры, номер тома и главы), совместимые с читалками *Kavita, Komga, Tachiyomi, CDisplayEx*.
-- **Оффлайн чтение**: Встроенный просмотрщик локальных CBZ архивов без интернета.
+## Features
+
+### Reader Engine
+- **Continuous Webtoon Scrolling**: Optimized for long-strip manhwa formats with seamless vertical rendering, preventing layout jumps and image cutoff.
+- **Standard Paged Modes**: Right-to-Left (Manga) and Left-to-Right reading modes.
+- **Image Post-Processing Filters**:
+  - Sharpening filters (Subtle / High) to enhance text line definition.
+  - Color filters: Sepia, Dark Inversion, and standard rendering.
+  - Dynamic white border cropper with adjustable zoom percentage.
+- **Smart HUD**: Minimalistic overlay displaying current time, battery percentage, and progress counter without obstructing content.
+- **Hands-Free Auto-Scroll**: Configurable scroll velocity with smooth viewport animation.
+- **True Fullscreen Mode**: Immersive reading without window frames or system bars on desktop and mobile.
+
+### Rust Download Engine & Offline CBZ Storage
+- **High-Throughput Concurrency**: Multi-threaded parallel chapter and page fetching utilizing `tokio` and `reqwest`.
+- **CBZ Archive Packaging**: Automatically compiles downloaded chapters into standard `.cbz` archives.
+- **ComicInfo.xml Metadata**: Automatically generates and injects metadata (title, chapter, volume, author, genres, description) compatible with external comic servers and viewers (Kavita, Komga, Tachiyomi, CDisplayEx).
+- **Built-in Offline Reader**: Direct playback and navigation for locally saved CBZ files.
+
+### Library & Progress Tracking
+- **Mutually Exclusive Shelves**: Organize titles into distinct categories: Reading, Plan to Read, Completed, Favorites, On Hold, and Dropped.
+- **Automatic Library Enrollment**: Titles are automatically added to the Reading shelf as soon as a chapter is opened.
+- **Visual Progress Indicator**: Dedicated progress bar on library cards showing exact reading completion and last read chapter.
+- **Backup & Migration**: One-click JSON export and import for user library, bookmarks, and reading history.
+
+### Catalog Integration
+- Advanced search with multi-tag filtering, genres, content types, and sorting.
+- Related series and similar title carousels on the manga details page.
+- Threaded MangaLib comments system supporting avatars, replies, and vote scores.
+
+### In-App Updates & Localization
+- **GitHub Release Checker**: In-app updater that checks `imsudoer/mangaloader` releases, displays changelogs, and provides direct downloads for APK and Windows binaries.
+- **Localization**: Full Russian and English language support with automatic system locale detection and manual switching in settings.
 
 ---
 
-### 📚 Библиотека и синхронизация
-- **Категории со строгой структурой**: «Читаю», «В планах», «Прочитано», «Любимое», «Отложено», «Брошено».
-- **Автоматическое добавление**: При открытии и чтении любой главы тайтл сразу фиксируется в вашей библиотеке.
-- **Визуальный прогресс**: Наглядная шкала прочитанных глав и быстрое продолжение с места остановки.
-- **Резервное копирование**: Экспорт и импорт всей базы данных и истории чтения в один клик через JSON.
+## Keyboard Shortcuts (PC)
 
----
-
-### 🌐 Интеграция с каталогом
-- Поиск с фильтрами по 30+ жанрам, типам, возрастным рейтингам и дате выхода.
-- Карусели связанных произведений (*Relations*) и похожих тайтлов (*Similar*).
-- Официальное дерево комментариев с MangaLib (аватары, ответы, ветки и лайки).
-
----
-
-### 🔄 Автообновление и локализация
-- **Встроенная проверка обновлений**: Прямо в настройках можно проверить свежие релизы с GitHub и скачать новый APK или ZIP.
-- **Двуязычный интерфейс**: Полная поддержка **Русского** и **English** с возможностью автоопределения по системе.
-
----
-
-## 🎮 Управление на ПК
-
-| Клавиша / Сочетание | Действие |
+| Key / Shortcut | Action |
 | :--- | :--- |
-| `Space` / `Стрелка вниз` / `J` | Прокрутка вниз / Следующая страница |
-| `Стрелка вверх` / `K` | Прокрутка вверх / Предыдущая страница |
-| `Стрелка влево` | Предыдущая страница (RTL) |
-| `Стрелка вправо` | Следующая страница (RTL) |
-| `F` / `F11` | Полноэкранный режим |
-| `Esc` | Закрыть ридер / Вернуться назад |
-| `Двойной клик / тап` | Быстрое приближение (Zoom 2x) |
+| `Space` / `Down Arrow` / `J` | Scroll down / Next page |
+| `Up Arrow` / `K` | Scroll up / Previous page |
+| `Left Arrow` | Previous page (RTL mode) |
+| `Right Arrow` | Next page (RTL mode) |
+| `F` / `F11` | Toggle Fullscreen |
+| `Escape` | Exit reader / Navigate back |
+| `Double Click` | Toggle 2x Zoom |
 
 ---
 
-## 🛠️ Архитектура
+## Architecture
 
 ```
-┌────────────────────────────────────────────────────────┐
-│                   Flutter Frontend                     │
-│    (UI, Riverpod State, GoRouter, Navigation, Pages)   │
-└───────────────────────────▲────────────────────────────┘
-                            │  flutter_rust_bridge v2
-┌───────────────────────────▼────────────────────────────┐
-│                    Rust Core Engine                    │
-│  ├── mangalib_client (Async API, Headers, Deserializer)│
-│  ├── download_engine (Tokio Concurrency, Chunks)       │
-│  ├── cbz_export      (Zip, ComicInfo.xml metadata)     │
-│  └── storage         (SQLite Rusqlite, Progress DB)    │
-└────────────────────────────────────────────────────────┘
++-------------------------------------------------------------+
+|                      Flutter Frontend                       |
+|        (UI, Riverpod State, GoRouter, Theme, Pages)         |
++------------------------------+------------------------------+
+                               |  flutter_rust_bridge v2
++------------------------------v------------------------------+
+|                      Rust Core Engine                       |
+|  +--------------------+  +-------------------------------+  |
+|  |  mangalib_client   |  |        download_engine        |  |
+|  |  (Async HTTP, API) |  |   (Tokio Chunks, Concurrency) |  |
+|  +--------------------+  +-------------------------------+  |
+|  +--------------------+  +-------------------------------+  |
+|  |     cbz_export     |  |            storage            |  |
+|  |  (Zip, ComicInfo)  |  |    (SQLite Rusqlite, DB)      |  |
+|  +--------------------+  +-------------------------------+  |
++-------------------------------------------------------------+
 ```
 
 ---
 
-## 📦 Сборка из исходников
+## Building from Source
 
-### Требования:
+### Prerequisites
 - [Flutter SDK](https://flutter.dev) (3.29+)
 - [Rust Toolchain](https://rustup.rs) (stable)
 - `cargo install flutter_rust_bridge_codegen --version 2.12.0`
-- Для сборки под Android: Android SDK, NDK (r26b+) и `cargo install cargo-ndk`
+- For Android builds: Android SDK, NDK (r26b+), and `cargo install cargo-ndk`
 
-### 1. Клонирование репозитория:
+### 1. Clone the repository
 ```bash
 git clone https://github.com/imsudoer/mangaloader.git
 cd mangaloader
 ```
 
-### 2. Установка зависимостей и генерация FFI-мостов:
+### 2. Generate bridge bindings and install dependencies
 ```bash
 flutter_rust_bridge_codegen generate
 flutter pub get
 ```
 
-### 3. Сборка для Windows:
+### 3. Build for Windows (x64)
 ```bash
 flutter build windows --release
 ```
-*Результат будет находиться в `build/windows/x64/runner/Release/`.*
+Binaries will be placed in `build/windows/x64/runner/Release/`.
 
-### 4. Сборка для Android APK:
+### 4. Build for Android (Split ABI APKs)
 ```bash
-# Добавление таргетов Rust:
+# Add Rust targets for Android architectures
 rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
 
-# Сборка APK:
+# Compile release APKs
 flutter build apk --release --split-per-abi
 ```
-*APK файлы будут в `build/app/outputs/flutter-apk/`.*
+Generated APK files will be located in `build/app/outputs/flutter-apk/`.
 
 ---
 
-## 📄 Лицензия
+## License
 
-MangaLoader распространяется для личного и некоммерческого использования. Все права на мангу принадлежат их авторам и правообладателям.
+MangaLoader is distributed for personal, non-commercial use. All rights to manga materials belong to their respective authors and publishers.
