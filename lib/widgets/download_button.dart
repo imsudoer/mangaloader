@@ -44,7 +44,7 @@ class _DownloadButtonState extends State<DownloadButton> with SingleTickerProvid
     } else if (isIdle) {
       bgColor = const Color(0xFF353535);
       fgColor = const Color(0xFFD2D7DF);
-      border = Border.all(color: const Color(0xFF8A897C).withOpacity(0.5), width: 1);
+      border = Border.all(color: const Color(0xFF8A897C).withValues(alpha: 0.5), width: 1);
     } else {
       bgColor = const Color(0xFF282828);
       fgColor = Colors.white;
@@ -74,7 +74,7 @@ class _DownloadButtonState extends State<DownloadButton> with SingleTickerProvid
                     left: 0, top: 0, bottom: 0,
                     child: Container(
                       width: constraints.maxWidth * widget.progress.clamp(0.0, 1.0),
-                      color: const Color(0xFF8A897C).withOpacity(0.6),
+                      color: const Color(0xFF8A897C).withValues(alpha: 0.6),
                     ),
                   ),
                 Padding(

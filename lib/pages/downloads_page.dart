@@ -291,7 +291,7 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF8A897C).withOpacity(0.2),
+                                color: const Color(0xFF8A897C).withValues(alpha: 0.2),
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: Text(
@@ -329,7 +329,7 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
                             leading: Container(
                               padding: const EdgeInsets.all(6),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF8A897C).withOpacity(0.15),
+                                color: const Color(0xFF8A897C).withValues(alpha: 0.15),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: const Icon(Icons.archive_outlined, color: Color(0xFFD2D7DF), size: 18),
@@ -343,7 +343,7 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
                                   icon: const Icon(Icons.play_arrow_rounded, size: 18),
                                   tooltip: isRu ? 'Читать' : 'Read',
                                   style: IconButton.styleFrom(
-                                    backgroundColor: const Color(0xFF8A897C).withOpacity(0.25),
+                                    backgroundColor: const Color(0xFF8A897C).withValues(alpha: 0.25),
                                     foregroundColor: const Color(0xFFD2D7DF),
                                     minimumSize: const Size(32, 32),
                                     padding: EdgeInsets.zero,

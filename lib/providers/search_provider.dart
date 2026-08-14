@@ -9,7 +9,9 @@ class CatalogFilter {
   final List<int> typeIds;
   final List<int> statusIds;
   final List<int> genreIds;
+  final List<int> excludedGenreIds;
   final List<int> tagIds;
+  final List<int> excludedTagIds;
   final List<int> ageIds;
   final List<int> formatIds;
   final List<int> scanlateIds;
@@ -19,7 +21,9 @@ class CatalogFilter {
     this.typeIds = const [],
     this.statusIds = const [],
     this.genreIds = const [],
+    this.excludedGenreIds = const [],
     this.tagIds = const [],
+    this.excludedTagIds = const [],
     this.ageIds = const [],
     this.formatIds = const [],
     this.scanlateIds = const [],
@@ -30,7 +34,9 @@ class CatalogFilter {
     if (typeIds.isNotEmpty) count++;
     if (statusIds.isNotEmpty) count++;
     if (genreIds.isNotEmpty) count += genreIds.length;
+    if (excludedGenreIds.isNotEmpty) count += excludedGenreIds.length;
     if (tagIds.isNotEmpty) count += tagIds.length;
+    if (excludedTagIds.isNotEmpty) count += excludedTagIds.length;
     if (ageIds.isNotEmpty) count++;
     if (formatIds.isNotEmpty) count += formatIds.length;
     if (scanlateIds.isNotEmpty) count++;
@@ -42,7 +48,9 @@ class CatalogFilter {
     List<int>? typeIds,
     List<int>? statusIds,
     List<int>? genreIds,
+    List<int>? excludedGenreIds,
     List<int>? tagIds,
+    List<int>? excludedTagIds,
     List<int>? ageIds,
     List<int>? formatIds,
     List<int>? scanlateIds,
@@ -52,7 +60,9 @@ class CatalogFilter {
       typeIds: typeIds ?? this.typeIds,
       statusIds: statusIds ?? this.statusIds,
       genreIds: genreIds ?? this.genreIds,
+      excludedGenreIds: excludedGenreIds ?? this.excludedGenreIds,
       tagIds: tagIds ?? this.tagIds,
+      excludedTagIds: excludedTagIds ?? this.excludedTagIds,
       ageIds: ageIds ?? this.ageIds,
       formatIds: formatIds ?? this.formatIds,
       scanlateIds: scanlateIds ?? this.scanlateIds,

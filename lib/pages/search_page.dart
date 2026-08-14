@@ -6,6 +6,7 @@ import 'package:mangaloader/widgets/manga_card.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mangaloader/src/rust/api/mangalib_client.dart' as rust_api;
 import 'package:mangaloader/src/rust/api/models.dart';
+import 'package:mangaloader/providers/settings_provider.dart';
 
 class SearchPage extends ConsumerStatefulWidget {
   const SearchPage({super.key});
@@ -88,6 +89,11 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                       fillColor: const Color(0xFF2C2C2C),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                     ),
+                    onSubmitted: (val) {
+                      if (val.trim().isNotEmpty) {
+                        ref.read(searchHistoryProvider.notifier).addQuery(val);
+                      }
+                    },
                     onChanged: (val) {
                       setState(() {});
                       ref.read(searchProvider.notifier).search(val);
@@ -122,6 +128,53 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                 ),
               ],
             ),
+          ),
+
+          // Search History Chips (visible when search bar has no text)
+          Builder(
+            builder: (context) {
+              final history = ref.watch(searchHistoryProvider);
+              if (history.isEmpty || _searchController.text.isNotEmpty) {
+                return const SizedBox.shrink();
+              }
+              return Container(
+                height: 34,
+                margin: const EdgeInsets.only(bottom: 6),
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.only(right: 6),
+                      child: Icon(Icons.history_rounded, size: 16, color: Color(0xFF8A897C)),
+                    ),
+                    ...history.map((h) => Container(
+                      margin: const EdgeInsets.only(right: 6),
+                      child: InputChip(
+                        label: Text(h, style: const TextStyle(fontSize: 11, color: Color(0xFFD2D7DF))),
+                        backgroundColor: const Color(0xFF2C2C2C),
+                        side: const BorderSide(color: Color(0xFF383838)),
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        visualDensity: VisualDensity.compact,
+                        onPressed: () {
+                          _searchController.text = h;
+                          ref.read(searchProvider.notifier).search(h);
+                          ref.read(searchHistoryProvider.notifier).addQuery(h);
+                          setState(() {});
+                        },
+                        onDeleted: () => ref.read(searchHistoryProvider.notifier).removeQuery(h),
+                        deleteIconColor: const Color(0xFFBDBBB0),
+                      ),
+                    )),
+                    IconButton(
+                      icon: const Icon(Icons.delete_sweep_rounded, size: 16, color: Color(0xFFBDBBB0)),
+                      tooltip: isRu ? 'Очистить историю' : 'Clear history',
+                      onPressed: () => ref.read(searchHistoryProvider.notifier).clearAll(),
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
 
           // Horizontal Sort and Quick Type Filter Bar (shown when not searching by text)
@@ -386,7 +439,9 @@ class _FilterBottomSheetContentState extends State<_FilterBottomSheetContent> {
   late List<int> _typeIds;
   late List<int> _statusIds;
   late List<int> _genreIds;
+  late List<int> _excludedGenreIds;
   late List<int> _tagIds;
+  late List<int> _excludedTagIds;
   late List<int> _ageIds;
   late List<int> _formatIds;
   late List<int> _scanlateIds;
@@ -401,7 +456,9 @@ class _FilterBottomSheetContentState extends State<_FilterBottomSheetContent> {
     _typeIds = List.from(widget.initialFilter.typeIds);
     _statusIds = List.from(widget.initialFilter.statusIds);
     _genreIds = List.from(widget.initialFilter.genreIds);
+    _excludedGenreIds = List.from(widget.initialFilter.excludedGenreIds);
     _tagIds = List.from(widget.initialFilter.tagIds);
+    _excludedTagIds = List.from(widget.initialFilter.excludedTagIds);
     _ageIds = List.from(widget.initialFilter.ageIds);
     _formatIds = List.from(widget.initialFilter.formatIds);
     _scanlateIds = List.from(widget.initialFilter.scanlateIds);
@@ -423,7 +480,9 @@ class _FilterBottomSheetContentState extends State<_FilterBottomSheetContent> {
       _typeIds.clear();
       _statusIds.clear();
       _genreIds.clear();
+      _excludedGenreIds.clear();
       _tagIds.clear();
+      _excludedTagIds.clear();
       _ageIds.clear();
       _formatIds.clear();
       _scanlateIds.clear();
@@ -566,10 +625,10 @@ class _FilterBottomSheetContentState extends State<_FilterBottomSheetContent> {
                           ],
 
                           // Genres with search
-                          _buildSectionTitle(isRu ? 'Жанры (${_genreIds.length} выбр.)' : 'Genres (${_genreIds.length} sel.)'),
+                          _buildSectionTitle(isRu ? 'Включить жанры (${_genreIds.length} выбр.)' : 'Include Genres (${_genreIds.length} sel.)'),
                           TextField(
                             decoration: InputDecoration(
-                              hintText: isRu ? 'Фильтр жанров...' : 'Search genres...',
+                              hintText: isRu ? 'Поиск жанров...' : 'Search genres...',
                               prefixIcon: const Icon(Icons.search_rounded, size: 16),
                               isDense: true,
                               contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -583,7 +642,22 @@ class _FilterBottomSheetContentState extends State<_FilterBottomSheetContent> {
                           Wrap(
                             spacing: 6,
                             runSpacing: 6,
-                            children: filteredGenres.map((g) => _buildFilterChip(g.name, _genreIds.contains(g.id), () => _toggleId(_genreIds, g.id))).toList(),
+                            children: filteredGenres.map((g) => _buildFilterChip(g.name, _genreIds.contains(g.id), () {
+                              _excludedGenreIds.remove(g.id);
+                              _toggleId(_genreIds, g.id);
+                            })).toList(),
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Exclude Genres
+                          _buildSectionTitle(isRu ? 'Исключить жанры (${_excludedGenreIds.length} искл.)' : 'Exclude Genres (${_excludedGenreIds.length} excl.)'),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            children: filteredGenres.map((g) => _buildExcludeFilterChip(g.name, _excludedGenreIds.contains(g.id), () {
+                              _genreIds.remove(g.id);
+                              _toggleId(_excludedGenreIds, g.id);
+                            })).toList(),
                           ),
                           const SizedBox(height: 20),
 
@@ -591,7 +665,7 @@ class _FilterBottomSheetContentState extends State<_FilterBottomSheetContent> {
                           _buildSectionTitle(isRu ? 'Теги (${_tagIds.length} выбр.)' : 'Tags (${_tagIds.length} sel.)'),
                           TextField(
                             decoration: InputDecoration(
-                              hintText: isRu ? 'Фильтр тегов...' : 'Search tags...',
+                              hintText: isRu ? 'Поиск тегов...' : 'Search tags...',
                               prefixIcon: const Icon(Icons.search_rounded, size: 16),
                               isDense: true,
                               contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -634,7 +708,9 @@ class _FilterBottomSheetContentState extends State<_FilterBottomSheetContent> {
                       typeIds: _typeIds,
                       statusIds: _statusIds,
                       genreIds: _genreIds,
+                      excludedGenreIds: _excludedGenreIds,
                       tagIds: _tagIds,
+                      excludedTagIds: _excludedTagIds,
                       ageIds: _ageIds,
                       formatIds: _formatIds,
                       scanlateIds: _scanlateIds,
@@ -699,6 +775,29 @@ class _FilterBottomSheetContentState extends State<_FilterBottomSheetContent> {
       ),
       side: BorderSide(
         color: isSelected ? const Color(0xFF8A897C) : const Color(0xFF3E3E3E),
+      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      showCheckmark: false,
+      onSelected: (_) => onTap(),
+    );
+  }
+
+  Widget _buildExcludeFilterChip(String label, bool isExcluded, VoidCallback onTap) {
+    return FilterChip(
+      label: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11,
+          decoration: isExcluded ? TextDecoration.lineThrough : null,
+          color: isExcluded ? Colors.redAccent : const Color(0xFFD2D7DF),
+          fontWeight: isExcluded ? FontWeight.bold : FontWeight.normal,
+        ),
+      ),
+      selected: isExcluded,
+      selectedColor: Colors.red.shade900.withValues(alpha: 0.35),
+      backgroundColor: const Color(0xFF2C2C2C),
+      side: BorderSide(
+        color: isExcluded ? Colors.redAccent : const Color(0xFF3E3E3E),
       ),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       showCheckmark: false,

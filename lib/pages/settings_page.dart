@@ -278,6 +278,19 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       }
                     },
                   ),
+                  const SizedBox(height: 12),
+                  const Divider(height: 1),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    secondary: const Icon(Icons.brightness_2_rounded, color: Color(0xFF8A897C)),
+                    title: Text(isRu ? 'Режим Pure AMOLED' : 'Pure AMOLED Black'),
+                    subtitle: Text(
+                      isRu ? 'Глубокий черный фон для OLED экранов' : 'Pitch black background for OLED screens',
+                      style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
+                    ),
+                    value: ref.watch(amoledModeProvider),
+                    onChanged: (val) => ref.read(amoledModeProvider.notifier).state = val,
+                  ),
                 ],
               ),
             ),

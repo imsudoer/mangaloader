@@ -94,6 +94,8 @@ class _ReaderPageState extends State<ReaderPage> {
   // Next chapter info for prefetching & seamless transition
   Chapter? _nextChapter;
   List<Chapter> _allChapters = [];
+  bool _isNextChapterPrefetched = false;
+  int _activePointers = 0;
 
   @override
   void initState() {
@@ -148,6 +150,15 @@ class _ReaderPageState extends State<ReaderPage> {
       _currentPageIndex = currentVisible;
       if (mounted) setState(() {});
       _scheduleSaveProgress();
+    }
+
+    // Smart Next Chapter Preload (trigger when near end of chapter)
+    if (_nextChapter != null && !_isNextChapterPrefetched) {
+      final maxExtent = _scrollController.position.maxScrollExtent;
+      if (maxExtent > 0 && (offset >= maxExtent * 0.75 || maxExtent - offset < 2500)) {
+        _isNextChapterPrefetched = true;
+        _prefetchNextChapter(_nextChapter!);
+      }
     }
   }
 
@@ -422,6 +433,11 @@ class _ReaderPageState extends State<ReaderPage> {
     setState(() => _currentPageIndex = index);
     if (!_isDownloaded) _preloadImages(index);
     _scheduleSaveProgress();
+
+    if (_nextChapter != null && !_isNextChapterPrefetched && index >= _totalPages - 3) {
+      _isNextChapterPrefetched = true;
+      _prefetchNextChapter(_nextChapter!);
+    }
   }
 
   void _scheduleSaveProgress() {
@@ -1063,6 +1079,9 @@ class _ReaderPageState extends State<ReaderPage> {
       child: Scaffold(
         backgroundColor: _resolvedBgColor,
         body: Listener(
+          onPointerDown: (_) => setState(() => _activePointers++),
+          onPointerUp: (_) => setState(() => _activePointers = (_activePointers - 1).clamp(0, 10)),
+          onPointerCancel: (_) => setState(() => _activePointers = (_activePointers - 1).clamp(0, 10)),
           onPointerPanZoomUpdate: _handlePointerPanZoomUpdate,
           child: GestureDetector(
             onTapUp: _handleTap,
@@ -1074,12 +1093,12 @@ class _ReaderPageState extends State<ReaderPage> {
                     children: [
                       const Icon(Icons.menu_book_rounded, color: Colors.grey, size: 48),
                       const SizedBox(height: 16),
-                      Text("No pages found.", style: TextStyle(color: _bgColor == ReadBgColor.white ? Colors.black : Colors.white)),
+                      Text(isRu ? 'Страницы не найдены.' : 'No pages found.', style: TextStyle(color: _bgColor == ReadBgColor.white ? Colors.black : Colors.white)),
                       const SizedBox(height: 24),
                       ElevatedButton.icon(
                         onPressed: () => context.pop(), 
                         icon: const Icon(Icons.arrow_back),
-                        label: const Text('Go Back'),
+                        label: Text(isRu ? 'Назад' : 'Go Back'),
                       ),
                     ],
                   ))
@@ -1089,26 +1108,13 @@ class _ReaderPageState extends State<ReaderPage> {
                     thumbVisibility: true,
                     child: ListView.builder(
                       controller: _scrollController,
-                      physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-                      itemCount: _totalPages + (_nextChapter != null ? 1 : 0),
+                      physics: _activePointers >= 2 
+                        ? const NeverScrollableScrollPhysics() 
+                        : const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+                      itemCount: _totalPages + 1,
                       itemBuilder: (context, index) {
                         if (index == _totalPages) {
-                          return Padding(
-                            padding: const EdgeInsets.all(24.0),
-                            child: ElevatedButton.icon(
-                              onPressed: () {
-                                final branchQ = _nextChapter!.branchId != null ? "?branchId=${_nextChapter!.branchId}" : "";
-                                context.pushReplacement('/read/${widget.slugUrl}/${_nextChapter!.volume}/${_nextChapter!.number}$branchQ');
-                              },
-                              icon: const Icon(Icons.arrow_forward_rounded),
-                              label: Text('Следующая глава: Том ${_nextChapter!.volume} Гл ${_nextChapter!.number}'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF8A897C),
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                              ),
-                            ),
-                          );
+                          return _buildNextChapterSwipeCard(isRu);
                         }
                         return _buildVerticalImage(index);
                       },
@@ -1120,7 +1126,9 @@ class _ReaderPageState extends State<ReaderPage> {
                     itemCount: _totalPages,
                     reverse: _readMode == ReadMode.rtl,
                     onPageChanged: _onPageChanged,
-                    physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+                    physics: _activePointers >= 2 
+                      ? const NeverScrollableScrollPhysics() 
+                      : const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
                     itemBuilder: (context, index) => _buildHorizontalImage(index),
                   ),
                   
@@ -1516,6 +1524,99 @@ class _ReaderPageState extends State<ReaderPage> {
           },
         );
       },
+    );
+  }
+
+  Widget _buildNextChapterSwipeCard(bool isRu) {
+    if (_nextChapter == null) {
+      return Container(
+        margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 36),
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: const Color(0xFF242424),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFF383838)),
+        ),
+        child: Column(
+          children: [
+            const Icon(Icons.check_circle_outline_rounded, size: 40, color: Color(0xFF8A897C)),
+            const SizedBox(height: 12),
+            Text(
+              isRu ? 'Вы прочитали последнюю главу!' : 'You reached the latest chapter!',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              isRu ? 'Ожидайте выхода новых глав от переводчиков' : 'Stay tuned for upcoming releases',
+              style: const TextStyle(fontSize: 12, color: Color(0xFFBDBBB0)),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFF242424),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF8A897C).withValues(alpha: 0.5)),
+        boxShadow: const [
+          BoxShadow(color: Colors.black38, blurRadius: 12, offset: Offset(0, 4)),
+        ],
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.auto_stories_rounded, color: Color(0xFF8A897C), size: 20),
+              const SizedBox(width: 8),
+              Text(
+                isRu ? 'Глава завершена' : 'Chapter Complete',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white70),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Text(
+            isRu 
+              ? 'Следующая: Том ${_nextChapter!.volume} Глава ${_nextChapter!.number}' 
+              : 'Next: Volume ${_nextChapter!.volume} Chapter ${_nextChapter!.number}',
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
+            textAlign: TextAlign.center,
+          ),
+          if (_nextChapter!.name != null && _nextChapter!.name!.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              _nextChapter!.name!,
+              style: const TextStyle(fontSize: 12, color: Color(0xFFBDBBB0)),
+              textAlign: TextAlign.center,
+            ),
+          ],
+          const SizedBox(height: 18),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF8A897C),
+              foregroundColor: Colors.white,
+              minimumSize: const Size.fromHeight(46),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            onPressed: () {
+              final branchQ = _nextChapter!.branchId != null ? "?branchId=${_nextChapter!.branchId}" : "";
+              context.pushReplacement('/read/${widget.slugUrl}/${_nextChapter!.volume}/${_nextChapter!.number}$branchQ');
+            },
+            icon: const Icon(Icons.arrow_forward_rounded, size: 20),
+            label: Text(
+              isRu ? 'Читать следующую главу' : 'Read Next Chapter',
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

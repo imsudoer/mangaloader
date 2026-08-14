@@ -60,12 +60,13 @@ class MangaLoaderApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final themeMode = ref.watch(themeModeProvider);
+    final isAmoled = ref.watch(amoledModeProvider);
     final locale = ref.watch(localeProvider);
 
     return MaterialApp.router(
       title: 'Manga Loader',
       theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
+      darkTheme: isAmoled ? AppTheme.amoledTheme : AppTheme.darkTheme,
       themeMode: themeMode,
       locale: locale,
       localizationsDelegates: const [

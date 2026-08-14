@@ -350,4 +350,117 @@ class AppTheme {
       ),
     );
   }
+
+  static ThemeData get amoledTheme {
+    final textTheme = _buildTextTheme(_darkOnSurface, _darkOnSurfaceVariant);
+    return ThemeData(
+      useMaterial3: true,
+      brightness: Brightness.dark,
+      colorScheme: const ColorScheme.dark(
+        primary: _darkPrimary,
+        onPrimary: _darkOnPrimary,
+        primaryContainer: _darkPrimaryContainer,
+        secondary: _darkSecondary,
+        onSecondary: Color(0xFF111111),
+        secondaryContainer: Color(0xFF222222),
+        onSecondaryContainer: _darkOnSecondaryContainer,
+        tertiary: _darkTertiary,
+        onTertiary: _darkOnTertiary,
+        surface: Color(0xFF0A0A0A),
+        onSurface: _darkOnSurface,
+        onSurfaceVariant: _darkOnSurfaceVariant,
+        surfaceContainerHighest: Color(0xFF141414),
+        error: _darkError,
+      ),
+      scaffoldBackgroundColor: const Color(0xFF000000),
+      textTheme: textTheme,
+      appBarTheme: AppBarTheme(
+        backgroundColor: const Color(0xFF000000),
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        titleTextStyle: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+        iconTheme: const IconThemeData(color: _darkOnSurface, size: 22),
+      ),
+      cardTheme: CardThemeData(
+        color: const Color(0xFF0A0A0A),
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: const BorderSide(color: Color(0xFF222222), width: 1),
+        ),
+        margin: EdgeInsets.zero,
+      ),
+      chipTheme: ChipThemeData(
+        backgroundColor: const Color(0xFF181818),
+        labelStyle: textTheme.labelMedium!.copyWith(color: _darkOnSurface),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+        side: BorderSide.none,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      ),
+      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+        backgroundColor: Color(0xFF000000),
+        selectedItemColor: _darkPrimary,
+        unselectedItemColor: _darkSecondary,
+        type: BottomNavigationBarType.fixed,
+        elevation: 0,
+        selectedLabelStyle: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+        unselectedLabelStyle: TextStyle(fontSize: 11),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: const Color(0xFF121212),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFF2A2A2A), width: 1),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: _darkPrimary, width: 1.5),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        hintStyle: textTheme.bodyMedium!.copyWith(color: _darkSecondary),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: _darkPrimary,
+          foregroundColor: _darkOnPrimary,
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          textStyle: textTheme.labelLarge,
+        ),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: _darkPrimaryContainer,
+          foregroundColor: _darkOnTertiary,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      ),
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(
+          foregroundColor: _darkOnSurface,
+        ),
+      ),
+      dividerTheme: const DividerThemeData(
+        color: Color(0xFF222222),
+        thickness: 1,
+        space: 1,
+      ),
+      progressIndicatorTheme: const ProgressIndicatorThemeData(
+        color: _darkPrimary,
+        linearTrackColor: Color(0xFF1A1A1A),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: const Color(0xFF141414),
+        contentTextStyle: textTheme.bodyMedium?.copyWith(color: Colors.white),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
 }

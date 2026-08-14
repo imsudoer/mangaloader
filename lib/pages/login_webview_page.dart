@@ -17,7 +17,6 @@ class LoginWebviewPage extends ConsumerStatefulWidget {
 class _LoginWebviewPageState extends ConsumerState<LoginWebviewPage> {
   WebViewController? _webViewController;
   bool _isLoading = true;
-  String _currentUrl = 'https://mangalib.org/auth/login';
   final TextEditingController _cookieInputController = TextEditingController();
 
   @override
@@ -43,14 +42,12 @@ class _LoginWebviewPageState extends ConsumerState<LoginWebviewPage> {
           onPageStarted: (url) {
             setState(() {
               _isLoading = true;
-              _currentUrl = url;
             });
             _checkCookies();
           },
           onPageFinished: (url) {
             setState(() {
               _isLoading = false;
-              _currentUrl = url;
             });
             _checkCookies();
           },

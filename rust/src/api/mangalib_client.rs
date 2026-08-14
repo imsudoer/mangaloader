@@ -439,7 +439,10 @@ pub async fn get_manga_details(slug_url: String) -> Result<MangaDetails> {
         chapters_count: data.get("items_count").and_then(|i| i.get("uploaded")).and_then(|v| v.as_i64()).unwrap_or(0),
         format_labels,
         publisher_name: data.get("publisher").and_then(|p| p.get("name")).and_then(|v| v.as_str()).map(|s| s.to_string()),
-    })
+    };
+
+    let _ = crate::api::storage::save_manga(details.clone()).await;
+    Ok(details)
 }
 
 pub async fn get_chapters(slug_url: String) -> Result<Vec<Chapter>> {

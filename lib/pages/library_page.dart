@@ -24,7 +24,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
   final TextEditingController _searchController = TextEditingController();
   bool _isSearchOpen = false;
   bool _isGridView = true;
-  LibrarySortMode _sortMode = LibrarySortMode.recent;
+  final LibrarySortMode _sortMode = LibrarySortMode.recent;
 
   final List<Map<String, dynamic>> _categoryTabs = [
     {'type': null, 'labelRu': 'Все', 'labelEn': 'All', 'icon': Icons.grid_view_rounded},

@@ -19,6 +19,9 @@ class ThemeModeNotifier extends StateNotifier<ThemeMode> {
   }
 }
 
+// Pure AMOLED mode provider
+final amoledModeProvider = StateProvider<bool>((ref) => false);
+
 // Locale provider: null = system default, Locale('ru') = Russian, Locale('en') = English
 final localeProvider = StateNotifierProvider<LocaleNotifier, Locale?>(
   (ref) => LocaleNotifier(),
@@ -35,6 +38,34 @@ class LocaleNotifier extends StateNotifier<Locale?> {
 // Auto update check providers
 final autoCheckUpdatesProvider = StateProvider<bool>((ref) => true);
 final availableUpdateProvider = StateProvider<AppUpdateInfo?>((ref) => null);
+
+// Search History Provider
+final searchHistoryProvider = StateNotifierProvider<SearchHistoryNotifier, List<String>>(
+  (ref) => SearchHistoryNotifier(),
+);
+
+class SearchHistoryNotifier extends StateNotifier<List<String>> {
+  SearchHistoryNotifier() : super(const []);
+
+  void addQuery(String query) {
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) return;
+    final updated = [trimmed, ...state.where((q) => q.toLowerCase() != trimmed.toLowerCase())];
+    if (updated.length > 12) {
+      state = updated.sublist(0, 12);
+    } else {
+      state = updated;
+    }
+  }
+
+  void removeQuery(String query) {
+    state = state.where((q) => q != query).toList();
+  }
+
+  void clearAll() {
+    state = const [];
+  }
+}
 
 // Cookies provider
 final cookiesProvider = StateProvider<String>((ref) => '');
