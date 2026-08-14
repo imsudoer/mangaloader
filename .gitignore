@@ -2,6 +2,7 @@
 *.class
 *.log
 *.pyc
+*.py
 *.swp
 .DS_Store
 .atom/
@@ -12,16 +13,20 @@
 .swiftpm/
 migrate_working_dir/
 
-# IntelliJ related
+# Temporary and test scripts
+test_api.rs
+test_*.rs
+*_test.rs
+scratch/
+release_*/
+test_driver/
+
+# IntelliJ / IDE related
 *.iml
 *.ipr
 *.iws
 .idea/
-
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
-#.vscode/
+.vscode/
 
 # Flutter/Dart/Pub related
 **/doc/api/
@@ -33,31 +38,32 @@ migrate_working_dir/
 /build/
 /coverage/
 
-# Symbolication related
+# Symbolication / Obfuscation
 app.*.symbols
-
-# Obfuscation related
 app.*.map.json
 
-# Android Studio will place build artifacts here
+# Android Studio outputs
 /android/app/debug
 /android/app/profile
 /android/app/release
 
-# Widget Preview related
+# Widget Preview
 .widget_preview/
 
-# Rust related
+# Rust build artifacts
 /rust/target/
 /target/
 **/*.rs.bk
+Cargo.lock.bak
 
-# Compiled outputs and archives
+# Compiled binaries and archives
 *.apk
 *.aab
 *.zip
 *.tar.gz
 *.exe
 *.dll
+*.so
+*.dylib
 *.pdb
 *.obj
