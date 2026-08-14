@@ -20,6 +20,14 @@ class ReleaseAsset {
       size: json['size'] as int? ?? 0,
     );
   }
+
+  String get formattedSize {
+    if (size <= 0) return '';
+    if (size >= 1024 * 1024) {
+      return '${(size / (1024 * 1024)).toStringAsFixed(1)} MB';
+    }
+    return '${(size / 1024).toStringAsFixed(0)} KB';
+  }
 }
 
 class AppUpdateInfo {
@@ -41,8 +49,47 @@ class AppUpdateInfo {
     required this.hasUpdate,
   });
 
+  ReleaseAsset? getBestAsset(String archInfo) {
+    if (assets.isEmpty) return null;
+
+    if (Platform.isAndroid) {
+      final archLower = archInfo.toLowerCase();
+      if (archLower.contains('aarch64') || archLower.contains('arm64') || archLower.contains('v8a')) {
+        final match = assets.where((a) => a.name.toLowerCase().contains('arm64') && a.name.endsWith('.apk')).firstOrNull;
+        if (match != null) return match;
+      } else if (archLower.contains('arm') && !archLower.contains('64')) {
+        final match = assets.where((a) => (a.name.toLowerCase().contains('armeabi') || a.name.toLowerCase().contains('armv7')) && a.name.endsWith('.apk')).firstOrNull;
+        if (match != null) return match;
+      } else if (archLower.contains('x86_64')) {
+        final match = assets.where((a) => a.name.toLowerCase().contains('x86_64') && a.name.endsWith('.apk')).firstOrNull;
+        if (match != null) return match;
+      }
+      return assets.where((a) => a.name.endsWith('.apk')).firstOrNull ?? assets.first;
+    } else if (Platform.isWindows) {
+      final match = assets.where((a) => (a.name.toLowerCase().contains('windows') || a.name.toLowerCase().contains('win')) && (a.name.endsWith('.zip') || a.name.endsWith('.exe'))).firstOrNull;
+      if (match != null) return match;
+      return assets.where((a) => a.name.endsWith('.zip')).firstOrNull ?? assets.first;
+    } else if (Platform.isLinux) {
+      final match = assets.where((a) => a.name.endsWith('.tar.gz') || a.name.endsWith('.AppImage') || a.name.endsWith('.deb')).firstOrNull;
+      if (match != null) return match;
+    }
+    return assets.first;
+  }
+
+  String get targetArchitectureLabel {
+    if (Platform.isAndroid) {
+      return 'Android APK';
+    } else if (Platform.isWindows) {
+      return 'Windows x64';
+    } else if (Platform.isLinux) {
+      return 'Linux';
+    } else if (Platform.isMacOS) {
+      return 'macOS';
+    }
+    return 'Universal';
+  }
+
   String? get androidApkUrl {
-    // Prefer arm64-v8a or universal APK
     for (final a in assets) {
       if (a.name.contains('arm64') && a.name.endsWith('.apk')) return a.downloadUrl;
     }
@@ -63,7 +110,7 @@ class AppUpdateInfo {
 }
 
 class UpdateChecker {
-  static const String currentVersion = '1.4.2';
+  static const String currentVersion = '1.4.3';
   static const String defaultRepo = 'imsudoer/mangaloader';
 
   static Future<AppUpdateInfo?> checkForUpdates({String repo = defaultRepo}) async {

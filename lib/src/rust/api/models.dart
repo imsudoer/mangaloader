@@ -465,6 +465,8 @@ class LibraryEntry {
   final String? lastReadVolume;
   final PlatformInt64 unreadCount;
   final String ratingAverage;
+  final PlatformInt64 totalChapters;
+  final PlatformInt64 readChapters;
 
   const LibraryEntry({
     required this.mangaId,
@@ -478,6 +480,8 @@ class LibraryEntry {
     this.lastReadVolume,
     required this.unreadCount,
     required this.ratingAverage,
+    required this.totalChapters,
+    required this.readChapters,
   });
 
   @override
@@ -492,7 +496,9 @@ class LibraryEntry {
       lastReadChapter.hashCode ^
       lastReadVolume.hashCode ^
       unreadCount.hashCode ^
-      ratingAverage.hashCode;
+      ratingAverage.hashCode ^
+      totalChapters.hashCode ^
+      readChapters.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -509,7 +515,9 @@ class LibraryEntry {
           lastReadChapter == other.lastReadChapter &&
           lastReadVolume == other.lastReadVolume &&
           unreadCount == other.unreadCount &&
-          ratingAverage == other.ratingAverage;
+          ratingAverage == other.ratingAverage &&
+          totalChapters == other.totalChapters &&
+          readChapters == other.readChapters;
 }
 
 enum ListType {

@@ -8,8 +8,9 @@ import 'package:mangaloader/src/rust/api/storage.dart' as rust_storage;
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
-import 'package:url_launcher/url_launcher.dart';
 import 'package:mangaloader/services/update_checker.dart';
+import 'package:mangaloader/services/update_downloader.dart';
+import 'package:mangaloader/widgets/update_bottom_sheet.dart';
 
 class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key});
@@ -52,7 +53,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         return;
       }
 
-      _showUpdateDialog(context, updateInfo, isRu);
+      ref.read(availableUpdateProvider.notifier).state = updateInfo;
+      _showUpdateSheet(context, updateInfo, isRu);
     } catch (e) {
       if (mounted) {
         setState(() => _isCheckingUpdates = false);
@@ -63,97 +65,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     }
   }
 
-  void _showUpdateDialog(BuildContext context, AppUpdateInfo update, bool isRu) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF2C2C2C),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            const Icon(Icons.system_update_rounded, color: Color(0xFF8A897C)),
-            const SizedBox(width: 10),
-            Text(isRu ? 'Доступно обновление!' : 'Update Available!'),
-          ],
-        ),
-        content: SizedBox(
-          width: 450,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF8A897C).withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xFF8A897C)),
-                ),
-                child: Text(
-                  '${isRu ? "Новая версия:" : "New version:"} ${update.tagName}',
-                  style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
-                ),
-              ),
-              const SizedBox(height: 12),
-              if (update.changelog.isNotEmpty) ...[
-                Text(
-                  isRu ? 'Что нового:' : 'Changelog:',
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFFD2D7DF)),
-                ),
-                const SizedBox(height: 6),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 180),
-                  child: SingleChildScrollView(
-                    child: Text(
-                      update.changelog,
-                      style: const TextStyle(fontSize: 12, color: Color(0xFFBDBBB0), height: 1.4),
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text(isRu ? 'Позже' : 'Later', style: const TextStyle(color: Color(0xFFBDBBB0))),
-          ),
-          if (Platform.isAndroid && update.androidApkUrl != null)
-            FilledButton.icon(
-              style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF8A897C),
-                foregroundColor: Colors.white,
-              ),
-              onPressed: () async {
-                Navigator.pop(ctx);
-                final uri = Uri.parse(update.androidApkUrl!);
-                if (await canLaunchUrl(uri)) {
-                  await launchUrl(uri, mode: LaunchMode.externalApplication);
-                }
-              },
-              icon: const Icon(Icons.download_rounded, size: 18),
-              label: Text(isRu ? 'Скачать APK' : 'Download APK'),
-            ),
-          FilledButton.icon(
-            style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFF8A897C),
-              foregroundColor: Colors.white,
-            ),
-            onPressed: () async {
-              Navigator.pop(ctx);
-              final uri = Uri.parse(update.releaseUrl);
-              if (await canLaunchUrl(uri)) {
-                await launchUrl(uri, mode: LaunchMode.externalApplication);
-              }
-            },
-            icon: const Icon(Icons.open_in_browser_rounded, size: 18),
-            label: Text(isRu ? 'Открыть релиз' : 'Open Release'),
-          ),
-        ],
-      ),
-    );
+  void _showUpdateSheet(BuildContext context, AppUpdateInfo update, bool isRu) {
+    AppUpdateBottomSheet.show(context, ref, update, isRu);
   }
+
 
   Future<void> _exportBackup(bool isRu) async {
     try {
@@ -212,6 +127,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final isRu = (selectedLocale?.languageCode ?? Localizations.localeOf(context).languageCode) == 'ru';
     final currentTheme = ref.watch(themeModeProvider);
     final currentLocaleCode = selectedLocale == null ? 'system' : selectedLocale.languageCode;
+    final availableUpdate = ref.watch(availableUpdateProvider);
+    final downloadState = ref.watch(updateDownloadStateProvider);
 
     return Scaffold(
       appBar: AppBar(title: Text(isRu ? 'Настройки' : 'Settings')),
@@ -510,29 +427,108 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              isRu ? 'Версия: v${UpdateChecker.currentVersion}' : 'Version: v${UpdateChecker.currentVersion}',
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white),
+                            Row(
+                              children: [
+                                Text(
+                                  isRu ? 'Версия: v${UpdateChecker.currentVersion}' : 'Version: v${UpdateChecker.currentVersion}',
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white),
+                                ),
+                                if (availableUpdate != null && availableUpdate.hasUpdate) ...[
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF8A897C),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      availableUpdate.tagName,
+                                      style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Colors.white),
+                                    ),
+                                  ),
+                                ],
+                              ],
                             ),
                             const SizedBox(height: 4),
-                            Text(
-                              isRu ? 'Проверка новых релизов на GitHub' : 'Check for new releases on GitHub',
-                              style: const TextStyle(color: Color(0xFFBDBBB0), fontSize: 12),
-                            ),
+                            if (downloadState.status == UpdateDownloadStatus.downloading) ...[
+                              Text(
+                                '${isRu ? "Загрузка:" : "Downloading:"} ${(downloadState.progress * 100).toStringAsFixed(0)}%',
+                                style: const TextStyle(color: Color(0xFF8A897C), fontSize: 12, fontWeight: FontWeight.bold),
+                              ),
+                              const SizedBox(height: 6),
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(4),
+                                child: LinearProgressIndicator(
+                                  value: downloadState.progress > 0 ? downloadState.progress : null,
+                                  backgroundColor: const Color(0xFF353535),
+                                  valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF8A897C)),
+                                  minHeight: 4,
+                                ),
+                              ),
+                            ] else if (downloadState.status == UpdateDownloadStatus.completed) ...[
+                              Text(
+                                isRu ? 'Обновление готово к установке' : 'Update ready to install',
+                                style: const TextStyle(color: Colors.greenAccent, fontSize: 12, fontWeight: FontWeight.bold),
+                              ),
+                            ] else ...[
+                              Text(
+                                isRu ? 'Проверка новых релизов на GitHub' : 'Check for new releases on GitHub',
+                                style: const TextStyle(color: Color(0xFFBDBBB0), fontSize: 12),
+                              ),
+                            ],
                           ],
                         ),
                       ),
                       const SizedBox(width: 12),
-                      FilledButton.icon(
-                        style: FilledButton.styleFrom(
-                          backgroundColor: const Color(0xFF8A897C),
-                          foregroundColor: Colors.white,
-                        ),
-                        onPressed: _isCheckingUpdates ? null : () => _checkUpdates(isRu),
-                        icon: _isCheckingUpdates 
-                          ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                          : const Icon(Icons.refresh_rounded, size: 18),
-                        label: Text(isRu ? 'Проверить' : 'Check'),
+                      Builder(
+                        builder: (context) {
+                          if (downloadState.status == UpdateDownloadStatus.completed && downloadState.downloadedFile != null) {
+                            return FilledButton.icon(
+                              style: FilledButton.styleFrom(
+                                backgroundColor: Colors.green.shade800,
+                                foregroundColor: Colors.white,
+                              ),
+                              onPressed: () => AppUpdateDownloader.installOrOpen(downloadState.downloadedFile!),
+                              icon: const Icon(Icons.install_mobile_rounded, size: 18),
+                              label: Text(isRu ? 'Установить' : 'Install'),
+                            );
+                          }
+                          if (downloadState.status == UpdateDownloadStatus.downloading) {
+                            return OutlinedButton(
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.redAccent,
+                                side: const BorderSide(color: Colors.redAccent),
+                              ),
+                              onPressed: () {
+                                AppUpdateDownloader.cancel();
+                                ref.read(updateDownloadStateProvider.notifier).state = const UpdateDownloadState();
+                              },
+                              child: Text(isRu ? 'Отмена' : 'Cancel'),
+                            );
+                          }
+                          if (availableUpdate != null && availableUpdate.hasUpdate) {
+                            return FilledButton.icon(
+                              style: FilledButton.styleFrom(
+                                backgroundColor: const Color(0xFF8A897C),
+                                foregroundColor: Colors.white,
+                              ),
+                              onPressed: () => _showUpdateSheet(context, availableUpdate, isRu),
+                              icon: const Icon(Icons.system_update_rounded, size: 18),
+                              label: Text(isRu ? 'Обновить' : 'Update'),
+                            );
+                          }
+                          return FilledButton.icon(
+                            style: FilledButton.styleFrom(
+                              backgroundColor: const Color(0xFF8A897C),
+                              foregroundColor: Colors.white,
+                            ),
+                            onPressed: _isCheckingUpdates ? null : () => _checkUpdates(isRu),
+                            icon: _isCheckingUpdates 
+                              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                              : const Icon(Icons.refresh_rounded, size: 18),
+                            label: Text(isRu ? 'Проверить' : 'Check'),
+                          );
+                        },
                       ),
                     ],
                   ),

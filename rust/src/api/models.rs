@@ -208,6 +208,8 @@ pub struct LibraryEntry {
     pub last_read_volume: Option<String>,
     pub unread_count: i64,
     pub rating_average: String,
+    pub total_chapters: i64,
+    pub read_chapters: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

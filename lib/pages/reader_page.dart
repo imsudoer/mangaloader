@@ -199,6 +199,18 @@ class _ReaderPageState extends State<ReaderPage> {
     _batteryStateSub?.cancel();
     _stopAutoScroll();
     _saveTimer?.cancel();
+    if (_mangaId > 0) {
+      rust_storage.saveReadingProgress(
+        progress: ReadingPosition(
+          mangaId: _mangaId,
+          chapterVolume: widget.volume,
+          chapterNumber: widget.number,
+          pageIndex: _currentPageIndex,
+          scrollPosition: 0.0,
+          lastReadAt: DateTime.now().toIso8601String(),
+        ),
+      );
+    }
     _pageController.dispose();
     _scrollController.dispose();
     _focusNode.dispose();
@@ -447,6 +459,12 @@ class _ReaderPageState extends State<ReaderPage> {
         final cached = await rust_storage.getCachedManga(slugUrl: widget.slugUrl);
         if (cached != null) {
           _mangaId = cached.id;
+        } else {
+          try {
+            final remote = await rust_api.getMangaDetails(slugUrl: widget.slugUrl);
+            _mangaId = remote.id;
+            await rust_storage.saveManga(manga: remote);
+          } catch (_) {}
         }
       }
       if (_mangaId == 0) return;
@@ -459,7 +477,7 @@ class _ReaderPageState extends State<ReaderPage> {
         }
       } catch (_) {}
 
-      rust_storage.saveReadingProgress(
+      await rust_storage.saveReadingProgress(
         progress: ReadingPosition(
           mangaId: _mangaId,
           chapterVolume: widget.volume,

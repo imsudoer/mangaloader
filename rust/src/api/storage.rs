@@ -237,7 +237,9 @@ pub async fn get_list(list_type: String) -> Result<Vec<LibraryEntry>> {
     let conn = guard.as_ref().unwrap();
 
     let mut stmt = conn.prepare(
-        "SELECT m.id, m.slug_url, m.name, m.rus_name, m.cover_url, m.rating_average, ul.list_type, ul.added_at, rp.chapter_number, rp.chapter_volume, 0 as unread_count 
+        "SELECT m.id, m.slug_url, m.name, m.rus_name, m.cover_url, m.rating_average, m.chapters_count,
+                ul.list_type, ul.added_at, rp.chapter_number, rp.chapter_volume, 0 as unread_count,
+                COALESCE((SELECT COUNT(1) FROM chapter_history ch WHERE ch.manga_id = m.id AND ch.is_completed = 1), 0) as read_chapters_count
          FROM user_lists ul
          JOIN manga m ON m.id = ul.manga_id
          LEFT JOIN reading_progress rp ON m.id = rp.manga_id
@@ -261,6 +263,8 @@ pub async fn get_list(list_type: String) -> Result<Vec<LibraryEntry>> {
             last_read_volume: row.get("chapter_volume")?,
             unread_count: row.get("unread_count")?,
             rating_average: row.get("rating_average")?,
+            total_chapters: row.get("chapters_count").unwrap_or(0),
+            read_chapters: row.get("read_chapters_count").unwrap_or(0),
         })
     })?;
 
@@ -287,6 +291,21 @@ pub async fn save_reading_progress(progress: ReadingPosition) -> Result<()> {
          VALUES (?1, ?2, ?3, ?4, ?5, datetime('now'))",
         params![progress.manga_id, progress.chapter_volume, progress.chapter_number, progress.page_index, progress.scroll_position],
     )?;
+
+    // Auto-enroll into user_lists if not already present
+    let has_list: bool = conn.query_row(
+        "SELECT COUNT(1) FROM user_lists WHERE manga_id = ?1",
+        params![progress.manga_id],
+        |r| r.get::<_, i32>(0),
+    ).map(|c| c > 0).unwrap_or(false);
+
+    if !has_list {
+        let _ = conn.execute(
+            "INSERT OR IGNORE INTO user_lists (manga_id, list_type, added_at) VALUES (?1, 'reading', datetime('now'))",
+            params![progress.manga_id],
+        );
+    }
+
     Ok(())
 }
 
@@ -508,7 +527,9 @@ pub async fn get_all_library_manga() -> Result<Vec<LibraryEntry>> {
     let conn = guard.as_ref().unwrap();
     
     let mut stmt = conn.prepare(
-        "SELECT m.id, m.slug_url, m.name, m.rus_name, m.cover_url, m.rating_average, ul.list_type, ul.added_at, rp.chapter_number, rp.chapter_volume, 0 as unread_count 
+        "SELECT m.id, m.slug_url, m.name, m.rus_name, m.cover_url, m.rating_average, m.chapters_count,
+                ul.list_type, ul.added_at, rp.chapter_number, rp.chapter_volume, 0 as unread_count,
+                COALESCE((SELECT COUNT(1) FROM chapter_history ch WHERE ch.manga_id = m.id AND ch.is_completed = 1), 0) as read_chapters_count
          FROM user_lists ul
          JOIN manga m ON m.id = ul.manga_id
          LEFT JOIN reading_progress rp ON m.id = rp.manga_id
@@ -531,6 +552,8 @@ pub async fn get_all_library_manga() -> Result<Vec<LibraryEntry>> {
             last_read_volume: row.get("chapter_volume")?,
             unread_count: row.get("unread_count")?,
             rating_average: row.get("rating_average")?,
+            total_chapters: row.get("chapters_count").unwrap_or(0),
+            read_chapters: row.get("read_chapters_count").unwrap_or(0),
         })
     })?;
 

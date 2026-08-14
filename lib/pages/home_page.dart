@@ -7,6 +7,7 @@ import 'package:mangaloader/src/rust/api/models.dart';
 import 'package:mangaloader/widgets/manga_card.dart';
 import 'package:mangaloader/services/update_checker.dart';
 import 'package:mangaloader/providers/settings_provider.dart';
+import 'package:mangaloader/widgets/update_bottom_sheet.dart';
 
 final homeDataProvider = FutureProvider.autoDispose<HomePageData>((ref) async {
   return await rust_api.getHomepage();
@@ -470,49 +471,53 @@ class _HomePageState extends ConsumerState<HomePage> {
   }
 
   Widget _buildUpdateBanner(BuildContext context, AppUpdateInfo update, bool isRu) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: const Color(0xFF2C2C2C),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF8A897C)),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.system_update_rounded, color: Color(0xFF8A897C), size: 22),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  isRu ? 'Доступна новая версия: ${update.tagName}' : 'New version available: ${update.tagName}',
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white),
-                ),
-                Text(
-                  isRu ? 'Нажмите, чтобы посмотреть список изменений и обновить' : 'Tap to view changelog and update',
-                  style: const TextStyle(fontSize: 11, color: Color(0xFFBDBBB0)),
-                ),
-              ],
+    return InkWell(
+      onTap: () => AppUpdateBottomSheet.show(context, ref, update, isRu),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFF2C2C2C),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFF8A897C)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.system_update_rounded, color: Color(0xFF8A897C), size: 22),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    isRu ? 'Доступна новая версия: ${update.tagName}' : 'New version available: ${update.tagName}',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white),
+                  ),
+                  Text(
+                    isRu ? 'Нажмите, чтобы посмотреть список изменений и обновить' : 'Tap to view changelog and update',
+                    style: const TextStyle(fontSize: 11, color: Color(0xFFBDBBB0)),
+                  ),
+                ],
+              ),
             ),
-          ),
-          FilledButton.tonal(
-            style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFF8A897C).withValues(alpha: 0.25),
-              foregroundColor: const Color(0xFFD2D7DF),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            FilledButton.tonal(
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF8A897C).withValues(alpha: 0.25),
+                foregroundColor: const Color(0xFFD2D7DF),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              ),
+              onPressed: () => AppUpdateBottomSheet.show(context, ref, update, isRu),
+              child: Text(isRu ? 'Обновить' : 'Update', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
             ),
-            onPressed: () => context.push('/settings'),
-            child: Text(isRu ? 'Обновить' : 'Update', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-          ),
-          const SizedBox(width: 4),
-          IconButton(
-            icon: const Icon(Icons.close_rounded, size: 18, color: Colors.white54),
-            tooltip: isRu ? 'Скрыть' : 'Dismiss',
-            onPressed: () => setState(() => _dismissedUpdate = true),
-          ),
-        ],
+            const SizedBox(width: 4),
+            IconButton(
+              icon: const Icon(Icons.close_rounded, size: 18, color: Colors.white54),
+              tooltip: isRu ? 'Скрыть' : 'Dismiss',
+              onPressed: () => setState(() => _dismissedUpdate = true),
+            ),
+          ],
+        ),
       ),
     );
   }

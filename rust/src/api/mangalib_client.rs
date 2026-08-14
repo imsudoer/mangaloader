@@ -14,6 +14,11 @@ static HTTP_CLIENT: Lazy<Client> = Lazy::new(|| {
         .expect("Failed to build reqwest client")
 });
 
+#[flutter_rust_bridge::frb(sync)]
+pub fn get_app_architecture() -> String {
+    format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH)
+}
+
 const HEADERS_API: &[(&str, &str)] = &[
     ("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:154.0) Gecko/20100101 Firefox/154.0"),
     ("Accept", "*/*"),

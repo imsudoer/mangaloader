@@ -9,6 +9,9 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These functions are ignored because they are not marked as `pub`: `extract_text_from_tiptap`, `get_api_headers`, `get_img_headers`, `parse_manga_item`
 
+String getAppArchitecture() =>
+    RustLib.instance.api.crateApiMangalibClientGetAppArchitecture();
+
 void setCookies({required String cookies}) =>
     RustLib.instance.api.crateApiMangalibClientSetCookies(cookies: cookies);
 

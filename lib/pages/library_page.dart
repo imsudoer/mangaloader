@@ -379,17 +379,31 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
                             const SizedBox(height: 4),
                             ClipRRect(
                               borderRadius: BorderRadius.circular(2),
-                              child: const LinearProgressIndicator(
-                                value: 0.5,
+                              child: LinearProgressIndicator(
+                                value: _calculateProgress(entry),
                                 minHeight: 3,
-                                backgroundColor: Color(0xFF353535),
-                                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF8A897C)),
+                                backgroundColor: const Color(0xFF353535),
+                                valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF8A897C)),
                               ),
                             ),
                             const SizedBox(height: 2),
-                            Text(
-                              'Том ${entry.lastReadVolume ?? "1"} Гл ${entry.lastReadChapter}',
-                              style: const TextStyle(color: Color(0xFFD2D7DF), fontSize: 10, fontWeight: FontWeight.bold),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    'Т.${entry.lastReadVolume ?? "1"} Гл.${entry.lastReadChapter}',
+                                    style: const TextStyle(color: Color(0xFFD2D7DF), fontSize: 10, fontWeight: FontWeight.bold),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                if (_calculateProgress(entry) > 0)
+                                  Text(
+                                    '${(_calculateProgress(entry) * 100).toInt()}%',
+                                    style: const TextStyle(color: Color(0xFF8A897C), fontSize: 9.5, fontWeight: FontWeight.bold),
+                                  ),
+                              ],
                             ),
                           ],
                         ],
@@ -444,6 +458,8 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
       itemBuilder: (ctx, i) {
         final entry = items[i];
         final title = entry.rusName.isNotEmpty ? entry.rusName : entry.name;
+        final progressVal = _calculateProgress(entry);
+        final progressPercent = (progressVal * 100).toInt();
 
         return Card(
           shape: RoundedRectangleBorder(
@@ -476,17 +492,28 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
                   const SizedBox(height: 4),
                   ClipRRect(
                     borderRadius: BorderRadius.circular(2),
-                    child: const LinearProgressIndicator(
-                      value: 0.5,
+                    child: LinearProgressIndicator(
+                      value: progressVal,
                       minHeight: 3,
-                      backgroundColor: Color(0xFF353535),
-                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF8A897C)),
+                      backgroundColor: const Color(0xFF353535),
+                      valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF8A897C)),
                     ),
                   ),
                   const SizedBox(height: 2),
-                  Text(
-                    'Посл. чтение: Том ${entry.lastReadVolume ?? "1"} Гл ${entry.lastReadChapter}',
-                    style: const TextStyle(fontSize: 11, color: Color(0xFFD2D7DF)),
+                  Row(
+                    children: [
+                      Text(
+                        'Посл. чтение: Том ${entry.lastReadVolume ?? "1"} Гл ${entry.lastReadChapter}',
+                        style: const TextStyle(fontSize: 11, color: Color(0xFFD2D7DF)),
+                      ),
+                      if (progressPercent > 0) ...[
+                        const Spacer(),
+                        Text(
+                          '$progressPercent%',
+                          style: const TextStyle(fontSize: 11, color: Color(0xFF8A897C), fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ],
                   ),
                 ],
                 Text(
@@ -512,18 +539,42 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
                 ),
               ],
             ),
-            onTap: () => context.push('/manga/${entry.slugUrl}'),
+            onTap: () async {
+              await context.push('/manga/${entry.slugUrl}');
+              if (mounted) {
+                ref.read(libraryProvider.notifier).loadAll();
+              }
+            },
           ),
         );
       },
     );
   }
 
-  void _startReadingEntry(LibraryEntry entry) {
+  double _calculateProgress(LibraryEntry entry) {
+    if (entry.totalChapters > 0) {
+      if (entry.readChapters > 0) {
+        return (entry.readChapters / entry.totalChapters).clamp(0.0, 1.0);
+      }
+      final chNum = double.tryParse(entry.lastReadChapter ?? '') ?? 0.0;
+      if (chNum > 0) {
+        return (chNum / entry.totalChapters).clamp(0.0, 1.0);
+      }
+    }
+    if (entry.lastReadChapter != null) {
+      return 0.05;
+    }
+    return 0.0;
+  }
+
+  Future<void> _startReadingEntry(LibraryEntry entry) async {
     if (entry.lastReadChapter != null && entry.lastReadVolume != null) {
-      context.push('/read/${entry.slugUrl}/${entry.lastReadVolume}/${entry.lastReadChapter}');
+      await context.push('/read/${entry.slugUrl}/${entry.lastReadVolume}/${entry.lastReadChapter}');
     } else {
-      context.push('/manga/${entry.slugUrl}');
+      await context.push('/manga/${entry.slugUrl}');
+    }
+    if (mounted) {
+      ref.read(libraryProvider.notifier).loadAll();
     }
   }
 

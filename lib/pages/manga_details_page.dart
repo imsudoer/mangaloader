@@ -354,15 +354,22 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                           padding: const EdgeInsets.symmetric(vertical: 11),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
                         ),
-                        onPressed: () {
-                          chaptersAsync.whenData((chapters) {
+                        onPressed: () async {
+                          await rust_storage.saveManga(manga: manga);
+                          final existing = await rust_storage.getMangaListType(mangaId: manga.id);
+                          if (existing == null || existing.isEmpty) {
+                            await rust_storage.addToList(mangaId: manga.id, listType: 'reading');
+                          }
+                          ref.read(libraryProvider.notifier).loadAll();
+
+                          chaptersAsync.whenData((chapters) async {
                             if (chapters.isEmpty) return;
 
                             final history = historyAsync.value ?? [];
                             final lastProg = history.firstOrNull;
 
                             if (lastProg != null) {
-                              context.push('/read/${manga.slugUrl}/${lastProg.volume}/${lastProg.number}');
+                              await context.push('/read/${manga.slugUrl}/${lastProg.volume}/${lastProg.number}');
                             } else {
                               final sorted = List<Chapter>.from(chapters);
                               sorted.sort((a, b) {
@@ -374,7 +381,11 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                                 return na.compareTo(nb);
                               });
                               final firstCh = sorted.firstWhere((c) => !c.isPaid, orElse: () => sorted.first);
-                              context.push('/read/${manga.slugUrl}/${firstCh.volume}/${firstCh.number}?branchId=${firstCh.branchId ?? ""}');
+                              await context.push('/read/${manga.slugUrl}/${firstCh.volume}/${firstCh.number}?branchId=${firstCh.branchId ?? ""}');
+                            }
+                            if (context.mounted) {
+                              ref.read(libraryProvider.notifier).loadAll();
+                              ref.invalidate(mangaHistoryProvider(manga.id));
                             }
                           });
                         },
@@ -719,8 +730,20 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                           minimumSize: const Size(32, 32),
                           padding: EdgeInsets.zero,
                         ),
-                        onPressed: () {
-                          context.push('/read/${manga.slugUrl}/${ch.volume}/${ch.number}?branchId=${ch.branchId ?? ""}');
+                        onPressed: () async {
+                          await rust_storage.saveManga(manga: manga);
+                          final existing = await rust_storage.getMangaListType(mangaId: manga.id);
+                          if (existing == null || existing.isEmpty) {
+                            await rust_storage.addToList(mangaId: manga.id, listType: 'reading');
+                          }
+                          ref.read(libraryProvider.notifier).loadAll();
+                          if (context.mounted) {
+                            await context.push('/read/${manga.slugUrl}/${ch.volume}/${ch.number}?branchId=${ch.branchId ?? ""}');
+                            if (context.mounted) {
+                              ref.read(libraryProvider.notifier).loadAll();
+                              ref.invalidate(mangaHistoryProvider(manga.id));
+                            }
+                          }
                         },
                       ),
                       const SizedBox(width: 6),
@@ -754,8 +777,20 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                         ),
                     ],
                   ),
-                  onTap: () {
-                    context.push('/read/${manga.slugUrl}/${ch.volume}/${ch.number}?branchId=${ch.branchId ?? ""}');
+                  onTap: () async {
+                    await rust_storage.saveManga(manga: manga);
+                    final existing = await rust_storage.getMangaListType(mangaId: manga.id);
+                    if (existing == null || existing.isEmpty) {
+                      await rust_storage.addToList(mangaId: manga.id, listType: 'reading');
+                    }
+                    ref.read(libraryProvider.notifier).loadAll();
+                    if (context.mounted) {
+                      await context.push('/read/${manga.slugUrl}/${ch.volume}/${ch.number}?branchId=${ch.branchId ?? ""}');
+                      if (context.mounted) {
+                        ref.read(libraryProvider.notifier).loadAll();
+                        ref.invalidate(mangaHistoryProvider(manga.id));
+                      }
+                    }
                   },
                 ),
               );
