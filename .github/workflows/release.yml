@@ -23,14 +23,22 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "rust -> target"
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
           cache: true
 
+      - name: Install cargo-binstall
+        uses: cargo-bins/cargo-binstall@main
+
       - name: Install flutter_rust_bridge_codegen
-        run: cargo install flutter_rust_bridge_codegen --version 2.12.0
+        run: cargo binstall --no-confirm flutter_rust_bridge_codegen@2.12.0
 
       - name: Flutter Rust Bridge Codegen
         run: flutter_rust_bridge_codegen generate
@@ -67,11 +75,17 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
+          cache: 'gradle'
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "rust -> target"
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -84,10 +98,11 @@ jobs:
         with:
           ndk-version: r26b
 
-      - name: Install cargo-ndk & flutter_rust_bridge_codegen
-        run: |
-          cargo install cargo-ndk
-          cargo install flutter_rust_bridge_codegen --version 2.12.0
+      - name: Install cargo-binstall
+        uses: cargo-bins/cargo-binstall@main
+
+      - name: Install Tools (Pre-built Binaries)
+        run: cargo binstall --no-confirm flutter_rust_bridge_codegen@2.12.0 cargo-ndk
 
       - name: Flutter Rust Bridge Codegen
         run: flutter_rust_bridge_codegen generate
