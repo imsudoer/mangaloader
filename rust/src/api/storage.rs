@@ -113,6 +113,23 @@ pub async fn init_database(app_dir: String) -> Result<()> {
         "
     )?;
 
+    // Safe column additions for older database versions
+    let migrations = [
+        "ALTER TABLE manga ADD COLUMN views_total TEXT DEFAULT '0'",
+        "ALTER TABLE manga ADD COLUMN views_formatted TEXT DEFAULT '0'",
+        "ALTER TABLE manga ADD COLUMN format_labels_json TEXT DEFAULT '[]'",
+        "ALTER TABLE manga ADD COLUMN publisher_name TEXT",
+        "ALTER TABLE manga ADD COLUMN slug TEXT DEFAULT ''",
+        "ALTER TABLE manga ADD COLUMN type_id INTEGER DEFAULT 0",
+        "ALTER TABLE manga ADD COLUMN status_id INTEGER DEFAULT 0",
+        "ALTER TABLE manga ADD COLUMN age_restriction TEXT DEFAULT ''",
+        "ALTER TABLE manga ADD COLUMN authors_json TEXT DEFAULT '[]'",
+        "ALTER TABLE manga ADD COLUMN artists_json TEXT DEFAULT '[]'",
+    ];
+    for sql in migrations {
+        let _ = conn.execute(sql, []);
+    }
+
     *DB.lock().unwrap() = Some(conn);
     Ok(())
 }
