@@ -48,6 +48,12 @@ final appVersionProvider = FutureProvider<String>((ref) async {
 final downloadConcurrencyImagesProvider = StateProvider<int>((ref) => 10);
 final downloadConcurrencyChaptersProvider = StateProvider<int>((ref) => 3);
 
+// Auto clear cache duration in days: 0 = never, 3, 7, 14, 30
+final autoClearCacheDaysProvider = StateProvider<int>((ref) => 7);
+
+// Streak push notifications toggle
+final streakNotificationsEnabledProvider = StateProvider<bool>((ref) => true);
+
 // Search History Provider
 final searchHistoryProvider = StateNotifierProvider<SearchHistoryNotifier, List<String>>(
   (ref) => SearchHistoryNotifier(),

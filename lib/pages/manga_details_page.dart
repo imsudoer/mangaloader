@@ -10,6 +10,8 @@ import 'package:mangaloader/providers/manga_provider.dart';
 import 'package:mangaloader/providers/download_provider.dart';
 import 'package:mangaloader/providers/library_provider.dart';
 import 'package:mangaloader/providers/settings_provider.dart';
+import 'package:mangaloader/providers/streak_provider.dart';
+import 'package:mangaloader/providers/continue_reading_provider.dart';
 import 'package:mangaloader/widgets/download_button.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mangaloader/src/rust/api/storage.dart' as rust_storage;
@@ -392,6 +394,8 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                             if (context.mounted) {
                               ref.read(libraryProvider.notifier).loadAll();
                               ref.invalidate(mangaHistoryProvider(manga.id));
+                              ref.invalidate(continueReadingProvider);
+                              ref.read(streakProvider.notifier).loadStreak();
                             }
                           });
                         },
@@ -951,6 +955,8 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                         ref.read(libraryProvider.notifier).loadAll();
                         ref.invalidate(mangaHistoryProvider(manga.id));
                         ref.invalidate(mangaDownloadedChaptersProvider(manga.id));
+                        ref.invalidate(continueReadingProvider);
+                        ref.read(streakProvider.notifier).loadStreak();
                       }
                     }
                   },

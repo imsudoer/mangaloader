@@ -1,5 +1,6 @@
 use crate::api::models::{
-    DownloadedChapterInfo, DownloadedMangaGroup, LibraryEntry, ListType, MangaDetails, ReadingPosition, Genre, Tag, Person, ChapterHistory
+    DownloadedChapterInfo, DownloadedMangaGroup, LibraryEntry, ListType, MangaDetails, ReadingPosition, Genre, Tag, Person, ChapterHistory,
+    Chapter, ReadingStreakInfo, ContinueReadingItem
 };
 use anyhow::{Context, Result};
 use once_cell::sync::Lazy;
@@ -86,6 +87,28 @@ pub async fn init_database(app_dir: String) -> Result<()> {
             last_read_at TEXT NOT NULL DEFAULT (datetime('now')),
             PRIMARY KEY (manga_id, volume, number),
             FOREIGN KEY (manga_id) REFERENCES manga(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS reading_streak (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            current_streak INTEGER NOT NULL DEFAULT 0,
+            max_streak INTEGER NOT NULL DEFAULT 0,
+            last_read_date TEXT NOT NULL DEFAULT '',
+            today_chapters_count INTEGER NOT NULL DEFAULT 0,
+            total_days_read INTEGER NOT NULL DEFAULT 0,
+            total_chapters_read INTEGER NOT NULL DEFAULT 0,
+            history_json TEXT NOT NULL DEFAULT '[]'
+        );
+
+        CREATE TABLE IF NOT EXISTS cached_chapters (
+            manga_id INTEGER NOT NULL,
+            volume TEXT NOT NULL,
+            number TEXT NOT NULL,
+            name TEXT DEFAULT '',
+            branch_id INTEGER,
+            is_paid BOOLEAN DEFAULT 0,
+            created_at TEXT DEFAULT '',
+            PRIMARY KEY (manga_id, volume, number)
         );
         "
     )?;
@@ -582,14 +605,286 @@ pub async fn get_all_library_manga() -> Result<Vec<LibraryEntry>> {
 }
 
 pub async fn mark_chapter_read(manga_id: i64, volume: String, number: String, page_index: i64, total_pages: i64, is_completed: bool) -> Result<()> {
+    {
+        let guard = get_conn()?;
+        let conn = guard.as_ref().unwrap();
+        conn.execute(
+            "INSERT OR REPLACE INTO chapter_history (manga_id, volume, number, page_index, total_pages, is_completed, last_read_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, datetime('now'))",
+            params![manga_id, volume, number, page_index, total_pages, is_completed],
+        )?;
+    }
+
+    if is_completed {
+        let _ = record_chapter_read_for_streak().await;
+    }
+    Ok(())
+}
+
+pub async fn get_reading_streak() -> Result<ReadingStreakInfo> {
     let guard = get_conn()?;
     let conn = guard.as_ref().unwrap();
+
+    let row = conn.query_row(
+        "SELECT current_streak, max_streak, last_read_date, today_chapters_count, total_days_read, total_chapters_read, history_json
+         FROM reading_streak WHERE id = 1",
+        [],
+        |row| {
+            let hist_str: String = row.get("history_json").unwrap_or_else(|_| "[]".to_string());
+            let history_dates: Vec<String> = serde_json::from_str(&hist_str).unwrap_or_default();
+            Ok(ReadingStreakInfo {
+                current_streak: row.get("current_streak")?,
+                max_streak: row.get("max_streak")?,
+                last_read_date: row.get("last_read_date")?,
+                today_chapters_count: row.get("today_chapters_count")?,
+                is_active_today: false,
+                total_days_read: row.get("total_days_read")?,
+                total_chapters_read: row.get("total_chapters_read")?,
+                history_dates,
+            })
+        },
+    ).optional()?;
+
+    let today_str = chrono::Utc::now().format("%Y-%m-%d").to_string();
+    let yesterday_str = (chrono::Utc::now() - chrono::Duration::days(1)).format("%Y-%m-%d").to_string();
+
+    match row {
+        Some(mut info) => {
+            if info.last_read_date == today_str {
+                info.is_active_today = true;
+            } else if info.last_read_date == yesterday_str {
+                info.is_active_today = false;
+            } else if !info.last_read_date.is_empty() {
+                info.current_streak = 0;
+                info.today_chapters_count = 0;
+                info.is_active_today = false;
+            }
+            Ok(info)
+        }
+        None => {
+            Ok(ReadingStreakInfo {
+                current_streak: 0,
+                max_streak: 0,
+                last_read_date: String::new(),
+                today_chapters_count: 0,
+                is_active_today: false,
+                total_days_read: 0,
+                total_chapters_read: 0,
+                history_dates: Vec::new(),
+            })
+        }
+    }
+}
+
+pub async fn record_chapter_read_for_streak() -> Result<ReadingStreakInfo> {
+    let guard = get_conn()?;
+    let conn = guard.as_ref().unwrap();
+
+    let today_str = chrono::Utc::now().format("%Y-%m-%d").to_string();
+    let yesterday_str = (chrono::Utc::now() - chrono::Duration::days(1)).format("%Y-%m-%d").to_string();
+
+    let existing = conn.query_row(
+        "SELECT current_streak, max_streak, last_read_date, today_chapters_count, total_days_read, total_chapters_read, history_json
+         FROM reading_streak WHERE id = 1",
+        [],
+        |row| {
+            let hist_str: String = row.get("history_json").unwrap_or_else(|_| "[]".to_string());
+            let history_dates: Vec<String> = serde_json::from_str(&hist_str).unwrap_or_default();
+            Ok((
+                row.get::<_, i64>("current_streak")?,
+                row.get::<_, i64>("max_streak")?,
+                row.get::<_, String>("last_read_date")?,
+                row.get::<_, i64>("today_chapters_count")?,
+                row.get::<_, i64>("total_days_read")?,
+                row.get::<_, i64>("total_chapters_read")?,
+                history_dates,
+            ))
+        },
+    ).optional()?;
+
+    let (new_streak, new_max, today_count, total_days, total_chaps, history_dates) = match existing {
+        Some((curr_streak, max_s, last_date, t_count, tot_days, tot_chaps, mut h_dates)) => {
+            if last_date == today_str {
+                (curr_streak, max_s, t_count + 1, tot_days, tot_chaps + 1, h_dates)
+            } else if last_date == yesterday_str {
+                let s = curr_streak + 1;
+                let m = max_s.max(s);
+                if !h_dates.contains(&today_str) {
+                    h_dates.push(today_str.clone());
+                    if h_dates.len() > 60 { h_dates.remove(0); }
+                }
+                (s, m, 1, tot_days + 1, tot_chaps + 1, h_dates)
+            } else {
+                let s = 1;
+                let m = max_s.max(1);
+                if !h_dates.contains(&today_str) {
+                    h_dates.push(today_str.clone());
+                    if h_dates.len() > 60 { h_dates.remove(0); }
+                }
+                (s, m, 1, tot_days + 1, tot_chaps + 1, h_dates)
+            }
+        }
+        None => {
+            let s = 1;
+            let m = 1;
+            let h_dates = vec![today_str.clone()];
+            (s, m, 1, 1, 1, h_dates)
+        }
+    };
+
+    let hist_json = serde_json::to_string(&history_dates).unwrap_or_else(|_| "[]".to_string());
+
     conn.execute(
-        "INSERT OR REPLACE INTO chapter_history (manga_id, volume, number, page_index, total_pages, is_completed, last_read_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, datetime('now'))",
-        params![manga_id, volume, number, page_index, total_pages, is_completed],
+        "INSERT INTO reading_streak (id, current_streak, max_streak, last_read_date, today_chapters_count, total_days_read, total_chapters_read, history_json)
+         VALUES (1, ?1, ?2, ?3, ?4, ?5, ?6, ?7)
+         ON CONFLICT(id) DO UPDATE SET
+            current_streak=excluded.current_streak,
+            max_streak=excluded.max_streak,
+            last_read_date=excluded.last_read_date,
+            today_chapters_count=excluded.today_chapters_count,
+            total_days_read=excluded.total_days_read,
+            total_chapters_read=excluded.total_chapters_read,
+            history_json=excluded.history_json",
+        params![new_streak, new_max, today_str, today_count, total_days, total_chaps, hist_json],
     )?;
+
+    Ok(ReadingStreakInfo {
+        current_streak: new_streak,
+        max_streak: new_max,
+        last_read_date: today_str,
+        today_chapters_count: today_count,
+        is_active_today: true,
+        total_days_read: total_days,
+        total_chapters_read: total_chaps,
+        history_dates,
+    })
+}
+
+pub async fn cache_chapters(manga_id: i64, chapters: Vec<Chapter>) -> Result<()> {
+    let guard = get_conn()?;
+    let conn = guard.as_ref().unwrap();
+
+    let mut stmt = conn.prepare(
+        "INSERT INTO cached_chapters (manga_id, volume, number, id, name, branch_id, branches_count, is_paid)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+         ON CONFLICT(manga_id, volume, number) DO UPDATE SET
+            id=excluded.id, name=excluded.name, branch_id=excluded.branch_id, branches_count=excluded.branches_count, is_paid=excluded.is_paid"
+    )?;
+
+    for ch in chapters {
+        let name_str = ch.name.unwrap_or_default();
+        let _ = stmt.execute(params![
+            manga_id,
+            ch.volume,
+            ch.number,
+            ch.id,
+            name_str,
+            ch.branch_id,
+            ch.branches_count,
+            ch.is_paid,
+        ]);
+    }
+
     Ok(())
+}
+
+pub async fn get_cached_chapters(manga_id: i64) -> Result<Vec<Chapter>> {
+    let guard = get_conn()?;
+    let conn = guard.as_ref().unwrap();
+
+    let mut stmt = conn.prepare(
+        "SELECT id, volume, number, name, branch_id, branches_count, is_paid
+         FROM cached_chapters WHERE manga_id = ?1"
+    )?;
+
+    let iter = stmt.query_map(params![manga_id], |row| {
+        let name: String = row.get("name")?;
+        Ok(Chapter {
+            id: row.get("id")?,
+            volume: row.get("volume")?,
+            number: row.get("number")?,
+            name: if name.is_empty() { None } else { Some(name) },
+            branch_id: row.get("branch_id")?,
+            branches_count: row.get("branches_count")?,
+            is_paid: row.get("is_paid")?,
+        })
+    })?;
+
+    let mut chapters = Vec::new();
+    for c in iter {
+        chapters.push(c?);
+    }
+
+    if chapters.is_empty() {
+        let mut d_stmt = conn.prepare(
+            "SELECT volume, number, branch_id
+             FROM downloaded_chapters WHERE manga_id = ?1"
+        )?;
+        let d_iter = d_stmt.query_map(params![manga_id], |row| {
+            Ok(Chapter {
+                id: 0,
+                volume: row.get("volume")?,
+                number: row.get("number")?,
+                name: None,
+                branch_id: row.get("branch_id")?,
+                branches_count: 0,
+                is_paid: false,
+            })
+        })?;
+        for c in d_iter {
+            chapters.push(c?);
+        }
+    }
+
+    Ok(chapters)
+}
+
+pub async fn get_continue_reading_manga() -> Result<Vec<ContinueReadingItem>> {
+    let guard = get_conn()?;
+    let conn = guard.as_ref().unwrap();
+
+    let mut stmt = conn.prepare(
+        "SELECT m.id, m.slug_url, m.name, m.rus_name, m.cover_url, m.chapters_count,
+                rp.chapter_volume, rp.chapter_number, rp.last_read_at,
+                (SELECT COUNT(1) FROM chapter_history ch WHERE ch.manga_id = m.id AND ch.is_completed = 1) as read_count
+         FROM reading_progress rp
+         JOIN manga m ON m.id = rp.manga_id
+         ORDER BY rp.last_read_at DESC"
+    )?;
+
+    let iter = stmt.query_map([], |row| {
+        let total_chaps: i64 = row.get("chapters_count").unwrap_or(0);
+        let read_chaps: i64 = row.get("read_count").unwrap_or(0);
+        let unread = (total_chaps - read_chaps).max(0);
+        let has_new = read_chaps > 0 && unread > 0 && total_chaps > read_chaps;
+
+        Ok(ContinueReadingItem {
+            manga_id: row.get("id")?,
+            slug_url: row.get("slug_url")?,
+            name: row.get("name")?,
+            rus_name: row.get("rus_name")?,
+            cover_url: row.get("cover_url")?,
+            last_read_volume: row.get("chapter_volume")?,
+            last_read_chapter: row.get("chapter_number")?,
+            last_read_at: row.get("last_read_at")?,
+            total_chapters: total_chaps,
+            read_chapters: read_chaps,
+            unread_count: unread,
+            has_new_chapters: has_new,
+            new_chapters_count: if has_new { unread } else { 0 },
+        })
+    })?;
+
+    let mut list = Vec::new();
+    for item_res in iter {
+        let item = item_res?;
+        if item.total_chapters > 0 && item.read_chapters >= item.total_chapters {
+            continue;
+        }
+        list.push(item);
+    }
+
+    Ok(list)
 }
 
 pub async fn get_chapter_history(manga_id: i64) -> Result<Vec<ChapterHistory>> {

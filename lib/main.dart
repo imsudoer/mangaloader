@@ -19,6 +19,8 @@ import 'pages/reader_page.dart';
 import 'pages/login_webview_page.dart';
 import 'providers/settings_provider.dart';
 
+import 'services/streak_notification_service.dart';
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await RustLib.init();
@@ -40,6 +42,10 @@ Future<void> main() async {
   // Initialize database
   final appDir = await getApplicationDocumentsDirectory();
   await rust_storage.initDatabase(appDir: appDir.path);
+
+  // Initialize Streak Push Notifications
+  await StreakNotificationService.init();
+  await StreakNotificationService.scheduleDailyStreakReminder();
 
   runApp(const ProviderScope(child: MangaLoaderApp()));
 }

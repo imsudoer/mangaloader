@@ -3,6 +3,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mangaloader/providers/library_provider.dart';
+import 'package:mangaloader/providers/continue_reading_provider.dart';
+import 'package:mangaloader/providers/streak_provider.dart';
 import 'package:mangaloader/src/rust/api/models.dart';
 import 'package:mangaloader/src/rust/api/storage.dart' as rust_storage;
 import 'package:cached_network_image/cached_network_image.dart';
@@ -575,6 +577,8 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
     }
     if (mounted) {
       ref.read(libraryProvider.notifier).loadAll();
+      ref.invalidate(continueReadingProvider);
+      ref.read(streakProvider.notifier).loadStreak();
     }
   }
 

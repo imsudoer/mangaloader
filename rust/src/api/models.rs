@@ -262,3 +262,32 @@ pub struct ChapterDownloadRequest {
     pub number: String,
     pub branch_id: Option<i64>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReadingStreakInfo {
+    pub current_streak: i64,
+    pub max_streak: i64,
+    pub last_read_date: String,
+    pub today_chapters_count: i64,
+    pub is_active_today: bool,
+    pub total_days_read: i64,
+    pub total_chapters_read: i64,
+    pub history_dates: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContinueReadingItem {
+    pub manga_id: i64,
+    pub slug_url: String,
+    pub name: String,
+    pub rus_name: String,
+    pub cover_url: String,
+    pub last_read_volume: String,
+    pub last_read_chapter: String,
+    pub last_read_at: String,
+    pub total_chapters: i64,
+    pub read_chapters: i64,
+    pub unread_count: i64,
+    pub has_new_chapters: bool,
+    pub new_chapters_count: i64,
+}

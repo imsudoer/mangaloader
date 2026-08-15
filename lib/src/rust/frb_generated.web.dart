@@ -71,6 +71,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ConstantItem dco_decode_constant_item(dynamic raw);
 
   @protected
+  ContinueReadingItem dco_decode_continue_reading_item(dynamic raw);
+
+  @protected
   DownloadProgress dco_decode_download_progress(dynamic raw);
 
   @protected
@@ -121,6 +124,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<ConstantItem> dco_decode_list_constant_item(dynamic raw);
+
+  @protected
+  List<ContinueReadingItem> dco_decode_list_continue_reading_item(dynamic raw);
 
   @protected
   List<DownloadedChapterInfo> dco_decode_list_downloaded_chapter_info(
@@ -197,6 +203,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ReadingPosition dco_decode_reading_position(dynamic raw);
 
   @protected
+  ReadingStreakInfo dco_decode_reading_streak_info(dynamic raw);
+
+  @protected
   Tag dco_decode_tag(dynamic raw);
 
   @protected
@@ -255,6 +264,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ConstantItem sse_decode_constant_item(SseDeserializer deserializer);
 
   @protected
+  ContinueReadingItem sse_decode_continue_reading_item(
+      SseDeserializer deserializer);
+
+  @protected
   DownloadProgress sse_decode_download_progress(SseDeserializer deserializer);
 
   @protected
@@ -308,6 +321,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<ConstantItem> sse_decode_list_constant_item(
+      SseDeserializer deserializer);
+
+  @protected
+  List<ContinueReadingItem> sse_decode_list_continue_reading_item(
       SseDeserializer deserializer);
 
   @protected
@@ -393,6 +410,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ReadingPosition sse_decode_reading_position(SseDeserializer deserializer);
 
   @protected
+  ReadingStreakInfo sse_decode_reading_streak_info(
+      SseDeserializer deserializer);
+
+  @protected
   Tag sse_decode_tag(SseDeserializer deserializer);
 
   @protected
@@ -455,6 +476,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_constant_item(ConstantItem self, SseSerializer serializer);
 
   @protected
+  void sse_encode_continue_reading_item(
+      ContinueReadingItem self, SseSerializer serializer);
+
+  @protected
   void sse_encode_download_progress(
       DownloadProgress self, SseSerializer serializer);
 
@@ -512,6 +537,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_constant_item(
       List<ConstantItem> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_continue_reading_item(
+      List<ContinueReadingItem> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_downloaded_chapter_info(
@@ -601,6 +630,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_reading_position(
       ReadingPosition self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_reading_streak_info(
+      ReadingStreakInfo self, SseSerializer serializer);
 
   @protected
   void sse_encode_tag(Tag self, SseSerializer serializer);

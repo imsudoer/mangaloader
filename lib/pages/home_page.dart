@@ -7,7 +7,11 @@ import 'package:mangaloader/src/rust/api/models.dart';
 import 'package:mangaloader/widgets/manga_card.dart';
 import 'package:mangaloader/services/update_checker.dart';
 import 'package:mangaloader/providers/settings_provider.dart';
+import 'package:mangaloader/providers/streak_provider.dart';
+import 'package:mangaloader/providers/continue_reading_provider.dart';
 import 'package:mangaloader/widgets/update_bottom_sheet.dart';
+import 'package:mangaloader/widgets/reading_streak_button.dart';
+import 'package:mangaloader/widgets/continue_reading_section.dart';
 
 final homeDataProvider = FutureProvider.autoDispose<HomePageData>((ref) async {
   return await rust_api.getHomepage();
@@ -75,6 +79,8 @@ class _HomePageState extends ConsumerState<HomePage> {
           ],
         ),
         actions: [
+          const ReadingStreakButton(),
+          const SizedBox(width: 6),
           IconButton(
             icon: const Icon(Icons.search_rounded),
             tooltip: isRu ? 'Каталог и поиск' : 'Catalog & Search',
@@ -92,6 +98,8 @@ class _HomePageState extends ConsumerState<HomePage> {
           onRefresh: () async {
             ref.invalidate(homeDataProvider);
             ref.invalidate(topViewsCustomProvider);
+            ref.invalidate(continueReadingProvider);
+            ref.read(streakProvider.notifier).loadStreak();
           },
           child: ListView(
             padding: const EdgeInsets.symmetric(vertical: 12),
@@ -101,6 +109,9 @@ class _HomePageState extends ConsumerState<HomePage> {
                 _buildUpdateBanner(context, availableUpdate, isRu),
                 const SizedBox(height: 12),
               ],
+
+              // Continue Reading (Always at the top)
+              ContinueReadingSection(isRu: isRu),
 
               // Hero / Featured Carousel from Popular
               if (data.popular.isNotEmpty) ...[

@@ -6,7 +6,7 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 
 class Chapter {
   final PlatformInt64 id;
@@ -244,6 +244,73 @@ class ConstantItem {
           runtimeType == other.runtimeType &&
           id == other.id &&
           name == other.name;
+}
+
+class ContinueReadingItem {
+  final PlatformInt64 mangaId;
+  final String slugUrl;
+  final String name;
+  final String rusName;
+  final String coverUrl;
+  final String lastReadVolume;
+  final String lastReadChapter;
+  final String lastReadAt;
+  final PlatformInt64 totalChapters;
+  final PlatformInt64 readChapters;
+  final PlatformInt64 unreadCount;
+  final bool hasNewChapters;
+  final PlatformInt64 newChaptersCount;
+
+  const ContinueReadingItem({
+    required this.mangaId,
+    required this.slugUrl,
+    required this.name,
+    required this.rusName,
+    required this.coverUrl,
+    required this.lastReadVolume,
+    required this.lastReadChapter,
+    required this.lastReadAt,
+    required this.totalChapters,
+    required this.readChapters,
+    required this.unreadCount,
+    required this.hasNewChapters,
+    required this.newChaptersCount,
+  });
+
+  @override
+  int get hashCode =>
+      mangaId.hashCode ^
+      slugUrl.hashCode ^
+      name.hashCode ^
+      rusName.hashCode ^
+      coverUrl.hashCode ^
+      lastReadVolume.hashCode ^
+      lastReadChapter.hashCode ^
+      lastReadAt.hashCode ^
+      totalChapters.hashCode ^
+      readChapters.hashCode ^
+      unreadCount.hashCode ^
+      hasNewChapters.hashCode ^
+      newChaptersCount.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ContinueReadingItem &&
+          runtimeType == other.runtimeType &&
+          mangaId == other.mangaId &&
+          slugUrl == other.slugUrl &&
+          name == other.name &&
+          rusName == other.rusName &&
+          coverUrl == other.coverUrl &&
+          lastReadVolume == other.lastReadVolume &&
+          lastReadChapter == other.lastReadChapter &&
+          lastReadAt == other.lastReadAt &&
+          totalChapters == other.totalChapters &&
+          readChapters == other.readChapters &&
+          unreadCount == other.unreadCount &&
+          hasNewChapters == other.hasNewChapters &&
+          newChaptersCount == other.newChaptersCount;
 }
 
 class DownloadProgress {
@@ -888,6 +955,53 @@ class ReadingPosition {
           pageIndex == other.pageIndex &&
           scrollPosition == other.scrollPosition &&
           lastReadAt == other.lastReadAt;
+}
+
+class ReadingStreakInfo {
+  final PlatformInt64 currentStreak;
+  final PlatformInt64 maxStreak;
+  final String lastReadDate;
+  final PlatformInt64 todayChaptersCount;
+  final bool isActiveToday;
+  final PlatformInt64 totalDaysRead;
+  final PlatformInt64 totalChaptersRead;
+  final List<String> historyDates;
+
+  const ReadingStreakInfo({
+    required this.currentStreak,
+    required this.maxStreak,
+    required this.lastReadDate,
+    required this.todayChaptersCount,
+    required this.isActiveToday,
+    required this.totalDaysRead,
+    required this.totalChaptersRead,
+    required this.historyDates,
+  });
+
+  @override
+  int get hashCode =>
+      currentStreak.hashCode ^
+      maxStreak.hashCode ^
+      lastReadDate.hashCode ^
+      todayChaptersCount.hashCode ^
+      isActiveToday.hashCode ^
+      totalDaysRead.hashCode ^
+      totalChaptersRead.hashCode ^
+      historyDates.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ReadingStreakInfo &&
+          runtimeType == other.runtimeType &&
+          currentStreak == other.currentStreak &&
+          maxStreak == other.maxStreak &&
+          lastReadDate == other.lastReadDate &&
+          todayChaptersCount == other.todayChaptersCount &&
+          isActiveToday == other.isActiveToday &&
+          totalDaysRead == other.totalDaysRead &&
+          totalChaptersRead == other.totalChaptersRead &&
+          historyDates == other.historyDates;
 }
 
 class Tag {

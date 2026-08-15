@@ -10,6 +10,7 @@ import 'package:share_plus/share_plus.dart';
 
 import 'package:mangaloader/services/update_checker.dart';
 import 'package:mangaloader/services/update_downloader.dart';
+import 'package:mangaloader/services/streak_notification_service.dart';
 import 'package:mangaloader/widgets/update_bottom_sheet.dart';
 
 class SettingsPage extends ConsumerStatefulWidget {
@@ -276,6 +277,26 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     value: ref.watch(amoledModeProvider),
                     onChanged: (val) => ref.read(amoledModeProvider.notifier).state = val,
                   ),
+                  const SizedBox(height: 8),
+                  const Divider(height: 1),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    secondary: const Icon(Icons.local_fire_department_rounded, color: Color(0xFFFF9800)),
+                    title: Text(isRu ? 'Напоминания об огоньке' : 'Daily Streak Reminders'),
+                    subtitle: Text(
+                      isRu ? 'Ежедневное напоминание почитать главу и сохранить стрик' : 'Daily reminder to read a chapter and keep flame burning',
+                      style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
+                    ),
+                    value: ref.watch(streakNotificationsEnabledProvider),
+                    onChanged: (val) {
+                      ref.read(streakNotificationsEnabledProvider.notifier).state = val;
+                      if (val) {
+                        StreakNotificationService.scheduleDailyStreakReminder(isRu: isRu, enabled: true);
+                      } else {
+                        StreakNotificationService.cancelReminder();
+                      }
+                    },
+                  ),
                 ],
               ),
             ),
@@ -460,19 +481,50 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               borderRadius: BorderRadius.circular(14),
               side: const BorderSide(color: Color(0xFF353535)),
             ),
-            child: ListTile(
-              leading: const Icon(Icons.cleaning_services_rounded, color: Color(0xFF8A897C)),
-              title: Text(isRu ? 'Очистить кэш приложения' : 'Clear Application Cache'),
-              subtitle: Text(
-                isRu ? 'Очищает сетевой дисковый кэш и оперативную память' : 'Clears disk network cache & RAM memory',
-                style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
-              ),
-              trailing: OutlinedButton(
-                onPressed: _isClearingCache ? null : () => _clearAllCaches(isRu),
-                child: _isClearingCache
-                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                  : Text(isRu ? 'Очистить' : 'Clear'),
-              ),
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.auto_delete_outlined, color: Color(0xFF8A897C)),
+                  title: Text(isRu ? 'Автоочистка кэша' : 'Auto-Clear Cache'),
+                  subtitle: Text(
+                    isRu ? 'Удалять кэшированные страницы старше выбранного срока' : 'Remove cached pages older than selected period',
+                    style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
+                  ),
+                  trailing: DropdownButton<int>(
+                    value: ref.watch(autoClearCacheDaysProvider),
+                    dropdownColor: const Color(0xFF2C2C2C),
+                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                    underline: const SizedBox(),
+                    items: [
+                      DropdownMenuItem(value: 0, child: Text(isRu ? 'Отключено' : 'Disabled')),
+                      DropdownMenuItem(value: 3, child: Text(isRu ? '3 дня' : '3 days')),
+                      DropdownMenuItem(value: 7, child: Text(isRu ? '7 дней (рек.)' : '7 days (rec.)')),
+                      DropdownMenuItem(value: 14, child: Text(isRu ? '14 дней' : '14 days')),
+                      DropdownMenuItem(value: 30, child: Text(isRu ? '30 дней' : '30 days')),
+                    ],
+                    onChanged: (val) {
+                      if (val != null) {
+                        ref.read(autoClearCacheDaysProvider.notifier).state = val;
+                      }
+                    },
+                  ),
+                ),
+                const Divider(height: 1, indent: 56),
+                ListTile(
+                  leading: const Icon(Icons.cleaning_services_rounded, color: Color(0xFF8A897C)),
+                  title: Text(isRu ? 'Очистить кэш приложения' : 'Clear Application Cache'),
+                  subtitle: Text(
+                    isRu ? 'Очищает сетевой дисковый кэш и оперативную память' : 'Clears disk network cache & RAM memory',
+                    style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
+                  ),
+                  trailing: OutlinedButton(
+                    onPressed: _isClearingCache ? null : () => _clearAllCaches(isRu),
+                    child: _isClearingCache
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                      : Text(isRu ? 'Очистить' : 'Clear'),
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 20),

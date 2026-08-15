@@ -7,7 +7,7 @@ import '../frb_generated.dart';
 import 'models.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `get_conn`
+// These functions are ignored because they are not marked as `pub`: `get_conn`, `sort_downloaded_chapters_ascending`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `BackupData`, `BackupUserList`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `fmt`, `fmt`
 
@@ -99,6 +99,23 @@ Future<void> markChapterRead(
         pageIndex: pageIndex,
         totalPages: totalPages,
         isCompleted: isCompleted);
+
+Future<ReadingStreakInfo> getReadingStreak() =>
+    RustLib.instance.api.crateApiStorageGetReadingStreak();
+
+Future<ReadingStreakInfo> recordChapterReadForStreak() =>
+    RustLib.instance.api.crateApiStorageRecordChapterReadForStreak();
+
+Future<void> cacheChapters(
+        {required PlatformInt64 mangaId, required List<Chapter> chapters}) =>
+    RustLib.instance.api
+        .crateApiStorageCacheChapters(mangaId: mangaId, chapters: chapters);
+
+Future<List<Chapter>> getCachedChapters({required PlatformInt64 mangaId}) =>
+    RustLib.instance.api.crateApiStorageGetCachedChapters(mangaId: mangaId);
+
+Future<List<ContinueReadingItem>> getContinueReadingManga() =>
+    RustLib.instance.api.crateApiStorageGetContinueReadingManga();
 
 Future<List<ChapterHistory>> getChapterHistory(
         {required PlatformInt64 mangaId}) =>

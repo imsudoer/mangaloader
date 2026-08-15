@@ -12,6 +12,7 @@ import 'package:mangaloader/src/rust/api/storage.dart' as rust_storage;
 import 'package:mangaloader/src/rust/api/mangalib_client.dart' as rust_api;
 import 'package:mangaloader/src/rust/api/cbz_export.dart' as rust_cbz;
 import 'package:mangaloader/src/rust/api/models.dart';
+import 'package:mangaloader/services/streak_notification_service.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -488,14 +489,18 @@ class _ReaderPageState extends State<ReaderPage> {
           lastReadAt: DateTime.now().toIso8601String(),
         )
       );
-      rust_storage.markChapterRead(
+      final isCompleted = _currentPageIndex >= _totalPages - 1;
+      await rust_storage.markChapterRead(
         mangaId: _mangaId, 
         volume: widget.volume, 
         number: widget.number, 
         pageIndex: _currentPageIndex, 
         totalPages: _totalPages, 
-        isCompleted: _currentPageIndex >= _totalPages - 1
+        isCompleted: isCompleted,
       );
+      if (isCompleted) {
+        StreakNotificationService.scheduleDailyStreakReminder();
+      }
     });
   }
 
