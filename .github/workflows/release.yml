@@ -162,10 +162,40 @@ jobs:
           name: mangaloader-android-apks
           path: release-assets
 
+      - name: Extract Release Notes from CHANGELOG.md
+        id: changelog
+        run: |
+          TAG_NAME="${{ github.ref_name }}"
+          VERSION_CLEAN="${TAG_NAME#v}"
+          echo "Extracting release notes for version $VERSION_CLEAN..."
+          
+          if [ -f CHANGELOG.md ]; then
+            awk -v ver="$VERSION_CLEAN" '
+              BEGIN { recording=0; found=0 }
+              /^## \[?[vV]?[0-9]/ {
+                if (index($0, ver) > 0) {
+                  recording=1;
+                  found=1;
+                  next;
+                } else if (recording) {
+                  exit;
+                }
+              }
+              recording { print }
+              END { if (!found) exit 1 }
+            ' CHANGELOG.md > release_notes.md || true
+          fi
+
+          if [ ! -s release_notes.md ]; then
+            echo "Release notes for $TAG_NAME not found in CHANGELOG.md" > release_notes.md
+          fi
+          cat release_notes.md
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: release-assets/*
           draft: false
           prerelease: false
-          generate_release_notes: true
+          body_path: release_notes.md
+          generate_release_notes: false
