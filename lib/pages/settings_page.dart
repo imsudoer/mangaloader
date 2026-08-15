@@ -12,6 +12,7 @@ import 'package:mangaloader/services/update_checker.dart';
 import 'package:mangaloader/services/update_downloader.dart';
 import 'package:mangaloader/services/streak_notification_service.dart';
 import 'package:mangaloader/widgets/update_bottom_sheet.dart';
+import 'package:go_router/go_router.dart';
 
 class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key});
@@ -296,6 +297,19 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                         StreakNotificationService.cancelReminder();
                       }
                     },
+                  ),
+                  const SizedBox(height: 8),
+                  const Divider(height: 1),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.emoji_events_rounded, color: Color(0xFFFFD700)),
+                    title: Text(isRu ? 'Достижения' : 'Achievements'),
+                    subtitle: Text(
+                      isRu ? 'Просмотр всех наград, уровней и прогресса' : 'View all rewards, levels & progress',
+                      style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
+                    ),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: () => GoRouter.of(context).push('/achievements'),
                   ),
                 ],
               ),

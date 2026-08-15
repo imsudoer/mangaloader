@@ -72,7 +72,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => 801175310;
+  int get rustContentHash => 1299319692;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -257,6 +257,9 @@ abstract class RustLibApi extends BaseApi {
       required List<ChapterDownloadRequest> chapters,
       required String appDir,
       required PlatformInt64 concurrentImages});
+
+  Future<ReadingStreakInfo> crateApiStorageSyncReadingStreak(
+      {required PlatformInt64 days});
 }
 
 class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
@@ -1721,6 +1724,32 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           "concurrentImages",
           "sink"
         ],
+      );
+
+  @override
+  Future<ReadingStreakInfo> crateApiStorageSyncReadingStreak(
+      {required PlatformInt64 days}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_i_64(days, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 54, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_reading_streak_info,
+        decodeErrorData: sse_decode_AnyhowException,
+      ),
+      constMeta: kCrateApiStorageSyncReadingStreakConstMeta,
+      argValues: [days],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiStorageSyncReadingStreakConstMeta =>
+      const TaskConstMeta(
+        debugName: "sync_reading_streak",
+        argNames: ["days"],
       );
 
   @protected

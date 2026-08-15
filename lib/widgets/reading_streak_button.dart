@@ -8,13 +8,18 @@ class ReadingStreakButton extends ConsumerWidget {
 
   Color _getFlameColor(int days, bool isActiveToday) {
     if (days == 0 || !isActiveToday) return const Color(0xFF9E9E9E);
-    if (days < 3) return const Color(0xFFFF9800);
-    if (days < 7) return const Color(0xFFFF6D00);
-    if (days < 14) return const Color(0xFFFF1744);
-    if (days < 30) return const Color(0xFFD500F9);
-    if (days < 50) return const Color(0xFF00E5FF);
-    if (days < 100) return const Color(0xFFFFD700);
-    return const Color(0xFFFF3D00);
+    if (days < 3) return const Color(0xFFFF9800); // 1-2: Bronze
+    if (days < 7) return const Color(0xFFFF6D00); // 3-6: Amber
+    if (days < 14) return const Color(0xFFFF1744); // 7-13: Crimson
+    if (days < 30) return const Color(0xFFD500F9); // 14-29: Violet
+    if (days < 50) return const Color(0xFF00E5FF); // 30-49: Cyan Plasma
+    if (days < 100) return const Color(0xFFFFD700); // 50-99: Gold
+    if (days < 200) return const Color(0xFFFF3D00); // 100-199: Solar Phoenix
+    if (days < 365) return const Color(0xFFAA00FF); // 200-364: Cosmic Amethyst
+    if (days < 500) return const Color(0xFF00E676); // 365-499: Emerald Year
+    if (days < 750) return const Color(0xFFFF007F); // 500-749: Supernova
+    if (days < 1000) return const Color(0xFF7C4DFF); // 750-999: Void Dragon
+    return const Color(0xFFFFEA00); // 1000+: Eternal Manga God
   }
 
   @override

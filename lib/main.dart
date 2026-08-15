@@ -17,6 +17,7 @@ import 'pages/settings_page.dart';
 import 'pages/manga_details_page.dart';
 import 'pages/reader_page.dart';
 import 'pages/login_webview_page.dart';
+import 'pages/achievements_page.dart';
 import 'providers/settings_provider.dart';
 
 import 'services/streak_notification_service.dart';
@@ -121,6 +122,10 @@ final _router = GoRouter(
     GoRoute(
       path: '/login',
       builder: (context, state) => const LoginWebviewPage(),
+    ),
+    GoRoute(
+      path: '/achievements',
+      builder: (context, state) => const AchievementsPage(),
     ),
     GoRoute(
       path: '/manga/:slugUrl',

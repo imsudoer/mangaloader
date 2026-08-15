@@ -131,11 +131,11 @@ class UpdateChecker {
       _cachedCurrentVersion = info.version;
       return info.version;
     } catch (_) {
-      return '1.5.0';
+      return '1.5.1';
     }
   }
 
-  static String get currentVersion => _cachedCurrentVersion ?? '1.5.0';
+  static String get currentVersion => _cachedCurrentVersion ?? '1.5.1';
 
   static Future<AppUpdateInfo?> checkForUpdates({String repo = defaultRepo}) async {
     try {

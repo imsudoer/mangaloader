@@ -28,4 +28,13 @@ class StreakNotifier extends StateNotifier<AsyncValue<ReadingStreakInfo>> {
       loadStreak();
     }
   }
+
+  Future<void> syncStreak(int days) async {
+    try {
+      final updated = await rust_storage.syncReadingStreak(days: days);
+      state = AsyncValue.data(updated);
+    } catch (_) {
+      loadStreak();
+    }
+  }
 }

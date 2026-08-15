@@ -106,6 +106,9 @@ Future<ReadingStreakInfo> getReadingStreak() =>
 Future<ReadingStreakInfo> recordChapterReadForStreak() =>
     RustLib.instance.api.crateApiStorageRecordChapterReadForStreak();
 
+Future<ReadingStreakInfo> syncReadingStreak({required PlatformInt64 days}) =>
+    RustLib.instance.api.crateApiStorageSyncReadingStreak(days: days);
+
 Future<void> cacheChapters(
         {required PlatformInt64 mangaId, required List<Chapter> chapters}) =>
     RustLib.instance.api

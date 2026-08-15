@@ -760,6 +760,46 @@ pub async fn record_chapter_read_for_streak() -> Result<ReadingStreakInfo> {
     })
 }
 
+pub async fn sync_reading_streak(days: i64) -> Result<ReadingStreakInfo> {
+    let guard = get_conn()?;
+    let conn = guard.as_ref().unwrap();
+
+    let today_str = chrono::Utc::now().format("%Y-%m-%d").to_string();
+    let max_s = days.max(1);
+    let mut history_dates = Vec::new();
+    let count = 7.min(days);
+    for i in (0..count).rev() {
+        let d = chrono::Utc::now() - chrono::Duration::days(i);
+        history_dates.push(d.format("%Y-%m-%d").to_string());
+    }
+    let hist_json = serde_json::to_string(&history_dates).unwrap_or_else(|_| "[]".to_string());
+
+    conn.execute(
+        "INSERT INTO reading_streak (id, current_streak, max_streak, last_read_date, today_chapters_count, total_days_read, total_chapters_read, history_json)
+         VALUES (1, ?1, ?2, ?3, 1, ?4, ?5, ?6)
+         ON CONFLICT(id) DO UPDATE SET
+            current_streak=excluded.current_streak,
+            max_streak=MAX(max_streak, excluded.max_streak),
+            last_read_date=excluded.last_read_date,
+            today_chapters_count=excluded.today_chapters_count,
+            total_days_read=MAX(total_days_read, excluded.total_days_read),
+            total_chapters_read=MAX(total_chapters_read, excluded.total_chapters_read),
+            history_json=excluded.history_json",
+        params![days, max_s, today_str, days, days * 3, hist_json],
+    )?;
+
+    Ok(ReadingStreakInfo {
+        current_streak: days,
+        max_streak: max_s,
+        last_read_date: today_str,
+        today_chapters_count: 1,
+        is_active_today: true,
+        total_days_read: days,
+        total_chapters_read: days * 3,
+        history_dates,
+    })
+}
+
 pub async fn cache_chapters(manga_id: i64, chapters: Vec<Chapter>) -> Result<()> {
     let guard = get_conn()?;
     let conn = guard.as_ref().unwrap();
