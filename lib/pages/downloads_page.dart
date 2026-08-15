@@ -17,6 +17,9 @@ class DownloadsPage extends ConsumerStatefulWidget {
 class _DownloadsPageState extends ConsumerState<DownloadsPage> {
   List<DownloadedMangaGroup> _mangaGroups = [];
   bool _loading = true;
+  String _searchQuery = '';
+  String _sortBy = 'title'; // 'title', 'chapters', 'size', 'recent'
+  final Map<int, bool> _groupAscending = {};
 
   @override
   void initState() {
@@ -121,6 +124,38 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
     final downloads = ref.watch(downloadProvider);
     final isRu = Localizations.localeOf(context).languageCode == 'ru';
 
+    // Filter & Sort manga groups
+    var filteredGroups = _mangaGroups.where((g) {
+      if (_searchQuery.isEmpty) return true;
+      final q = _searchQuery.toLowerCase();
+      final inTitle = g.name.toLowerCase().contains(q) || g.rusName.toLowerCase().contains(q);
+      final inChapters = g.chapters.any((c) => c.number.toLowerCase().contains(q) || c.volume.toLowerCase().contains(q));
+      return inTitle || inChapters;
+    }).toList();
+
+    filteredGroups.sort((a, b) {
+      if (_sortBy == 'chapters') {
+        return b.chapters.length.compareTo(a.chapters.length);
+      } else if (_sortBy == 'size') {
+        return b.totalSizeBytes.compareTo(a.totalSizeBytes);
+      } else if (_sortBy == 'recent') {
+        final dateA = a.chapters.map((c) => c.downloadedAt).fold('', (p, e) => e.compareTo(p) > 0 ? e : p);
+        final dateB = b.chapters.map((c) => c.downloadedAt).fold('', (p, e) => e.compareTo(p) > 0 ? e : p);
+        return dateB.compareTo(dateA);
+      } else {
+        final titleA = a.rusName.isNotEmpty ? a.rusName : a.name;
+        final titleB = b.rusName.isNotEmpty ? b.rusName : b.name;
+        return titleA.toLowerCase().compareTo(titleB.toLowerCase());
+      }
+    });
+
+    final sortOptions = [
+      {'id': 'title', 'labelRu': 'По названию (А-Я)', 'labelEn': 'By Title (A-Z)'},
+      {'id': 'chapters', 'labelRu': 'По числу глав', 'labelEn': 'Most Chapters'},
+      {'id': 'size', 'labelRu': 'По размеру файлов', 'labelEn': 'Largest Size'},
+      {'id': 'recent', 'labelRu': 'Недавно скачанные', 'labelEn': 'Recently Downloaded'},
+    ];
+
     return Scaffold(
       appBar: AppBar(
         title: Text(isRu ? 'Загрузки и файлы' : 'Downloads & Files'),
@@ -190,13 +225,14 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
               const Divider(height: 32),
             ],
 
-            // Downloaded Manga Section Header
+            // Downloaded Manga Section Header with Search and Sort
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  isRu ? 'Скачанная манга (CBZ)' : 'Downloaded Manga (CBZ)',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                Expanded(
+                  child: Text(
+                    isRu ? 'Скачанная манга (CBZ)' : 'Downloaded Manga (CBZ)',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                  ),
                 ),
                 TextButton.icon(
                   onPressed: () async {
@@ -217,6 +253,69 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
               ],
             ),
             const SizedBox(height: 8),
+
+            // Search and Sort controls
+            if (_mangaGroups.isNotEmpty) ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      decoration: InputDecoration(
+                        hintText: isRu ? 'Поиск в скачанных...' : 'Search downloads...',
+                        prefixIcon: const Icon(Icons.search_rounded, size: 18),
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                        filled: true,
+                        fillColor: const Color(0xFF2C2C2C),
+                      ),
+                      onChanged: (val) => setState(() => _searchQuery = val),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  PopupMenuButton<String>(
+                    initialValue: _sortBy,
+                    tooltip: isRu ? 'Сортировка' : 'Sort',
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    color: const Color(0xFF2C2C2C),
+                    onSelected: (val) => setState(() => _sortBy = val),
+                    itemBuilder: (ctx) => sortOptions.map((opt) {
+                      final isSel = _sortBy == opt['id'];
+                      return PopupMenuItem<String>(
+                        value: opt['id'] as String,
+                        child: Row(
+                          children: [
+                            Icon(
+                              isSel ? Icons.check_circle_rounded : Icons.circle_outlined,
+                              size: 16,
+                              color: isSel ? const Color(0xFF8A897C) : const Color(0xFFBDBBB0),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              isRu ? opt['labelRu'] as String : opt['labelEn'] as String,
+                              style: TextStyle(
+                                color: isSel ? Colors.white : const Color(0xFFD2D7DF),
+                                fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2C2C2C),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFF3E3E3E)),
+                      ),
+                      child: const Icon(Icons.sort_rounded, size: 20, color: Color(0xFFD2D7DF)),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+            ],
 
             if (_loading)
               const Center(child: Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator()))
@@ -242,10 +341,37 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
                   ),
                 ),
               )
+            else if (filteredGroups.isEmpty)
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text(
+                    isRu ? 'Ничего не найдено по запросу "$_searchQuery"' : 'No matches for "$_searchQuery"',
+                    style: const TextStyle(color: Color(0xFFBDBBB0)),
+                  ),
+                ),
+              )
             else
-              ..._mangaGroups.map((group) {
+              ...filteredGroups.map((group) {
                 final title = group.rusName.isNotEmpty ? group.rusName : group.name;
                 final sizeStr = _formatBytes(group.totalSizeBytes.toInt());
+                final isAsc = _groupAscending[group.mangaId] ?? true;
+
+                // Sort chapters of this group
+                var groupChapters = List<DownloadedChapterInfo>.from(group.chapters);
+                groupChapters.sort((a, b) {
+                  final volA = double.tryParse(a.volume) ?? 0.0;
+                  final volB = double.tryParse(b.volume) ?? 0.0;
+                  final numA = double.tryParse(a.number) ?? 0.0;
+                  final numB = double.tryParse(b.number) ?? 0.0;
+                  final compVol = volA.compareTo(volB);
+                  if (compVol != 0) return compVol;
+                  return numA.compareTo(numB);
+                });
+
+                if (!isAsc) {
+                  groupChapters = groupChapters.reversed.toList();
+                }
 
                 return Card(
                   margin: const EdgeInsets.only(bottom: 12),
@@ -322,7 +448,32 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
                       ),
                       children: [
                         const Divider(height: 1),
-                        ...group.chapters.map((ch) {
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                          child: Row(
+                            children: [
+                              Text(
+                                isRu ? 'Главы по порядку:' : 'Chapters in order:',
+                                style: const TextStyle(fontSize: 12, color: Color(0xFFBDBBB0), fontWeight: FontWeight.w600),
+                              ),
+                              const Spacer(),
+                              TextButton.icon(
+                                style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                                onPressed: () {
+                                  setState(() {
+                                    _groupAscending[group.mangaId] = !isAsc;
+                                  });
+                                },
+                                icon: Icon(isAsc ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded, size: 14),
+                                label: Text(
+                                  isAsc ? (isRu ? 'С первых глав' : 'Ascending (1.0 ->)') : (isRu ? 'С последних глав' : 'Descending'),
+                                  style: const TextStyle(fontSize: 11),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        ...groupChapters.map((ch) {
                           return ListTile(
                             dense: true,
                             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),

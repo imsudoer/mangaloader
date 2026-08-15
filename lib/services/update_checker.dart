@@ -56,10 +56,10 @@ class AppUpdateInfo {
     if (Platform.isAndroid) {
       final archLower = archInfo.toLowerCase();
       if (archLower.contains('aarch64') || archLower.contains('arm64') || archLower.contains('v8a')) {
-        final match = assets.where((a) => a.name.toLowerCase().contains('arm64') && a.name.endsWith('.apk')).firstOrNull;
+        final match = assets.where((a) => (a.name.toLowerCase().contains('arm64') || a.name.toLowerCase().contains('v8a')) && a.name.endsWith('.apk')).firstOrNull;
         if (match != null) return match;
-      } else if (archLower.contains('arm') && !archLower.contains('64')) {
-        final match = assets.where((a) => (a.name.toLowerCase().contains('armeabi') || a.name.toLowerCase().contains('armv7')) && a.name.endsWith('.apk')).firstOrNull;
+      } else if (archLower.contains('v7a') || archLower.contains('armeabi') || archLower.contains('arm')) {
+        final match = assets.where((a) => (a.name.toLowerCase().contains('armeabi') || a.name.toLowerCase().contains('v7a') || a.name.toLowerCase().contains('armv7')) && a.name.endsWith('.apk')).firstOrNull;
         if (match != null) return match;
       } else if (archLower.contains('x86_64')) {
         final match = assets.where((a) => a.name.toLowerCase().contains('x86_64') && a.name.endsWith('.apk')).firstOrNull;
@@ -77,8 +77,16 @@ class AppUpdateInfo {
     return assets.first;
   }
 
-  String get targetArchitectureLabel {
+  String getTargetArchitectureLabel(String archInfo) {
     if (Platform.isAndroid) {
+      final archLower = archInfo.toLowerCase();
+      if (archLower.contains('aarch64') || archLower.contains('arm64') || archLower.contains('v8a')) {
+        return 'Android (arm64-v8a)';
+      } else if (archLower.contains('v7a') || archLower.contains('armeabi') || archLower.contains('arm')) {
+        return 'Android (armeabi-v7a)';
+      } else if (archLower.contains('x86_64')) {
+        return 'Android (x86_64)';
+      }
       return 'Android APK';
     } else if (Platform.isWindows) {
       return 'Windows x64';
@@ -89,6 +97,8 @@ class AppUpdateInfo {
     }
     return 'Universal';
   }
+
+  String get targetArchitectureLabel => getTargetArchitectureLabel('');
 
   String? get androidApkUrl {
     for (final a in assets) {
@@ -121,11 +131,11 @@ class UpdateChecker {
       _cachedCurrentVersion = info.version;
       return info.version;
     } catch (_) {
-      return '1.4.8';
+      return '1.4.9';
     }
   }
 
-  static String get currentVersion => _cachedCurrentVersion ?? '1.4.8';
+  static String get currentVersion => _cachedCurrentVersion ?? '1.4.9';
 
   static Future<AppUpdateInfo?> checkForUpdates({String repo = defaultRepo}) async {
     try {

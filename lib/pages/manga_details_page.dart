@@ -20,6 +20,10 @@ final mangaHistoryProvider = FutureProvider.family<List<ChapterHistory>, int>((r
   return rust_storage.getChapterHistory(mangaId: mangaId);
 });
 
+final mangaDownloadedChaptersProvider = FutureProvider.family<List<DownloadedChapterInfo>, int>((ref, mangaId) async {
+  return rust_storage.getDownloadedChapters(mangaId: mangaId);
+});
+
 class MangaDetailsPage extends ConsumerStatefulWidget {
   final String slugUrl;
   const MangaDetailsPage({super.key, required this.slugUrl});
@@ -31,6 +35,7 @@ class MangaDetailsPage extends ConsumerStatefulWidget {
 class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with SingleTickerProviderStateMixin {
   late TabController _tabController;
   String _chapterSearchQuery = '';
+  String _chapterFilter = 'all'; // 'all', 'downloaded', 'unread'
   bool _isAscending = true;
   bool _isBatchMode = false;
   final Set<String> _selectedChapters = {};
@@ -471,6 +476,10 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
     List<DownloadProgress> downloadList,
     bool isRu,
   ) {
+    final downloadedAsync = ref.watch(mangaDownloadedChaptersProvider(manga.id));
+    final downloadedChapters = downloadedAsync.value ?? [];
+    final history = historyAsync.value ?? [];
+
     return chaptersAsync.when(
       data: (chapters) {
         if (chapters.isEmpty) {
@@ -487,15 +496,39 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
         }
 
         var list = chapters.where((c) {
-          if (_chapterSearchQuery.isEmpty) return true;
-          return c.number.contains(_chapterSearchQuery) || c.volume.contains(_chapterSearchQuery);
+          if (_chapterSearchQuery.isNotEmpty) {
+            final query = _chapterSearchQuery.toLowerCase();
+            final matchNum = c.number.toLowerCase().contains(query);
+            final matchVol = c.volume.toLowerCase().contains(query);
+            final matchName = (c.name ?? '').toLowerCase().contains(query);
+            if (!matchNum && !matchVol && !matchName) return false;
+          }
+
+          if (_chapterFilter == 'downloaded') {
+            return downloadedChapters.any((dc) => dc.volume == c.volume && dc.number == c.number);
+          } else if (_chapterFilter == 'unread') {
+            return !history.any((h) => h.volume == c.volume && h.number == c.number && h.isCompleted);
+          } else if (_chapterFilter == 'not_downloaded') {
+            return !downloadedChapters.any((dc) => dc.volume == c.volume && dc.number == c.number);
+          }
+
+          return true;
         }).toList();
+
+        // Sort chapters numerically
+        list.sort((a, b) {
+          final volA = double.tryParse(a.volume) ?? 0.0;
+          final volB = double.tryParse(b.volume) ?? 0.0;
+          final numA = double.tryParse(a.number) ?? 0.0;
+          final numB = double.tryParse(b.number) ?? 0.0;
+          final compVol = volA.compareTo(volB);
+          if (compVol != 0) return compVol;
+          return numA.compareTo(numB);
+        });
 
         if (!_isAscending) {
           list = list.reversed.toList();
         }
-
-        final history = historyAsync.value ?? [];
 
         return ListView(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -533,6 +566,74 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                 ),
               ],
             ),
+
+            const SizedBox(height: 6),
+
+            // Quick Filter Chips (Все, Скачанные, Непрочитанные)
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  ChoiceChip(
+                    label: Text(isRu ? 'Все (${chapters.length})' : 'All (${chapters.length})'),
+                    selected: _chapterFilter == 'all',
+                    selectedColor: const Color(0xFF8A897C),
+                    backgroundColor: const Color(0xFF2C2C2C),
+                    labelStyle: TextStyle(
+                      fontSize: 12,
+                      color: _chapterFilter == 'all' ? Colors.white : const Color(0xFFD2D7DF),
+                      fontWeight: _chapterFilter == 'all' ? FontWeight.bold : FontWeight.normal,
+                    ),
+                    side: BorderSide(
+                      color: _chapterFilter == 'all' ? const Color(0xFF8A897C) : const Color(0xFF3E3E3E),
+                    ),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    visualDensity: VisualDensity.compact,
+                    showCheckmark: false,
+                    onSelected: (_) => setState(() => _chapterFilter = 'all'),
+                  ),
+                  const SizedBox(width: 6),
+                  ChoiceChip(
+                    label: Text(isRu ? 'Скачанные (${downloadedChapters.length})' : 'Downloaded (${downloadedChapters.length})'),
+                    selected: _chapterFilter == 'downloaded',
+                    selectedColor: const Color(0xFF8A897C),
+                    backgroundColor: const Color(0xFF2C2C2C),
+                    labelStyle: TextStyle(
+                      fontSize: 12,
+                      color: _chapterFilter == 'downloaded' ? Colors.white : const Color(0xFFD2D7DF),
+                      fontWeight: _chapterFilter == 'downloaded' ? FontWeight.bold : FontWeight.normal,
+                    ),
+                    side: BorderSide(
+                      color: _chapterFilter == 'downloaded' ? const Color(0xFF8A897C) : const Color(0xFF3E3E3E),
+                    ),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    visualDensity: VisualDensity.compact,
+                    showCheckmark: false,
+                    onSelected: (_) => setState(() => _chapterFilter = 'downloaded'),
+                  ),
+                  const SizedBox(width: 6),
+                  ChoiceChip(
+                    label: Text(isRu ? 'Непрочитанные' : 'Unread'),
+                    selected: _chapterFilter == 'unread',
+                    selectedColor: const Color(0xFF8A897C),
+                    backgroundColor: const Color(0xFF2C2C2C),
+                    labelStyle: TextStyle(
+                      fontSize: 12,
+                      color: _chapterFilter == 'unread' ? Colors.white : const Color(0xFFD2D7DF),
+                      fontWeight: _chapterFilter == 'unread' ? FontWeight.bold : FontWeight.normal,
+                    ),
+                    side: BorderSide(
+                      color: _chapterFilter == 'unread' ? const Color(0xFF8A897C) : const Color(0xFF3E3E3E),
+                    ),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    visualDensity: VisualDensity.compact,
+                    showCheckmark: false,
+                    onSelected: (_) => setState(() => _chapterFilter = 'unread'),
+                  ),
+                ],
+              ),
+            ),
+
             if (_isBatchMode) ...[
               const SizedBox(height: 8),
               Container(
@@ -580,6 +681,18 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                       ),
                       onPressed: _selectedChapters.isEmpty ? null : () async {
                         final toDownload = list.where((c) => _selectedChapters.contains('${c.volume}_${c.number}')).toList();
+                        
+                        // Sort batch downloads chronologically ascending
+                        toDownload.sort((a, b) {
+                          final volA = double.tryParse(a.volume) ?? 0.0;
+                          final volB = double.tryParse(b.volume) ?? 0.0;
+                          final numA = double.tryParse(a.number) ?? 0.0;
+                          final numB = double.tryParse(b.number) ?? 0.0;
+                          final compVol = volA.compareTo(volB);
+                          if (compVol != 0) return compVol;
+                          return numA.compareTo(numB);
+                        });
+
                         final appDir = await getApplicationDocumentsDirectory();
                         for (final ch in toDownload) {
                           final stream = rust_download.startChapterDownload(
@@ -597,6 +710,9 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                           );
                           stream.listen((p) {
                             ref.read(downloadProvider.notifier).addProgress(p);
+                            if (p.state == DownloadState.completed) {
+                              ref.invalidate(mangaDownloadedChaptersProvider(manga.id));
+                            }
                           });
                         }
                         if (context.mounted) {
@@ -624,64 +740,78 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
             // Chapter Tiles
             ...list.map((ch) {
               final isRead = history.any((h) => h.volume == ch.volume && h.number == ch.number && h.isCompleted);
+              final localChapter = downloadedChapters.where((dc) => dc.volume == ch.volume && dc.number == ch.number).firstOrNull;
+              final isDownloadedLocally = localChapter != null;
+
               final progressItem = downloadList.where(
                 (p) => p.mangaSlug == manga.slugUrl && p.chapterVolume == ch.volume && p.chapterNumber == ch.number,
               ).firstOrNull;
 
-              final downloadProgress = progressItem != null
-                ? (progressItem.state == DownloadState.completed
-                    ? 1.0 
-                    : (progressItem.state == DownloadState.queued
-                        ? -2.0 
-                        : (progressItem.currentPage / (progressItem.totalPages > 0 ? progressItem.totalPages : 1)).clamp(0.0, 1.0)))
-                : -1.0;
+              final double downloadProgress;
+              if (progressItem != null) {
+                if (progressItem.state == DownloadState.completed) {
+                  downloadProgress = 1.0;
+                } else if (progressItem.state == DownloadState.queued) {
+                  downloadProgress = -2.0;
+                } else {
+                  downloadProgress = (progressItem.currentPage / (progressItem.totalPages > 0 ? progressItem.totalPages : 1)).clamp(0.0, 1.0);
+                }
+              } else if (isDownloadedLocally) {
+                downloadProgress = 1.0;
+              } else {
+                downloadProgress = -1.0;
+              }
 
-                final key = '${ch.volume}_${ch.number}';
-                final isSelected = _selectedChapters.contains(key);
+              final key = '${ch.volume}_${ch.number}';
+              final isSelected = _selectedChapters.contains(key);
 
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 6),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    side: BorderSide(
-                      color: isSelected
-                        ? const Color(0xFF8A897C)
-                        : (isRead ? const Color(0xFF8A897C).withValues(alpha: 0.3) : const Color(0xFF353535)),
-                      width: isSelected ? 1.5 : 1.0,
-                    ),
+              return Card(
+                margin: const EdgeInsets.only(bottom: 6),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  side: BorderSide(
+                    color: isSelected
+                      ? const Color(0xFF8A897C)
+                      : (isRead ? const Color(0xFF8A897C).withValues(alpha: 0.3) : const Color(0xFF353535)),
+                    width: isSelected ? 1.5 : 1.0,
                   ),
-                  child: ListTile(
-                    dense: true,
-                    leading: _isBatchMode && !ch.isPaid
-                      ? Checkbox(
-                          value: isSelected,
-                          activeColor: const Color(0xFF8A897C),
-                          onChanged: (val) {
-                            setState(() {
-                              if (val == true) {
-                                _selectedChapters.add(key);
-                              } else {
-                                _selectedChapters.remove(key);
-                              }
-                            });
-                          },
-                        )
-                      : Container(
-                          padding: const EdgeInsets.all(6),
-                          decoration: BoxDecoration(
-                            color: isRead
-                              ? const Color(0xFF8A897C).withValues(alpha: 0.2)
-                              : const Color(0xFF353535),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Icon(
-                            isRead ? Icons.done_all_rounded : Icons.menu_book_rounded,
-                            size: 16,
-                            color: isRead ? const Color(0xFFD2D7DF) : const Color(0xFFBDBBB0),
-                          ),
+                ),
+                child: ListTile(
+                  dense: true,
+                  leading: _isBatchMode && !ch.isPaid
+                    ? Checkbox(
+                        value: isSelected,
+                        activeColor: const Color(0xFF8A897C),
+                        onChanged: (val) {
+                          setState(() {
+                            if (val == true) {
+                              _selectedChapters.add(key);
+                            } else {
+                              _selectedChapters.remove(key);
+                            }
+                          });
+                        },
+                      )
+                    : Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: isRead
+                            ? const Color(0xFF8A897C).withValues(alpha: 0.2)
+                            : const Color(0xFF353535),
+                          borderRadius: BorderRadius.circular(8),
                         ),
-                    title: Row(
-                      children: [
+                        child: Icon(
+                          isDownloadedLocally
+                            ? Icons.offline_pin_rounded
+                            : (isRead ? Icons.done_all_rounded : Icons.menu_book_rounded),
+                          size: 16,
+                          color: isDownloadedLocally
+                            ? const Color(0xFF8A897C)
+                            : (isRead ? const Color(0xFFD2D7DF) : const Color(0xFFBDBBB0)),
+                        ),
+                      ),
+                  title: Row(
+                    children: [
                       Text(
                         'Том ${ch.volume} Глава ${ch.number}',
                         style: TextStyle(
@@ -689,6 +819,20 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                           color: isRead ? const Color(0xFFBDBBB0) : Colors.white,
                         ),
                       ),
+                      if (isDownloadedLocally) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF8A897C).withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text(
+                            'CBZ',
+                            style: TextStyle(fontSize: 10, color: Color(0xFFD2D7DF), fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
                       if (ch.isPaid) ...[
                         const SizedBox(width: 8),
                         Container(
@@ -721,8 +865,12 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                     children: [
                       // Direct Read Play Button
                       IconButton.filledTonal(
-                        icon: Icon(ch.isPaid ? Icons.lock_outline_rounded : Icons.play_arrow_rounded, size: 18),
-                        tooltip: ch.isPaid ? (isRu ? 'Платный доступ' : 'Paid access') : (isRu ? 'Читать онлайн' : 'Read online'),
+                        icon: Icon(ch.isPaid ? Icons.lock_outline_rounded : (isDownloadedLocally ? Icons.folder_zip_rounded : Icons.play_arrow_rounded), size: 18),
+                        tooltip: ch.isPaid 
+                          ? (isRu ? 'Платный доступ' : 'Paid access') 
+                          : (isDownloadedLocally 
+                              ? (isRu ? 'Читать оффлайн (CBZ)' : 'Read offline (CBZ)')
+                              : (isRu ? 'Читать онлайн' : 'Read online')),
                         style: IconButton.styleFrom(
                           backgroundColor: ch.isPaid 
                             ? Colors.amber.shade900.withValues(alpha: 0.2) 
@@ -739,10 +887,15 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                           }
                           ref.read(libraryProvider.notifier).loadAll();
                           if (context.mounted) {
-                            await context.push('/read/${manga.slugUrl}/${ch.volume}/${ch.number}?branchId=${ch.branchId ?? ""}');
+                            if (localChapter != null) {
+                              await context.push('/read-local?path=${Uri.encodeComponent(localChapter.downloadPath)}');
+                            } else {
+                              await context.push('/read/${manga.slugUrl}/${ch.volume}/${ch.number}?branchId=${ch.branchId ?? ""}');
+                            }
                             if (context.mounted) {
                               ref.read(libraryProvider.notifier).loadAll();
                               ref.invalidate(mangaHistoryProvider(manga.id));
+                              ref.invalidate(mangaDownloadedChaptersProvider(manga.id));
                             }
                           }
                         },
@@ -768,6 +921,9 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                             );
                             stream.listen((p) {
                               ref.read(downloadProvider.notifier).addProgress(p);
+                              if (p.state == DownloadState.completed) {
+                                ref.invalidate(mangaDownloadedChaptersProvider(manga.id));
+                              }
                             });
                             if (context.mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
@@ -786,10 +942,15 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                     }
                     ref.read(libraryProvider.notifier).loadAll();
                     if (context.mounted) {
-                      await context.push('/read/${manga.slugUrl}/${ch.volume}/${ch.number}?branchId=${ch.branchId ?? ""}');
+                      if (localChapter != null) {
+                        await context.push('/read-local?path=${Uri.encodeComponent(localChapter.downloadPath)}');
+                      } else {
+                        await context.push('/read/${manga.slugUrl}/${ch.volume}/${ch.number}?branchId=${ch.branchId ?? ""}');
+                      }
                       if (context.mounted) {
                         ref.read(libraryProvider.notifier).loadAll();
                         ref.invalidate(mangaHistoryProvider(manga.id));
+                        ref.invalidate(mangaDownloadedChaptersProvider(manga.id));
                       }
                     }
                   },

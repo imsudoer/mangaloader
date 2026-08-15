@@ -29,6 +29,34 @@ pub fn cancel_downloads() {
     DOWNLOAD_CANCELLED.store(true, Ordering::SeqCst);
 }
 
+fn is_valid_image_data(bytes: &[u8]) -> bool {
+    if bytes.len() < 400 {
+        return false;
+    }
+    // JPEG
+    if bytes.starts_with(&[0xFF, 0xD8, 0xFF]) {
+        return true;
+    }
+    // PNG
+    if bytes.starts_with(&[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]) {
+        return true;
+    }
+    // WEBP: RIFF....WEBP
+    if bytes.len() >= 12 && &bytes[0..4] == b"RIFF" && &bytes[8..12] == b"WEBP" {
+        return true;
+    }
+    // GIF
+    if bytes.starts_with(b"GIF8") {
+        return true;
+    }
+    // AVIF
+    if bytes.len() >= 12 && (&bytes[4..12] == b"ftypavif" || &bytes[4..12] == b"ftypavis") {
+        return true;
+    }
+    // Fallback for unknown extensions: non-HTML and sufficient size
+    bytes.len() > 2048 && !bytes.starts_with(b"<!DOCTYPE") && !bytes.starts_with(b"<html")
+}
+
 pub async fn start_chapter_download(
     slug_url: String,
     manga_id: i64,
@@ -76,26 +104,53 @@ pub async fn start_chapter_download(
 
         let _ = sink.add(progress.clone());
 
-        // Get pages
-        let pages = match get_chapter_pages(
-            slug_url.clone(),
-            chapter.volume.clone(),
-            chapter.number.clone(),
-            chapter.branch_id,
-        ).await {
-            Ok(p) => p,
-            Err(e) => {
-                progress.state = DownloadState::Failed;
-                progress.error_message = Some(e.to_string());
+        // Get pages with reconnect retries
+        let mut pages = Vec::new();
+        let mut page_retry_delay = 2;
+        let mut page_retries = 0;
+
+        loop {
+            if DOWNLOAD_CANCELLED.load(Ordering::SeqCst) { break; }
+            while !DOWNLOAD_ACTIVE.load(Ordering::SeqCst) && !DOWNLOAD_CANCELLED.load(Ordering::SeqCst) {
+                progress.state = DownloadState::Paused;
                 let _ = sink.add(progress.clone());
-                continue;
+                sleep(Duration::from_millis(500)).await;
             }
-        };
+            if DOWNLOAD_CANCELLED.load(Ordering::SeqCst) { break; }
+
+            match get_chapter_pages(
+                slug_url.clone(),
+                chapter.volume.clone(),
+                chapter.number.clone(),
+                chapter.branch_id,
+            ).await {
+                Ok(p) => {
+                    pages = p;
+                    break;
+                }
+                Err(e) => {
+                    page_retries += 1;
+                    if page_retries > 10 {
+                        progress.state = DownloadState::Failed;
+                        progress.error_message = Some(e.to_string());
+                        let _ = sink.add(progress.clone());
+                        break;
+                    }
+                    progress.state = DownloadState::WaitingForNetwork;
+                    progress.error_message = None;
+                    let _ = sink.add(progress.clone());
+                    sleep(Duration::from_secs(page_retry_delay)).await;
+                    page_retry_delay = (page_retry_delay * 2).min(20);
+                }
+            }
+        }
 
         if pages.is_empty() {
-            progress.state = DownloadState::Failed;
-            progress.error_message = Some("No pages returned by API".to_string());
-            let _ = sink.add(progress.clone());
+            if !DOWNLOAD_CANCELLED.load(Ordering::SeqCst) && page_retries > 10 {
+                progress.state = DownloadState::Failed;
+                progress.error_message = Some("Failed to retrieve chapter pages".to_string());
+                let _ = sink.add(progress.clone());
+            }
             continue;
         }
 
@@ -126,10 +181,10 @@ pub async fn start_chapter_download(
                 }
                 Err(_e) => {
                     progress.state = DownloadState::WaitingForNetwork;
-                    progress.error_message = Some("Searching CDN...".to_string());
+                    progress.error_message = None;
                     let _ = sink.add(progress.clone());
                     sleep(Duration::from_secs(retry_delay)).await;
-                    retry_delay = (retry_delay * 2).min(30);
+                    retry_delay = (retry_delay * 2).min(20);
                 }
             }
         }
@@ -174,31 +229,40 @@ pub async fn start_chapter_download(
             } else {
                 page.url.clone()
             };
-            let full_url = format!("{}{}", cdn_base, clean_path);
+            let mut full_url = format!("{}{}", cdn_base, clean_path);
             let ext = Path::new(&page.url).extension().and_then(|e| e.to_str()).unwrap_or("jpg");
             let arcname = format!("{:04}.{}", page_idx + 1, ext);
 
             let mut img_retry_delay = 1;
+            let mut img_fail_count = 0;
+
             loop {
                 if DOWNLOAD_CANCELLED.load(Ordering::SeqCst) {
                     all_ok = false;
                     break;
                 }
                 match download_image(full_url.clone()).await {
-                    Ok(bytes) => {
+                    Ok(bytes) if is_valid_image_data(&bytes) => {
                         zip.start_file(&arcname, options).context("Failed to start file in CBZ")?;
                         zip.write_all(&bytes).context("Failed to write image to CBZ")?;
                         downloaded_bytes += bytes.len() as i64;
                         break;
                     }
-                    Err(_e) => {
+                    _ => {
+                        img_fail_count += 1;
+                        if img_fail_count % 3 == 0 {
+                            // Refresh CDN base after multiple failures
+                            if let Ok(new_cdn) = find_working_cdn(pages[0].url.clone()).await {
+                                cdn_base = new_cdn;
+                                full_url = format!("{}{}", cdn_base, clean_path);
+                            }
+                        }
                         progress.state = DownloadState::WaitingForNetwork;
-                        progress.error_message = Some("Retrying download...".to_string());
+                        progress.error_message = None;
                         let _ = sink.add(progress.clone());
                         sleep(Duration::from_secs(img_retry_delay)).await;
-                        img_retry_delay = (img_retry_delay * 2).min(30);
+                        img_retry_delay = (img_retry_delay * 2).min(20);
                         progress.state = DownloadState::Downloading;
-                        progress.error_message = None;
                         let _ = sink.add(progress.clone());
                     }
                 }

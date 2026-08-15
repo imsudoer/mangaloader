@@ -40,7 +40,7 @@ class AppUpdateBottomSheet extends ConsumerWidget {
     final appVersionAsync = ref.watch(appVersionProvider);
     final currentVerStr = appVersionAsync.value ?? UpdateChecker.currentVersion;
     final bestAsset = update.getBestAsset(archInfo);
-    final targetLabel = update.targetArchitectureLabel;
+    final targetLabel = update.getTargetArchitectureLabel(archInfo);
 
     return Container(
       constraints: BoxConstraints(

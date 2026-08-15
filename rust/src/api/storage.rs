@@ -347,10 +347,21 @@ pub async fn is_chapter_downloaded(manga_id: i64, volume: String, number: String
     Ok(count > 0)
 }
 
+fn sort_downloaded_chapters_ascending(chapters: &mut [DownloadedChapterInfo]) {
+    chapters.sort_by(|a, b| {
+        let vol_a = a.volume.parse::<f64>().unwrap_or(0.0);
+        let vol_b = b.volume.parse::<f64>().unwrap_or(0.0);
+        let num_a = a.number.parse::<f64>().unwrap_or(0.0);
+        let num_b = b.number.parse::<f64>().unwrap_or(0.0);
+        vol_a.partial_cmp(&vol_b).unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| num_a.partial_cmp(&num_b).unwrap_or(std::cmp::Ordering::Equal))
+    });
+}
+
 pub async fn get_downloaded_chapters(manga_id: i64) -> Result<Vec<DownloadedChapterInfo>> {
     let guard = get_conn()?;
     let conn = guard.as_ref().unwrap();
-    let mut stmt = conn.prepare("SELECT * FROM downloaded_chapters WHERE manga_id = ?1 ORDER BY volume DESC, number DESC")?;
+    let mut stmt = conn.prepare("SELECT * FROM downloaded_chapters WHERE manga_id = ?1")?;
     let iter = stmt.query_map(params![manga_id], |row| {
         Ok(DownloadedChapterInfo {
             id: row.get("id")?,
@@ -368,6 +379,7 @@ pub async fn get_downloaded_chapters(manga_id: i64) -> Result<Vec<DownloadedChap
     for r in iter {
         res.push(r?);
     }
+    sort_downloaded_chapters_ascending(&mut res);
     Ok(res)
 }
 
@@ -470,7 +482,12 @@ pub async fn get_downloaded_manga_groups() -> Result<Vec<DownloadedMangaGroup>> 
         group.chapters.push(item.ch);
     }
 
-    Ok(groups_map.into_values().collect())
+    let mut list: Vec<DownloadedMangaGroup> = groups_map.into_values().collect();
+    for group in &mut list {
+        sort_downloaded_chapters_ascending(&mut group.chapters);
+    }
+
+    Ok(list)
 }
 
 pub async fn delete_downloaded_chapter(manga_id: i64, volume: String, number: String) -> Result<()> {

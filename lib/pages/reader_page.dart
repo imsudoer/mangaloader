@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/gestures.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:battery_plus/battery_plus.dart';
@@ -614,6 +615,36 @@ class _ReaderPageState extends State<ReaderPage> {
     }
   }
 
+  Future<void> _reloadImage(String pageUrl) async {
+    try {
+      await DefaultCacheManager().removeFile(pageUrl);
+      PaintingBinding.instance.imageCache.evict(
+        CachedNetworkImageProvider(pageUrl, headers: const {'Referer': 'https://mangalib.org/'}),
+      );
+    } catch (_) {}
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  Future<void> _reloadCurrentChapter() async {
+    for (final p in _onlinePages) {
+      final url = _resolveImageUrl(p.url);
+      try {
+        await DefaultCacheManager().removeFile(url);
+        PaintingBinding.instance.imageCache.evict(
+          CachedNetworkImageProvider(url, headers: const {'Referer': 'https://mangalib.org/'}),
+        );
+      } catch (_) {}
+    }
+    if (mounted) {
+      setState(() {});
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Кэш изображений главы сброшен, перезагрузка...')),
+      );
+    }
+  }
+
   double _baseScale = 1.0;
 
   void _handleScaleStart(ScaleStartDetails details) {
@@ -781,9 +812,27 @@ class _ReaderPageState extends State<ReaderPage> {
         fit: _resolvedBoxFit,
         memCacheWidth: memWidth,
         placeholder: (ctx, url) => const AspectRatio(aspectRatio: 0.7, child: Center(child: CircularProgressIndicator())),
-        errorWidget: (ctx, url, err) => const AspectRatio(
-          aspectRatio: 0.7,
-          child: Center(child: Icon(Icons.broken_image, color: Colors.white)),
+        errorWidget: (ctx, url, err) => InkWell(
+          onTap: () => _reloadImage(pageUrl),
+          child: AspectRatio(
+            aspectRatio: 0.7,
+            child: Container(
+              color: const Color(0xFF181818),
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.refresh_rounded, color: Colors.white70, size: 32),
+                    const SizedBox(height: 8),
+                    Text(
+                      Localizations.localeOf(context).languageCode == 'ru' ? 'Нажмите для повтора' : 'Tap to retry',
+                      style: const TextStyle(color: Colors.white70, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
         ),
       );
     } else {
@@ -870,10 +919,25 @@ class _ReaderPageState extends State<ReaderPage> {
             child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2)),
           ),
         ),
-        errorWidget: (ctx, url, err) => Container(
-          height: placeholderHeight,
-          color: const Color(0xFF181818),
-          child: const Center(child: Icon(Icons.broken_image, color: Colors.white54)),
+        errorWidget: (ctx, url, err) => InkWell(
+          onTap: () => _reloadImage(pageUrl),
+          child: Container(
+            height: placeholderHeight,
+            color: const Color(0xFF181818),
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.refresh_rounded, color: Colors.white70, size: 32),
+                  const SizedBox(height: 8),
+                  Text(
+                    Localizations.localeOf(context).languageCode == 'ru' ? 'Нажмите для повтора' : 'Tap to retry',
+                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       );
     } else {
@@ -1219,6 +1283,11 @@ class _ReaderPageState extends State<ReaderPage> {
                               context.pushReplacement('/read/${widget.slugUrl}/${_nextChapter!.volume}/${_nextChapter!.number}$branchQ');
                             },
                           ),
+                        IconButton(
+                          icon: const Icon(Icons.refresh_rounded),
+                          tooltip: Localizations.localeOf(context).languageCode == 'ru' ? 'Сбросить кэш и перезагрузить главу' : 'Reload chapter',
+                          onPressed: _reloadCurrentChapter,
+                        ),
                         IconButton(icon: const Icon(Icons.tune_rounded), tooltip: 'Настройки', onPressed: _showSettingsSheet),
                       ],
                     ),
