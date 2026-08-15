@@ -18,6 +18,8 @@ import 'pages/manga_details_page.dart';
 import 'pages/reader_page.dart';
 import 'pages/login_webview_page.dart';
 import 'pages/achievements_page.dart';
+import 'pages/statistics_page.dart';
+import 'widgets/offline_banner.dart';
 import 'providers/settings_provider.dart';
 
 import 'services/streak_notification_service.dart';
@@ -128,6 +130,10 @@ final _router = GoRouter(
       builder: (context, state) => const AchievementsPage(),
     ),
     GoRoute(
+      path: '/statistics',
+      builder: (context, state) => const StatisticsPage(),
+    ),
+    GoRoute(
       path: '/manga/:slugUrl',
       builder: (context, state) {
         final slugUrl = state.pathParameters['slugUrl']!;
@@ -182,7 +188,12 @@ class AppShell extends StatelessWidget {
     final selectedIndex = _calculateSelectedIndex(context);
 
     return Scaffold(
-      body: child,
+      body: Column(
+        children: [
+          const OfflineBanner(),
+          Expanded(child: child),
+        ],
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: selectedIndex,
         onDestinationSelected: (index) {

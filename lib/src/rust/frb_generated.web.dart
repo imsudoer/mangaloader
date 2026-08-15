@@ -74,6 +74,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ContinueReadingItem dco_decode_continue_reading_item(dynamic raw);
 
   @protected
+  CustomUserList dco_decode_custom_user_list(dynamic raw);
+
+  @protected
   DownloadProgress dco_decode_download_progress(dynamic raw);
 
   @protected
@@ -90,6 +93,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   Genre dco_decode_genre(dynamic raw);
+
+  @protected
+  GenreCount dco_decode_genre_count(dynamic raw);
 
   @protected
   HomePageData dco_decode_home_page_data(dynamic raw);
@@ -129,6 +135,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<ContinueReadingItem> dco_decode_list_continue_reading_item(dynamic raw);
 
   @protected
+  List<CustomUserList> dco_decode_list_custom_user_list(dynamic raw);
+
+  @protected
   List<DownloadedChapterInfo> dco_decode_list_downloaded_chapter_info(
       dynamic raw);
 
@@ -138,6 +147,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<Genre> dco_decode_list_genre(dynamic raw);
+
+  @protected
+  List<GenreCount> dco_decode_list_genre_count(dynamic raw);
 
   @protected
   List<LibraryEntry> dco_decode_list_library_entry(dynamic raw);
@@ -165,6 +177,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ListType dco_decode_list_type(dynamic raw);
+
+  @protected
+  MalImportResult dco_decode_mal_import_result(dynamic raw);
 
   @protected
   MangaConstants dco_decode_manga_constants(dynamic raw);
@@ -203,10 +218,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ReadingPosition dco_decode_reading_position(dynamic raw);
 
   @protected
+  ReadingStatistics dco_decode_reading_statistics(dynamic raw);
+
+  @protected
   ReadingStreakInfo dco_decode_reading_streak_info(dynamic raw);
 
   @protected
   Tag dco_decode_tag(dynamic raw);
+
+  @protected
+  TimeOfDayDistribution dco_decode_time_of_day_distribution(dynamic raw);
 
   @protected
   int dco_decode_u_8(dynamic raw);
@@ -268,6 +289,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       SseDeserializer deserializer);
 
   @protected
+  CustomUserList sse_decode_custom_user_list(SseDeserializer deserializer);
+
+  @protected
   DownloadProgress sse_decode_download_progress(SseDeserializer deserializer);
 
   @protected
@@ -286,6 +310,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   Genre sse_decode_genre(SseDeserializer deserializer);
+
+  @protected
+  GenreCount sse_decode_genre_count(SseDeserializer deserializer);
 
   @protected
   HomePageData sse_decode_home_page_data(SseDeserializer deserializer);
@@ -328,6 +355,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       SseDeserializer deserializer);
 
   @protected
+  List<CustomUserList> sse_decode_list_custom_user_list(
+      SseDeserializer deserializer);
+
+  @protected
   List<DownloadedChapterInfo> sse_decode_list_downloaded_chapter_info(
       SseDeserializer deserializer);
 
@@ -337,6 +368,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<Genre> sse_decode_list_genre(SseDeserializer deserializer);
+
+  @protected
+  List<GenreCount> sse_decode_list_genre_count(SseDeserializer deserializer);
 
   @protected
   List<LibraryEntry> sse_decode_list_library_entry(
@@ -368,6 +402,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ListType sse_decode_list_type(SseDeserializer deserializer);
+
+  @protected
+  MalImportResult sse_decode_mal_import_result(SseDeserializer deserializer);
 
   @protected
   MangaConstants sse_decode_manga_constants(SseDeserializer deserializer);
@@ -410,11 +447,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ReadingPosition sse_decode_reading_position(SseDeserializer deserializer);
 
   @protected
+  ReadingStatistics sse_decode_reading_statistics(SseDeserializer deserializer);
+
+  @protected
   ReadingStreakInfo sse_decode_reading_streak_info(
       SseDeserializer deserializer);
 
   @protected
   Tag sse_decode_tag(SseDeserializer deserializer);
+
+  @protected
+  TimeOfDayDistribution sse_decode_time_of_day_distribution(
+      SseDeserializer deserializer);
 
   @protected
   int sse_decode_u_8(SseDeserializer deserializer);
@@ -480,6 +524,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       ContinueReadingItem self, SseSerializer serializer);
 
   @protected
+  void sse_encode_custom_user_list(
+      CustomUserList self, SseSerializer serializer);
+
+  @protected
   void sse_encode_download_progress(
       DownloadProgress self, SseSerializer serializer);
 
@@ -499,6 +547,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_genre(Genre self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_genre_count(GenreCount self, SseSerializer serializer);
 
   @protected
   void sse_encode_home_page_data(HomePageData self, SseSerializer serializer);
@@ -543,6 +594,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       List<ContinueReadingItem> self, SseSerializer serializer);
 
   @protected
+  void sse_encode_list_custom_user_list(
+      List<CustomUserList> self, SseSerializer serializer);
+
+  @protected
   void sse_encode_list_downloaded_chapter_info(
       List<DownloadedChapterInfo> self, SseSerializer serializer);
 
@@ -552,6 +607,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_list_genre(List<Genre> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_genre_count(
+      List<GenreCount> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_library_entry(
@@ -585,6 +644,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_list_type(ListType self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_mal_import_result(
+      MalImportResult self, SseSerializer serializer);
 
   @protected
   void sse_encode_manga_constants(
@@ -632,11 +695,19 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       ReadingPosition self, SseSerializer serializer);
 
   @protected
+  void sse_encode_reading_statistics(
+      ReadingStatistics self, SseSerializer serializer);
+
+  @protected
   void sse_encode_reading_streak_info(
       ReadingStreakInfo self, SseSerializer serializer);
 
   @protected
   void sse_encode_tag(Tag self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_time_of_day_distribution(
+      TimeOfDayDistribution self, SseSerializer serializer);
 
   @protected
   void sse_encode_u_8(int self, SseSerializer serializer);

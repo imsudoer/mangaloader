@@ -8,6 +8,10 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:battery_plus/battery_plus.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mangaloader/providers/settings_provider.dart';
+import 'package:mangaloader/providers/download_provider.dart';
+import 'package:mangaloader/src/rust/api/download_engine.dart' as rust_download;
 import 'package:mangaloader/src/rust/api/storage.dart' as rust_storage;
 import 'package:mangaloader/src/rust/api/mangalib_client.dart' as rust_api;
 import 'package:mangaloader/src/rust/api/cbz_export.dart' as rust_cbz;
@@ -22,7 +26,7 @@ enum ReadBoxFit { contain, cover, fitWidth }
 enum ReadColorFilter { none, invert, sepia }
 enum ReadSharpenMode { off, subtle, high }
 
-class ReaderPage extends StatefulWidget {
+class ReaderPage extends ConsumerStatefulWidget {
   final String slugUrl;
   final String volume;
   final String number;
@@ -39,10 +43,10 @@ class ReaderPage extends StatefulWidget {
   });
 
   @override
-  State<ReaderPage> createState() => _ReaderPageState();
+  ConsumerState<ReaderPage> createState() => _ReaderPageState();
 }
 
-class _ReaderPageState extends State<ReaderPage> {
+class _ReaderPageState extends ConsumerState<ReaderPage> {
   bool _showControls = false;
   ReadMode _readMode = ReadMode.vertical;
   ReadBgColor _bgColor = ReadBgColor.black;
@@ -357,7 +361,56 @@ class _ReaderPageState extends State<ReaderPage> {
     } catch (_) {}
   }
 
+  bool _smartDownloadTriggered = false;
+
+  Future<void> _checkSmartAutoDownload() async {
+    if (_smartDownloadTriggered || widget.slugUrl.isEmpty || _mangaId == 0) return;
+    final autoCount = ref.read(smartAutoDownloadCountProvider);
+    if (autoCount <= 0) return;
+
+    _smartDownloadTriggered = true;
+    try {
+      final currentIndex = _allChapters.indexWhere(
+        (c) => c.volume == widget.volume && c.number == widget.number,
+      );
+      if (currentIndex == -1) return;
+
+      final requests = <ChapterDownloadRequest>[];
+      for (int i = currentIndex + 1; i < _allChapters.length && requests.length < autoCount; i++) {
+        final ch = _allChapters[i];
+        if (ch.isPaid) continue;
+        final isDownloaded = await rust_storage.isChapterDownloaded(
+          mangaId: _mangaId,
+          volume: ch.volume,
+          number: ch.number,
+        );
+        if (!isDownloaded) {
+          requests.add(ChapterDownloadRequest(
+            volume: ch.volume,
+            number: ch.number,
+            branchId: ch.branchId,
+          ));
+        }
+      }
+
+      if (requests.isNotEmpty) {
+        final appDir = await getApplicationDocumentsDirectory();
+        final stream = rust_download.startChapterDownload(
+          slugUrl: widget.slugUrl,
+          mangaId: _mangaId,
+          chapters: requests,
+          appDir: appDir.path,
+          concurrentImages: ref.read(downloadConcurrencyImagesProvider),
+        );
+        stream.listen((p) {
+          ref.read(downloadProvider.notifier).addProgress(p);
+        });
+      }
+    } catch (_) {}
+  }
+
   Future<void> _prefetchNextChapter(Chapter next) async {
+    _checkSmartAutoDownload();
     try {
       if (widget.slugUrl.isNotEmpty) {
         final isDownloaded = await rust_storage.isChapterDownloaded(

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mangaloader/providers/library_provider.dart';
 import 'package:mangaloader/providers/continue_reading_provider.dart';
 import 'package:mangaloader/providers/streak_provider.dart';
+import 'package:mangaloader/providers/custom_lists_provider.dart';
 import 'package:mangaloader/src/rust/api/models.dart';
 import 'package:mangaloader/src/rust/api/storage.dart' as rust_storage;
 import 'package:cached_network_image/cached_network_image.dart';
@@ -133,6 +134,97 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
     }
   }
 
+  Future<void> _exportMalXml(bool isRu) async {
+    try {
+      final xmlStr = await rust_storage.exportMalXml();
+      final tempDir = await getTemporaryDirectory();
+      final now = DateTime.now().toIso8601String().replaceAll(':', '-').split('.').first;
+      final file = File('${tempDir.path}/mal_export_$now.xml');
+      await file.writeAsString(xmlStr);
+
+      if (mounted) {
+        await SharePlus.instance.share(ShareParams(
+          text: isRu ? 'Экспорт библиотеки MyAnimeList (MAL)' : 'MyAnimeList Export (XML)',
+          files: [XFile(file.path)],
+        ));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Ошибка экспорта MAL: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _importMalXml(bool isRu) async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['xml'],
+      );
+      if (result != null && result.files.single.path != null) {
+        final file = File(result.files.single.path!);
+        final content = await file.readAsString();
+        final res = await rust_storage.importMalXml(xmlContent: content);
+        await ref.read(libraryProvider.notifier).loadAll();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                isRu
+                    ? 'Импорт MAL завершен: добавлено ${res.importedCount}, обновлено ${res.updatedCount}'
+                    : 'MAL Import done: ${res.importedCount} added, ${res.updatedCount} updated',
+              ),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Ошибка импорта MAL: $e')),
+        );
+      }
+    }
+  }
+
+  void _showCreateListDialog(bool isRu) {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF242424),
+        title: Text(isRu ? 'Новый список' : 'New Custom List'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: InputDecoration(
+            hintText: isRu ? 'Название списка' : 'List name',
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(isRu ? 'Отмена' : 'Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF8A897C)),
+            onPressed: () async {
+              final name = controller.text.trim();
+              if (name.isNotEmpty) {
+                await ref.read(customListsProvider.notifier).createList(name);
+                if (ctx.mounted) Navigator.pop(ctx);
+              }
+            },
+            child: Text(isRu ? 'Создать' : 'Create'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final libState = ref.watch(libraryProvider);
@@ -169,23 +261,42 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
             tooltip: isRu ? (_isGridView ? 'Список' : 'Сетка') : (_isGridView ? 'List' : 'Grid'),
             onPressed: () => setState(() => _isGridView = !_isGridView),
           ),
+          IconButton(
+            icon: const Icon(Icons.bar_chart_rounded),
+            tooltip: isRu ? 'Статистика чтения' : 'Reading Statistics',
+            onPressed: () => context.push('/statistics'),
+          ),
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert_rounded),
             tooltip: isRu ? 'Действия' : 'Actions',
             color: const Color(0xFF2C2C2C),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             onSelected: (action) {
+              if (action == 'new_list') _showCreateListDialog(isRu);
               if (action == 'export') _exportBackup(isRu);
               if (action == 'import') _importBackup(isRu);
+              if (action == 'export_mal') _exportMalXml(isRu);
+              if (action == 'import_mal') _importMalXml(isRu);
             },
             itemBuilder: (ctx) => [
+              PopupMenuItem(
+                value: 'new_list',
+                child: Row(
+                  children: [
+                    const Icon(Icons.add_circle_outline_rounded, size: 18, color: Color(0xFF8A897C)),
+                    const SizedBox(width: 8),
+                    Text(isRu ? 'Новый список' : 'New Custom List'),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
               PopupMenuItem(
                 value: 'export',
                 child: Row(
                   children: [
                     const Icon(Icons.backup_rounded, size: 18, color: Color(0xFF8A897C)),
                     const SizedBox(width: 8),
-                    Text(isRu ? 'Экспорт копии (JSON)' : 'Export Backup (JSON)'),
+                    Text(isRu ? 'Экспорт базы (JSON)' : 'Export Backup (JSON)'),
                   ],
                 ),
               ),
@@ -195,7 +306,28 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
                   children: [
                     const Icon(Icons.restore_rounded, size: 18, color: Color(0xFF8A897C)),
                     const SizedBox(width: 8),
-                    Text(isRu ? 'Импорт копии' : 'Import Backup'),
+                    Text(isRu ? 'Импорт базы (JSON)' : 'Import Backup (JSON)'),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
+              PopupMenuItem(
+                value: 'export_mal',
+                child: Row(
+                  children: [
+                    const Icon(Icons.import_export_rounded, size: 18, color: Color(0xFF2E7D32)),
+                    const SizedBox(width: 8),
+                    Text(isRu ? 'Экспорт в MyAnimeList' : 'Export to MyAnimeList'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'import_mal',
+                child: Row(
+                  children: [
+                    const Icon(Icons.download_for_offline_outlined, size: 18, color: Color(0xFF2E7D32)),
+                    const SizedBox(width: 8),
+                    Text(isRu ? 'Импорт из MyAnimeList' : 'Import from MyAnimeList'),
                   ],
                 ),
               ),

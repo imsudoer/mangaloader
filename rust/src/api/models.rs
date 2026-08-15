@@ -291,3 +291,50 @@ pub struct ContinueReadingItem {
     pub has_new_chapters: bool,
     pub new_chapters_count: i64,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CustomUserList {
+    pub id: i64,
+    pub name: String,
+    pub color: String,
+    pub created_at: String,
+    pub items_count: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GenreCount {
+    pub name: String,
+    pub count: i64,
+    pub percentage: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TimeOfDayDistribution {
+    pub night_count: i64,
+    pub morning_count: i64,
+    pub afternoon_count: i64,
+    pub evening_count: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReadingStatistics {
+    pub total_chapters_read: i64,
+    pub total_pages_read: i64,
+    pub completed_manga_count: i64,
+    pub in_progress_manga_count: i64,
+    pub total_library_count: i64,
+    pub total_downloaded_chapters: i64,
+    pub current_streak_days: i64,
+    pub max_streak_days: i64,
+    pub total_active_days: i64,
+    pub top_genres: Vec<GenreCount>,
+    pub time_of_day: TimeOfDayDistribution,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MalImportResult {
+    pub imported_count: i64,
+    pub updated_count: i64,
+    pub failed_count: i64,
+}
+

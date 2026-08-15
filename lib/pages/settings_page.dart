@@ -189,6 +189,61 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     }
   }
 
+  Future<void> _exportMalXml(bool isRu) async {
+    try {
+      final xmlStr = await rust_storage.exportMalXml();
+      final tempDir = await getTemporaryDirectory();
+      final now = DateTime.now().toIso8601String().replaceAll(':', '-').split('.').first;
+      final file = File('${tempDir.path}/mal_export_$now.xml');
+      await file.writeAsString(xmlStr);
+
+      if (mounted) {
+        await SharePlus.instance.share(ShareParams(
+          text: isRu ? 'Экспорт библиотеки MyAnimeList (MAL)' : 'MyAnimeList Export (XML)',
+          files: [XFile(file.path)],
+        ));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Ошибка экспорта MAL: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _importMalXml(bool isRu) async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['xml'],
+      );
+      if (result != null && result.files.single.path != null) {
+        final file = File(result.files.single.path!);
+        final content = await file.readAsString();
+        final res = await rust_storage.importMalXml(xmlContent: content);
+        await ref.read(libraryProvider.notifier).loadAll();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                isRu
+                    ? 'Импорт MAL завершен: добавлено ${res.importedCount}, обновлено ${res.updatedCount}'
+                    : 'MAL Import done: ${res.importedCount} added, ${res.updatedCount} updated',
+              ),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Ошибка импорта MAL: $e')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final selectedLocale = ref.watch(localeProvider);
@@ -310,6 +365,19 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     ),
                     trailing: const Icon(Icons.chevron_right_rounded),
                     onTap: () => GoRouter.of(context).push('/achievements'),
+                  ),
+                  const SizedBox(height: 8),
+                  const Divider(height: 1),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.bar_chart_rounded, color: Color(0xFF64B5F6)),
+                    title: Text(isRu ? 'Статистика чтения' : 'Reading Statistics'),
+                    subtitle: Text(
+                      isRu ? 'Аналитика жанров, времени активности и прогресса' : 'Analytics of genres, activity time & progress',
+                      style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
+                    ),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: () => GoRouter.of(context).push('/statistics'),
                   ),
                 ],
               ),
@@ -453,6 +521,35 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     activeColor: const Color(0xFF8A897C),
                     onChanged: (v) => ref.read(downloadConcurrencyChaptersProvider.notifier).state = v.toInt(),
                   ),
+                  const SizedBox(height: 6),
+                  const Divider(height: 1),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.offline_pin_outlined, color: Color(0xFF8A897C)),
+                    title: Text(isRu ? 'Умный оффлайн' : 'Smart Offline'),
+                    subtitle: Text(
+                      isRu ? 'Автоскачивание следующих глав во время чтения' : 'Auto-download next chapters while reading',
+                      style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
+                    ),
+                    trailing: DropdownButton<int>(
+                      value: ref.watch(smartAutoDownloadCountProvider),
+                      dropdownColor: const Color(0xFF2C2C2C),
+                      style: const TextStyle(color: Colors.white, fontSize: 13),
+                      underline: const SizedBox(),
+                      items: [
+                        DropdownMenuItem(value: 0, child: Text(isRu ? 'Отключено' : 'Disabled')),
+                        DropdownMenuItem(value: 1, child: Text(isRu ? '1 след. глава' : '1 next chapter')),
+                        DropdownMenuItem(value: 2, child: Text(isRu ? '2 главы' : '2 chapters')),
+                        DropdownMenuItem(value: 3, child: Text(isRu ? '3 главы' : '3 chapters')),
+                        DropdownMenuItem(value: 5, child: Text(isRu ? '5 глав' : '5 chapters')),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) {
+                          ref.read(smartAutoDownloadCountProvider.notifier).state = val;
+                        }
+                      },
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -460,7 +557,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           const SizedBox(height: 20),
 
           // 4. Backup & Restore
-          _buildSectionHeader(isRu ? 'Резервное копирование' : 'Backup & Restore', Icons.backup_rounded),
+          _buildSectionHeader(isRu ? 'Резервное копирование и экспорт' : 'Backup & Export', Icons.backup_rounded),
           Card(
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14),
@@ -478,10 +575,26 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 const Divider(height: 1, indent: 56),
                 ListTile(
                   leading: const Icon(Icons.file_upload_outlined, color: Color(0xFF8A897C)),
-                  title: Text(isRu ? 'Импорт базы данных' : 'Import Backup'),
+                  title: Text(isRu ? 'Импорт базы данных (JSON)' : 'Import Backup (JSON)'),
                   subtitle: Text(isRu ? 'Восстановить библиотеку из JSON-файла' : 'Restore library from JSON file', style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF))),
                   trailing: const Icon(Icons.chevron_right_rounded),
                   onTap: () => _importBackup(isRu),
+                ),
+                const Divider(height: 1, indent: 56),
+                ListTile(
+                  leading: const Icon(Icons.import_export_rounded, color: Color(0xFF2E7D32)),
+                  title: Text(isRu ? 'Экспорт в MyAnimeList (XML)' : 'Export to MyAnimeList (XML)'),
+                  subtitle: Text(isRu ? 'Экспорт библиотеки в формат MAL' : 'Export library to MAL format', style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF))),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => _exportMalXml(isRu),
+                ),
+                const Divider(height: 1, indent: 56),
+                ListTile(
+                  leading: const Icon(Icons.download_for_offline_outlined, color: Color(0xFF2E7D32)),
+                  title: Text(isRu ? 'Импорт из MyAnimeList (XML)' : 'Import from MyAnimeList (XML)'),
+                  subtitle: Text(isRu ? 'Импорт манги из экспорта MyAnimeList' : 'Import manga from MyAnimeList export', style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF))),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => _importMalXml(isRu),
                 ),
               ],
             ),

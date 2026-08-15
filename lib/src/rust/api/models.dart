@@ -6,7 +6,7 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 
 class Chapter {
   final PlatformInt64 id;
@@ -313,6 +313,41 @@ class ContinueReadingItem {
           newChaptersCount == other.newChaptersCount;
 }
 
+class CustomUserList {
+  final PlatformInt64 id;
+  final String name;
+  final String color;
+  final String createdAt;
+  final PlatformInt64 itemsCount;
+
+  const CustomUserList({
+    required this.id,
+    required this.name,
+    required this.color,
+    required this.createdAt,
+    required this.itemsCount,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      name.hashCode ^
+      color.hashCode ^
+      createdAt.hashCode ^
+      itemsCount.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CustomUserList &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          name == other.name &&
+          color == other.color &&
+          createdAt == other.createdAt &&
+          itemsCount == other.itemsCount;
+}
+
 class DownloadProgress {
   final String mangaSlug;
   final String chapterNumber;
@@ -489,6 +524,30 @@ class Genre {
           name == other.name;
 }
 
+class GenreCount {
+  final String name;
+  final PlatformInt64 count;
+  final double percentage;
+
+  const GenreCount({
+    required this.name,
+    required this.count,
+    required this.percentage,
+  });
+
+  @override
+  int get hashCode => name.hashCode ^ count.hashCode ^ percentage.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is GenreCount &&
+          runtimeType == other.runtimeType &&
+          name == other.name &&
+          count == other.count &&
+          percentage == other.percentage;
+}
+
 class HomePageData {
   final List<MangaSearchResult> popular;
   final List<MangaSearchResult> newest;
@@ -602,6 +661,31 @@ enum ListType {
 
   static Future<ListType?> fromStr({required String s}) =>
       RustLib.instance.api.crateApiModelsListTypeFromStr(s: s);
+}
+
+class MalImportResult {
+  final PlatformInt64 importedCount;
+  final PlatformInt64 updatedCount;
+  final PlatformInt64 failedCount;
+
+  const MalImportResult({
+    required this.importedCount,
+    required this.updatedCount,
+    required this.failedCount,
+  });
+
+  @override
+  int get hashCode =>
+      importedCount.hashCode ^ updatedCount.hashCode ^ failedCount.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MalImportResult &&
+          runtimeType == other.runtimeType &&
+          importedCount == other.importedCount &&
+          updatedCount == other.updatedCount &&
+          failedCount == other.failedCount;
 }
 
 class MangaConstants {
@@ -957,6 +1041,65 @@ class ReadingPosition {
           lastReadAt == other.lastReadAt;
 }
 
+class ReadingStatistics {
+  final PlatformInt64 totalChaptersRead;
+  final PlatformInt64 totalPagesRead;
+  final PlatformInt64 completedMangaCount;
+  final PlatformInt64 inProgressMangaCount;
+  final PlatformInt64 totalLibraryCount;
+  final PlatformInt64 totalDownloadedChapters;
+  final PlatformInt64 currentStreakDays;
+  final PlatformInt64 maxStreakDays;
+  final PlatformInt64 totalActiveDays;
+  final List<GenreCount> topGenres;
+  final TimeOfDayDistribution timeOfDay;
+
+  const ReadingStatistics({
+    required this.totalChaptersRead,
+    required this.totalPagesRead,
+    required this.completedMangaCount,
+    required this.inProgressMangaCount,
+    required this.totalLibraryCount,
+    required this.totalDownloadedChapters,
+    required this.currentStreakDays,
+    required this.maxStreakDays,
+    required this.totalActiveDays,
+    required this.topGenres,
+    required this.timeOfDay,
+  });
+
+  @override
+  int get hashCode =>
+      totalChaptersRead.hashCode ^
+      totalPagesRead.hashCode ^
+      completedMangaCount.hashCode ^
+      inProgressMangaCount.hashCode ^
+      totalLibraryCount.hashCode ^
+      totalDownloadedChapters.hashCode ^
+      currentStreakDays.hashCode ^
+      maxStreakDays.hashCode ^
+      totalActiveDays.hashCode ^
+      topGenres.hashCode ^
+      timeOfDay.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ReadingStatistics &&
+          runtimeType == other.runtimeType &&
+          totalChaptersRead == other.totalChaptersRead &&
+          totalPagesRead == other.totalPagesRead &&
+          completedMangaCount == other.completedMangaCount &&
+          inProgressMangaCount == other.inProgressMangaCount &&
+          totalLibraryCount == other.totalLibraryCount &&
+          totalDownloadedChapters == other.totalDownloadedChapters &&
+          currentStreakDays == other.currentStreakDays &&
+          maxStreakDays == other.maxStreakDays &&
+          totalActiveDays == other.totalActiveDays &&
+          topGenres == other.topGenres &&
+          timeOfDay == other.timeOfDay;
+}
+
 class ReadingStreakInfo {
   final PlatformInt64 currentStreak;
   final PlatformInt64 maxStreak;
@@ -1023,4 +1166,35 @@ class Tag {
           runtimeType == other.runtimeType &&
           id == other.id &&
           name == other.name;
+}
+
+class TimeOfDayDistribution {
+  final PlatformInt64 nightCount;
+  final PlatformInt64 morningCount;
+  final PlatformInt64 afternoonCount;
+  final PlatformInt64 eveningCount;
+
+  const TimeOfDayDistribution({
+    required this.nightCount,
+    required this.morningCount,
+    required this.afternoonCount,
+    required this.eveningCount,
+  });
+
+  @override
+  int get hashCode =>
+      nightCount.hashCode ^
+      morningCount.hashCode ^
+      afternoonCount.hashCode ^
+      eveningCount.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TimeOfDayDistribution &&
+          runtimeType == other.runtimeType &&
+          nightCount == other.nightCount &&
+          morningCount == other.morningCount &&
+          afternoonCount == other.afternoonCount &&
+          eveningCount == other.eveningCount;
 }

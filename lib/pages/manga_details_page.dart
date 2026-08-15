@@ -13,6 +13,7 @@ import 'package:mangaloader/providers/settings_provider.dart';
 import 'package:mangaloader/providers/streak_provider.dart';
 import 'package:mangaloader/providers/continue_reading_provider.dart';
 import 'package:mangaloader/widgets/download_button.dart';
+import 'package:mangaloader/widgets/manga_custom_lists_modal.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mangaloader/src/rust/api/storage.dart' as rust_storage;
 import 'package:mangaloader/src/rust/api/download_engine.dart' as rust_download;
@@ -460,6 +461,22 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                           style: const TextStyle(fontSize: 12),
                         ),
                       ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton.outlined(
+                      style: IconButton.styleFrom(
+                        side: const BorderSide(color: Color(0xFF3E3E3E), width: 1.2),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
+                        padding: const EdgeInsets.all(10),
+                      ),
+                      icon: const Icon(Icons.label_outline_rounded, size: 18, color: Color(0xFF8A897C)),
+                      tooltip: isRu ? 'Списки и теги' : 'Lists & Tags',
+                      onPressed: () async {
+                        await rust_storage.saveManga(manga: manga);
+                        if (context.mounted) {
+                          MangaCustomListsModal.show(context, manga.id, isRu);
+                        }
+                      },
                     ),
                   ],
                 ),

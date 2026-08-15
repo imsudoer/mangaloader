@@ -54,6 +54,9 @@ final autoClearCacheDaysProvider = StateProvider<int>((ref) => 7);
 // Streak push notifications toggle
 final streakNotificationsEnabledProvider = StateProvider<bool>((ref) => true);
 
+// Smart Offline Auto-Download count of next chapters: 0 = disabled, 1, 2, 3, 5
+final smartAutoDownloadCountProvider = StateProvider<int>((ref) => 0);
+
 // Search History Provider
 final searchHistoryProvider = StateNotifierProvider<SearchHistoryNotifier, List<String>>(
   (ref) => SearchHistoryNotifier(),

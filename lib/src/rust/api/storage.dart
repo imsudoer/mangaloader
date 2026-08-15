@@ -130,3 +130,56 @@ Future<String> exportBackupJson() =>
 Future<bool> importBackupJson({required String jsonContent}) =>
     RustLib.instance.api
         .crateApiStorageImportBackupJson(jsonContent: jsonContent);
+
+Future<List<CustomUserList>> getCustomLists() =>
+    RustLib.instance.api.crateApiStorageGetCustomLists();
+
+Future<CustomUserList> createCustomList(
+        {required String name, required String color}) =>
+    RustLib.instance.api
+        .crateApiStorageCreateCustomList(name: name, color: color);
+
+Future<void> deleteCustomList({required PlatformInt64 listId}) =>
+    RustLib.instance.api.crateApiStorageDeleteCustomList(listId: listId);
+
+Future<void> addToCustomList(
+        {required PlatformInt64 listId, required PlatformInt64 mangaId}) =>
+    RustLib.instance.api
+        .crateApiStorageAddToCustomList(listId: listId, mangaId: mangaId);
+
+Future<void> removeFromCustomList(
+        {required PlatformInt64 listId, required PlatformInt64 mangaId}) =>
+    RustLib.instance.api
+        .crateApiStorageRemoveFromCustomList(listId: listId, mangaId: mangaId);
+
+Future<Int64List> getMangaCustomLists({required PlatformInt64 mangaId}) =>
+    RustLib.instance.api.crateApiStorageGetMangaCustomLists(mangaId: mangaId);
+
+Future<List<LibraryEntry>> getCustomListEntries(
+        {required PlatformInt64 listId}) =>
+    RustLib.instance.api.crateApiStorageGetCustomListEntries(listId: listId);
+
+Future<void> addCustomTag(
+        {required PlatformInt64 mangaId, required String tagName}) =>
+    RustLib.instance.api
+        .crateApiStorageAddCustomTag(mangaId: mangaId, tagName: tagName);
+
+Future<void> removeCustomTag(
+        {required PlatformInt64 mangaId, required String tagName}) =>
+    RustLib.instance.api
+        .crateApiStorageRemoveCustomTag(mangaId: mangaId, tagName: tagName);
+
+Future<List<String>> getCustomTags({required PlatformInt64 mangaId}) =>
+    RustLib.instance.api.crateApiStorageGetCustomTags(mangaId: mangaId);
+
+Future<List<String>> getAllCustomTags() =>
+    RustLib.instance.api.crateApiStorageGetAllCustomTags();
+
+Future<ReadingStatistics> getReadingStatistics() =>
+    RustLib.instance.api.crateApiStorageGetReadingStatistics();
+
+Future<String> exportMalXml() =>
+    RustLib.instance.api.crateApiStorageExportMalXml();
+
+Future<MalImportResult> importMalXml({required String xmlContent}) =>
+    RustLib.instance.api.crateApiStorageImportMalXml(xmlContent: xmlContent);

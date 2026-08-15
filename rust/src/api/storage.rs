@@ -1,6 +1,6 @@
 use crate::api::models::{
     DownloadedChapterInfo, DownloadedMangaGroup, LibraryEntry, ListType, MangaDetails, ReadingPosition, Genre, Tag, Person, ChapterHistory,
-    Chapter, ReadingStreakInfo, ContinueReadingItem
+    Chapter, ReadingStreakInfo, ContinueReadingItem, CustomUserList, ReadingStatistics, GenreCount, TimeOfDayDistribution, MalImportResult
 };
 use anyhow::{Context, Result};
 use once_cell::sync::Lazy;
@@ -109,6 +109,30 @@ pub async fn init_database(app_dir: String) -> Result<()> {
             is_paid BOOLEAN DEFAULT 0,
             created_at TEXT DEFAULT '',
             PRIMARY KEY (manga_id, volume, number)
+        );
+
+        CREATE TABLE IF NOT EXISTS custom_user_lists (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE,
+            color TEXT DEFAULT '#8A897C',
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS custom_list_items (
+            list_id INTEGER NOT NULL,
+            manga_id INTEGER NOT NULL,
+            added_at TEXT NOT NULL DEFAULT (datetime('now')),
+            PRIMARY KEY(list_id, manga_id),
+            FOREIGN KEY(list_id) REFERENCES custom_user_lists(id) ON DELETE CASCADE,
+            FOREIGN KEY(manga_id) REFERENCES manga(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS manga_custom_tags (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            manga_id INTEGER NOT NULL,
+            tag_name TEXT NOT NULL,
+            UNIQUE(manga_id, tag_name),
+            FOREIGN KEY(manga_id) REFERENCES manga(id)
         );
         "
     )?;
@@ -1148,3 +1172,457 @@ pub async fn import_backup_json(json_content: String) -> Result<bool> {
 
     Ok(true)
 }
+
+// ==========================================
+// Custom Lists & Custom Tags
+// ==========================================
+
+pub async fn get_custom_lists() -> Result<Vec<CustomUserList>> {
+    let guard = get_conn()?;
+    let conn = guard.as_ref().unwrap();
+
+    let mut stmt = conn.prepare(
+        "SELECT l.id, l.name, l.color, l.created_at,
+                (SELECT COUNT(1) FROM custom_list_items cli WHERE cli.list_id = l.id) as items_count
+         FROM custom_user_lists l
+         ORDER BY l.created_at ASC"
+    )?;
+
+    let iter = stmt.query_map([], |row| {
+        Ok(CustomUserList {
+            id: row.get("id")?,
+            name: row.get("name")?,
+            color: row.get("color")?,
+            created_at: row.get("created_at")?,
+            items_count: row.get("items_count")?,
+        })
+    })?;
+
+    let mut list = Vec::new();
+    for item in iter {
+        list.push(item?);
+    }
+    Ok(list)
+}
+
+pub async fn create_custom_list(name: String, color: String) -> Result<CustomUserList> {
+    let guard = get_conn()?;
+    let conn = guard.as_ref().unwrap();
+
+    let clean_name = name.trim().to_string();
+    if clean_name.is_empty() {
+        anyhow::bail!("List name cannot be empty");
+    }
+    let col = if color.trim().is_empty() { "#8A897C".to_string() } else { color.trim().to_string() };
+
+    conn.execute(
+        "INSERT INTO custom_user_lists (name, color) VALUES (?1, ?2)",
+        params![clean_name, col],
+    )?;
+
+    let id = conn.last_insert_rowid();
+    let created_at = chrono::Utc::now().to_rfc3339();
+
+    Ok(CustomUserList {
+        id,
+        name: clean_name,
+        color: col,
+        created_at,
+        items_count: 0,
+    })
+}
+
+pub async fn delete_custom_list(list_id: i64) -> Result<()> {
+    let guard = get_conn()?;
+    let conn = guard.as_ref().unwrap();
+
+    conn.execute("DELETE FROM custom_list_items WHERE list_id = ?1", params![list_id])?;
+    conn.execute("DELETE FROM custom_user_lists WHERE id = ?1", params![list_id])?;
+    Ok(())
+}
+
+pub async fn add_to_custom_list(list_id: i64, manga_id: i64) -> Result<()> {
+    let guard = get_conn()?;
+    let conn = guard.as_ref().unwrap();
+
+    conn.execute(
+        "INSERT OR IGNORE INTO custom_list_items (list_id, manga_id) VALUES (?1, ?2)",
+        params![list_id, manga_id],
+    )?;
+    Ok(())
+}
+
+pub async fn remove_from_custom_list(list_id: i64, manga_id: i64) -> Result<()> {
+    let guard = get_conn()?;
+    let conn = guard.as_ref().unwrap();
+
+    conn.execute(
+        "DELETE FROM custom_list_items WHERE list_id = ?1 AND manga_id = ?2",
+        params![list_id, manga_id],
+    )?;
+    Ok(())
+}
+
+pub async fn get_manga_custom_lists(manga_id: i64) -> Result<Vec<i64>> {
+    let guard = get_conn()?;
+    let conn = guard.as_ref().unwrap();
+
+    let mut stmt = conn.prepare("SELECT list_id FROM custom_list_items WHERE manga_id = ?1")?;
+    let iter = stmt.query_map(params![manga_id], |row| row.get::<_, i64>(0))?;
+    let mut list = Vec::new();
+    for id in iter {
+        list.push(id?);
+    }
+    Ok(list)
+}
+
+pub async fn get_custom_list_entries(list_id: i64) -> Result<Vec<LibraryEntry>> {
+    let guard = get_conn()?;
+    let conn = guard.as_ref().unwrap();
+
+    let mut stmt = conn.prepare(
+        "SELECT m.id, m.slug_url, m.name, m.rus_name, m.cover_url, cli.added_at,
+                m.rating_average, m.chapters_count,
+                rp.chapter_volume, rp.chapter_number,
+                (SELECT COUNT(1) FROM chapter_history ch WHERE ch.manga_id = m.id AND ch.is_completed = 1) as read_count
+         FROM custom_list_items cli
+         JOIN manga m ON m.id = cli.manga_id
+         LEFT JOIN reading_progress rp ON rp.manga_id = m.id
+         WHERE cli.list_id = ?1
+         ORDER BY cli.added_at DESC"
+    )?;
+
+    let iter = stmt.query_map(params![list_id], |row| {
+        let total_chaps: i64 = row.get("chapters_count").unwrap_or(0);
+        let read_chaps: i64 = row.get("read_count").unwrap_or(0);
+        let unread = (total_chaps - read_chaps).max(0);
+
+        Ok(LibraryEntry {
+            manga_id: row.get("id")?,
+            slug_url: row.get("slug_url")?,
+            name: row.get("name")?,
+            rus_name: row.get("rus_name")?,
+            cover_url: row.get("cover_url")?,
+            list_type: ListType::Reading,
+            added_at: row.get("added_at")?,
+            last_read_volume: row.get("chapter_volume")?,
+            last_read_chapter: row.get("chapter_number")?,
+            unread_count: unread,
+            rating_average: row.get("rating_average")?,
+            total_chapters: total_chaps,
+            read_chapters: read_chaps,
+        })
+    })?;
+
+    let mut list = Vec::new();
+    for item in iter {
+        list.push(item?);
+    }
+    Ok(list)
+}
+
+pub async fn add_custom_tag(manga_id: i64, tag_name: String) -> Result<()> {
+    let guard = get_conn()?;
+    let conn = guard.as_ref().unwrap();
+
+    let clean = tag_name.trim().to_string();
+    if !clean.is_empty() {
+        conn.execute(
+            "INSERT OR IGNORE INTO manga_custom_tags (manga_id, tag_name) VALUES (?1, ?2)",
+            params![manga_id, clean],
+        )?;
+    }
+    Ok(())
+}
+
+pub async fn remove_custom_tag(manga_id: i64, tag_name: String) -> Result<()> {
+    let guard = get_conn()?;
+    let conn = guard.as_ref().unwrap();
+
+    conn.execute(
+        "DELETE FROM manga_custom_tags WHERE manga_id = ?1 AND tag_name = ?2",
+        params![manga_id, tag_name.trim()],
+    )?;
+    Ok(())
+}
+
+pub async fn get_custom_tags(manga_id: i64) -> Result<Vec<String>> {
+    let guard = get_conn()?;
+    let conn = guard.as_ref().unwrap();
+
+    let mut stmt = conn.prepare("SELECT tag_name FROM manga_custom_tags WHERE manga_id = ?1 ORDER BY id ASC")?;
+    let iter = stmt.query_map(params![manga_id], |row| row.get::<_, String>(0))?;
+    let mut list = Vec::new();
+    for t in iter {
+        list.push(t?);
+    }
+    Ok(list)
+}
+
+pub async fn get_all_custom_tags() -> Result<Vec<String>> {
+    let guard = get_conn()?;
+    let conn = guard.as_ref().unwrap();
+
+    let mut stmt = conn.prepare("SELECT DISTINCT tag_name FROM manga_custom_tags ORDER BY tag_name ASC")?;
+    let iter = stmt.query_map([], |row| row.get::<_, String>(0))?;
+    let mut list = Vec::new();
+    for t in iter {
+        list.push(t?);
+    }
+    Ok(list)
+}
+
+// ==========================================
+// Reading Statistics
+// ==========================================
+
+pub async fn get_reading_statistics() -> Result<ReadingStatistics> {
+    let guard = get_conn()?;
+    let conn = guard.as_ref().unwrap();
+
+    // 1. Total chapters read and pages read
+    let (total_chaps_read, total_pages_read): (i64, i64) = conn.query_row(
+        "SELECT COUNT(1), COALESCE(SUM(total_pages), 0) FROM chapter_history WHERE is_completed = 1",
+        [],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    ).unwrap_or((0, 0));
+
+    // 2. Library counts
+    let completed_count: i64 = conn.query_row(
+        "SELECT COUNT(1) FROM user_lists WHERE list_type = 'completed'",
+        [],
+        |row| row.get(0),
+    ).unwrap_or(0);
+
+    let in_progress_count: i64 = conn.query_row(
+        "SELECT COUNT(1) FROM user_lists WHERE list_type = 'reading'",
+        [],
+        |row| row.get(0),
+    ).unwrap_or(0);
+
+    let total_lib_count: i64 = conn.query_row(
+        "SELECT COUNT(DISTINCT manga_id) FROM user_lists",
+        [],
+        |row| row.get(0),
+    ).unwrap_or(0);
+
+    let total_downloads: i64 = conn.query_row(
+        "SELECT COUNT(1) FROM downloaded_chapters",
+        [],
+        |row| row.get(0),
+    ).unwrap_or(0);
+
+    // 3. Streak info
+    let (cur_streak, max_streak, total_active_days): (i64, i64, i64) = conn.query_row(
+        "SELECT current_streak, max_streak, total_days_read FROM reading_streak WHERE id = 1",
+        [],
+        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+    ).unwrap_or((0, 0, 0));
+
+    // 4. Genre breakdown
+    let mut genre_counts: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
+    let mut stmt = conn.prepare("SELECT genres_json FROM manga WHERE id IN (SELECT DISTINCT manga_id FROM chapter_history)")?;
+    let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+    for r in rows {
+        if let Ok(json_str) = r {
+            if let Ok(genres) = serde_json::from_str::<Vec<Genre>>(&json_str) {
+                for g in genres {
+                    *genre_counts.entry(g.name).or_insert(0) += 1;
+                }
+            }
+        }
+    }
+
+    let total_genres_weight: i64 = genre_counts.values().sum();
+    let mut top_genres: Vec<GenreCount> = genre_counts.into_iter().map(|(name, count)| {
+        let pct = if total_genres_weight > 0 {
+            (count as f64 / total_genres_weight as f64) * 100.0
+        } else {
+            0.0
+        };
+        GenreCount { name, count, percentage: (pct * 10.0).round() / 10.0 }
+    }).collect();
+    top_genres.sort_by(|a, b| b.count.cmp(&a.count));
+    top_genres.truncate(8);
+
+    // 5. Time of day distribution
+    let mut time_stmt = conn.prepare("SELECT strftime('%H', last_read_at) FROM chapter_history")?;
+    let time_rows = time_stmt.query_map([], |row| row.get::<_, Option<String>>(0))?;
+    let mut night = 0i64;
+    let mut morning = 0i64;
+    let mut afternoon = 0i64;
+    let mut evening = 0i64;
+
+    for tr in time_rows {
+        if let Ok(Some(h_str)) = tr {
+            if let Ok(h) = h_str.parse::<i32>() {
+                if h < 6 {
+                    night += 1;
+                } else if h < 12 {
+                    morning += 1;
+                } else if h < 18 {
+                    afternoon += 1;
+                } else {
+                    evening += 1;
+                }
+            }
+        }
+    }
+
+    Ok(ReadingStatistics {
+        total_chapters_read: total_chaps_read,
+        total_pages_read: total_pages_read,
+        completed_manga_count: completed_count,
+        in_progress_manga_count: in_progress_count,
+        total_library_count: total_lib_count,
+        total_downloaded_chapters: total_downloads,
+        current_streak_days: cur_streak,
+        max_streak_days: max_streak,
+        total_active_days: total_active_days,
+        top_genres,
+        time_of_day: TimeOfDayDistribution {
+            night_count: night,
+            morning_count: morning,
+            afternoon_count: afternoon,
+            evening_count: evening,
+        },
+    })
+}
+
+// ==========================================
+// MAL (MyAnimeList) XML Export / Import
+// ==========================================
+
+pub async fn export_mal_xml() -> Result<String> {
+    let guard = get_conn()?;
+    let conn = guard.as_ref().unwrap();
+
+    let mut stmt = conn.prepare(
+        "SELECT m.id, m.name, m.rus_name, m.eng_name, m.chapters_count, ul.list_type,
+                (SELECT COUNT(1) FROM chapter_history ch WHERE ch.manga_id = m.id AND ch.is_completed = 1) as read_count
+         FROM user_lists ul
+         JOIN manga m ON m.id = ul.manga_id"
+    )?;
+
+    let mut xml = String::from("<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n<myanimelist>\n");
+    xml.push_str("  <myinfo>\n    <user_export_type>2</user_export_type>\n  </myinfo>\n");
+
+    let rows = stmt.query_map([], |row| {
+        let id: i64 = row.get("id")?;
+        let name: String = row.get("name")?;
+        let eng_name: String = row.get("eng_name")?;
+        let list_type_str: String = row.get("list_type")?;
+        let read_count: i64 = row.get("read_count").unwrap_or(0);
+        let chapters_count: i64 = row.get("chapters_count").unwrap_or(0);
+
+        let mal_status = match list_type_str.as_str() {
+            "reading" => "Reading",
+            "completed" => "Completed",
+            "on_hold" => "On-Hold",
+            "dropped" => "Dropped",
+            "plan_to_read" => "Plan to Read",
+            _ => "Reading",
+        };
+
+        let title = if !eng_name.is_empty() { eng_name } else { name };
+        let escaped_title = title.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;");
+
+        Ok(format!(
+            "  <manga>\n    <manga_mangadb_id>{}</manga_mangadb_id>\n    <manga_title><![CDATA[{}]]></manga_title>\n    <my_read_chapters>{}</my_read_chapters>\n    <my_status>{}</my_status>\n    <manga_num_chapters>{}</manga_num_chapters>\n  </manga>\n",
+            id, escaped_title, read_count, mal_status, chapters_count
+        ))
+    })?;
+
+    for r in rows {
+        if let Ok(entry) = r {
+            xml.push_str(&entry);
+        }
+    }
+    xml.push_str("</myanimelist>");
+    Ok(xml)
+}
+
+pub async fn import_mal_xml(xml_content: String) -> Result<MalImportResult> {
+    let guard = get_conn()?;
+    let conn = guard.as_ref().unwrap();
+
+    let mut imported = 0i64;
+    let mut updated = 0i64;
+    let mut failed = 0i64;
+
+    // Simple robust tag extraction for MAL XML
+    let parts: Vec<&str> = xml_content.split("<manga>").collect();
+    for block in parts.into_iter().skip(1) {
+        let block = match block.split("</manga>").next() {
+            Some(b) => b,
+            None => continue,
+        };
+
+        let extract_tag = |tag: &str| -> Option<String> {
+            let start_tag = format!("<{}>", tag);
+            let end_tag = format!("</{}>", tag);
+            if let Some(start) = block.find(&start_tag) {
+                let after = &block[start + start_tag.len()..];
+                if let Some(end) = after.find(&end_tag) {
+                    let mut val = after[..end].trim().to_string();
+                    if val.starts_with("<![CDATA[") && val.ends_with("]]>") {
+                        val = val[9..val.len() - 3].to_string();
+                    }
+                    return Some(val);
+                }
+            }
+            None
+        };
+
+        let mal_id = extract_tag("manga_mangadb_id").and_then(|s| s.parse::<i64>().ok());
+        let title = extract_tag("manga_title").unwrap_or_default();
+        let my_status = extract_tag("my_status").unwrap_or_else(|| "Reading".to_string());
+        let read_chapters = extract_tag("my_read_chapters").and_then(|s| s.parse::<i64>().ok()).unwrap_or(0);
+
+        let list_type = match my_status.to_lowercase().as_str() {
+            "completed" => "completed",
+            "plan to read" => "plan_to_read",
+            "dropped" => "dropped",
+            "on-hold" | "on hold" => "on_hold",
+            _ => "reading",
+        };
+
+        if let Some(id) = mal_id {
+            // Check if manga exists
+            let exists: bool = conn.query_row(
+                "SELECT 1 FROM manga WHERE id = ?1",
+                params![id],
+                |_| Ok(true),
+            ).unwrap_or(false);
+
+            if !exists && !title.is_empty() {
+                // Insert placeholder entry so user sees the title in their library
+                let _ = conn.execute(
+                    "INSERT OR IGNORE INTO manga (id, slug_url, name, rus_name, eng_name, chapters_count)
+                     VALUES (?1, ?2, ?3, ?3, ?3, ?4)",
+                    params![id, format!("mal-{}", id), title, read_chapters],
+                );
+            }
+
+            let inserted = conn.execute(
+                "INSERT OR REPLACE INTO user_lists (manga_id, list_type, added_at) VALUES (?1, ?2, datetime('now'))",
+                params![id, list_type],
+            );
+
+            if inserted.is_ok() {
+                imported += 1;
+            } else {
+                failed += 1;
+            }
+        } else {
+            updated += 1;
+        }
+    }
+
+    Ok(MalImportResult {
+        imported_count: imported,
+        updated_count: updated,
+        failed_count: failed,
+    })
+}
+
