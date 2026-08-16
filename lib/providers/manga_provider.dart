@@ -41,17 +41,41 @@ final mangaChaptersProvider = FutureProvider.family<List<Chapter>, String>((ref,
 });
 
 final mangaCommentsProvider = FutureProvider.family<CommentsData, int>((ref, mangaId) async {
-  return rust_api.getMangaComments(mangaId: mangaId, page: 1);
+  try {
+    return await rust_api.getMangaComments(mangaId: mangaId, page: 1);
+  } catch (_) {
+    return const CommentsData(root: [], replies: [], hasNextPage: false, page: 1);
+  }
 });
 
 final mangaRelationsProvider = FutureProvider.family<List<MangaRelationItem>, String>((ref, slugUrl) async {
-  return rust_api.getMangaRelations(slugUrl: slugUrl);
+  try {
+    return await rust_api.getMangaRelations(slugUrl: slugUrl);
+  } catch (_) {
+    return const [];
+  }
 });
 
 final mangaSimilarProvider = FutureProvider.family<List<MangaSimilarItem>, String>((ref, slugUrl) async {
-  return rust_api.getMangaSimilar(slugUrl: slugUrl);
+  try {
+    return await rust_api.getMangaSimilar(slugUrl: slugUrl);
+  } catch (_) {
+    return const [];
+  }
 });
 
 final mangaConstantsProvider = FutureProvider<MangaConstants>((ref) async {
-  return rust_api.getConstants();
+  try {
+    return await rust_api.getConstants();
+  } catch (_) {
+    return const MangaConstants(
+      types: [],
+      statuses: [],
+      scanlateStatuses: [],
+      ageRestrictions: [],
+      formats: [],
+      genres: [],
+      tags: [],
+    );
+  }
 });

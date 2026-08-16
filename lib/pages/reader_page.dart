@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/gestures.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:path_provider/path_provider.dart';
@@ -60,11 +59,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   
   // Smart HUD
   final bool _showHud = true;
-  String _currentTime = "";
-  int _batteryLevel = 100;
-  BatteryState _batteryState = BatteryState.full;
-  Timer? _clockTimer;
-  StreamSubscription<BatteryState>? _batteryStateSub;
+  final ValueNotifier<int> _pageIndexNotifier = ValueNotifier<int>(0);
 
   double _zoomLevel = 1.0;
   double _brightness = 1.0;
@@ -90,9 +85,6 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   final ScrollController _scrollController = ScrollController();
   final FocusNode _focusNode = FocusNode();
   
-  // Page height cache for vertical mode
-  final Map<int, double> _pageHeights = {};
-  
   Timer? _saveTimer;
   int _mangaId = 0;
   String _chapterTitle = "";
@@ -101,7 +93,6 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   Chapter? _nextChapter;
   List<Chapter> _allChapters = [];
   bool _isNextChapterPrefetched = false;
-  int _activePointers = 0;
 
   @override
   void initState() {
@@ -112,84 +103,34 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         ? widget.localCbzPath!.split(Platform.pathSeparator).last
         : 'Том ${widget.volume} Гл ${widget.number}';
     _updateWindowTitle();
-    _initHud();
     _loadChapter();
-  }
-
-  double _getPageHeight(int index, double screenWidth) {
-    if (_pageHeights.containsKey(index)) {
-      return _pageHeights[index]!;
-    }
-    if (index < _onlinePages.length) {
-      final p = _onlinePages[index];
-      if (p.width != null && p.height != null && p.width! > 0 && p.height! > 0) {
-        final calc = (screenWidth * _zoomLevel) * (p.height! / p.width!);
-        _pageHeights[index] = calc;
-        return calc;
-      }
-    }
-    return (screenWidth * _zoomLevel) / 0.7;
   }
 
   void _onVerticalScroll() {
     if (_readMode != ReadMode.vertical || !_scrollController.hasClients || _totalPages <= 1) return;
     
     final offset = _scrollController.offset;
-    final screenWidth = MediaQuery.of(context).size.width;
-    final viewportHeight = MediaQuery.of(context).size.height;
-    final currentReadingPoint = offset + (viewportHeight * 0.4);
+    final maxExtent = _scrollController.position.maxScrollExtent;
 
-    double accumulated = 0.0;
     int currentVisible = 0;
-    
-    for (int i = 0; i < _totalPages; i++) {
-      final h = _getPageHeight(i, screenWidth);
-      if (currentReadingPoint >= accumulated && currentReadingPoint < accumulated + h) {
-        currentVisible = i;
-        break;
-      }
-      accumulated += h;
-      currentVisible = i;
+    if (maxExtent > 0) {
+      final progress = (offset / maxExtent).clamp(0.0, 1.0);
+      currentVisible = (progress * (_totalPages - 1)).round().clamp(0, _totalPages - 1);
     }
     
     if (currentVisible != _currentPageIndex) {
       _currentPageIndex = currentVisible;
-      if (mounted) setState(() {});
+      _pageIndexNotifier.value = currentVisible;
       _scheduleSaveProgress();
     }
 
     // Smart Next Chapter Preload (trigger when near end of chapter)
     if (_nextChapter != null && !_isNextChapterPrefetched) {
-      final maxExtent = _scrollController.position.maxScrollExtent;
       if (maxExtent > 0 && (offset >= maxExtent * 0.75 || maxExtent - offset < 2500)) {
         _isNextChapterPrefetched = true;
         _prefetchNextChapter(_nextChapter!);
       }
     }
-  }
-
-  void _initHud() {
-    _updateTime();
-    _clockTimer = Timer.periodic(const Duration(seconds: 30), (_) => _updateTime());
-    _initBattery();
-  }
-
-  void _updateTime() {
-    final now = DateTime.now();
-    final h = now.hour.toString().padLeft(2, '0');
-    final m = now.minute.toString().padLeft(2, '0');
-    if (mounted) setState(() => _currentTime = '$h:$m');
-  }
-
-  void _initBattery() async {
-    try {
-      final battery = Battery();
-      final lvl = await battery.batteryLevel;
-      if (mounted) setState(() => _batteryLevel = lvl);
-      _batteryStateSub = battery.onBatteryStateChanged.listen((state) {
-        if (mounted) setState(() => _batteryState = state);
-      });
-    } catch (_) {}
   }
 
   void _updateWindowTitle() {
@@ -201,10 +142,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   @override
   void dispose() {
     _scrollController.removeListener(_onVerticalScroll);
-    _clockTimer?.cancel();
-    _batteryStateSub?.cancel();
     _stopAutoScroll();
     _saveTimer?.cancel();
+    _pageIndexNotifier.dispose();
     if (_mangaId > 0) {
       rust_storage.saveReadingProgress(
         progress: ReadingPosition(
@@ -329,19 +269,18 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
   void _jumpToPageIndex(int targetIndex) {
     if (targetIndex < 0 || targetIndex >= _totalPages) return;
-    setState(() => _currentPageIndex = targetIndex);
+    _currentPageIndex = targetIndex;
+    _pageIndexNotifier.value = targetIndex;
     
     if (_readMode != ReadMode.vertical && _pageController.hasClients) {
       _pageController.jumpToPage(targetIndex);
     } else if (_readMode == ReadMode.vertical && _scrollController.hasClients && _totalPages > 1) {
-      final screenWidth = MediaQuery.of(context).size.width;
-      double targetOffset = 0.0;
-      for (int i = 0; i < targetIndex; i++) {
-        targetOffset += _getPageHeight(i, screenWidth);
-      }
-      _scrollController.jumpTo(targetOffset.clamp(0.0, _scrollController.position.maxScrollExtent));
+      final maxExtent = _scrollController.position.maxScrollExtent;
+      final targetOffset = maxExtent > 0 ? (maxExtent / (_totalPages - 1)) * targetIndex : 0.0;
+      _scrollController.jumpTo(targetOffset.clamp(0.0, maxExtent));
     }
     _scheduleSaveProgress();
+    if (mounted && _showControls) setState(() {});
   }
 
   Future<void> _findNextChapter() async {
@@ -497,7 +436,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   }
 
   void _onPageChanged(int index) {
-    setState(() => _currentPageIndex = index);
+    _currentPageIndex = index;
+    _pageIndexNotifier.value = index;
     if (!_isDownloaded) _preloadImages(index);
     _scheduleSaveProgress();
 
@@ -505,6 +445,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       _isNextChapterPrefetched = true;
       _prefetchNextChapter(_nextChapter!);
     }
+    if (mounted && _showControls) setState(() {});
   }
 
   void _scheduleSaveProgress() {
@@ -613,21 +554,18 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   void _zoomIn() {
     setState(() {
       _zoomLevel = (_zoomLevel + 0.25).clamp(0.5, 4.0);
-      _pageHeights.clear();
     });
   }
 
   void _zoomOut() {
     setState(() {
       _zoomLevel = (_zoomLevel - 0.25).clamp(0.5, 4.0);
-      _pageHeights.clear();
     });
   }
 
   void _resetZoom() {
     setState(() {
       _zoomLevel = 1.0;
-      _pageHeights.clear();
     });
   }
 
@@ -700,32 +638,6 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Кэш изображений главы сброшен, перезагрузка...')),
       );
-    }
-  }
-
-  double _baseScale = 1.0;
-
-  void _handleScaleStart(ScaleStartDetails details) {
-    if (details.pointerCount >= 2) {
-      _baseScale = _zoomLevel;
-    }
-  }
-
-  void _handleScaleUpdate(ScaleUpdateDetails details) {
-    if (details.pointerCount >= 2 && details.scale != 1.0) {
-      setState(() {
-        _zoomLevel = (_baseScale * details.scale).clamp(0.5, 4.0);
-        _pageHeights.clear();
-      });
-    }
-  }
-
-  void _handlePointerPanZoomUpdate(PointerPanZoomUpdateEvent event) {
-    if (event.scale != 1.0) {
-      setState(() {
-        _zoomLevel = (_zoomLevel * event.scale).clamp(0.5, 4.0);
-        _pageHeights.clear();
-      });
     }
   }
 
@@ -1026,24 +938,13 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
   Widget _buildHorizontalImage(int index) {
     final imageContent = _buildImageContent(index);
-    final screenWidth = MediaQuery.of(context).size.width;
 
-    return GestureDetector(
-      onDoubleTap: () {
-        setState(() {
-          _zoomLevel = _zoomLevel == 1.0 ? 2.0 : 1.0;
-          _pageHeights.clear();
-        });
-      },
+    return InteractiveViewer(
+      minScale: 1.0,
+      maxScale: 4.0,
+      clipBehavior: Clip.none,
       child: Center(
-        child: SizedBox(
-          width: screenWidth * _zoomLevel,
-          height: MediaQuery.of(context).size.height * _zoomLevel,
-          child: FittedBox(
-            fit: _resolvedBoxFit,
-            child: imageContent,
-          ),
-        ),
+        child: imageContent,
       ),
     );
   }
@@ -1243,314 +1144,270 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       onKeyEvent: _handleKeyEvent,
       child: Scaffold(
         backgroundColor: _resolvedBgColor,
-        body: Listener(
-          onPointerDown: (_) => setState(() => _activePointers++),
-          onPointerUp: (_) => setState(() => _activePointers = (_activePointers - 1).clamp(0, 10)),
-          onPointerCancel: (_) => setState(() => _activePointers = (_activePointers - 1).clamp(0, 10)),
-          onPointerPanZoomUpdate: _handlePointerPanZoomUpdate,
-          child: GestureDetector(
-            onTapUp: _handleTap,
-            onDoubleTap: () {
-              setState(() {
-                _zoomLevel = _zoomLevel == 1.0 ? 2.0 : 1.0;
-                _pageHeights.clear();
-              });
-            },
-            onScaleStart: _handleScaleStart,
-            onScaleUpdate: _handleScaleUpdate,
-            child: Stack(
-              children: [
-                if (_totalPages == 0)
-                  Center(child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.menu_book_rounded, color: Colors.grey, size: 48),
-                      const SizedBox(height: 16),
-                      Text(isRu ? 'Страницы не найдены.' : 'No pages found.', style: TextStyle(color: _bgColor == ReadBgColor.white ? Colors.black : Colors.white)),
-                      const SizedBox(height: 24),
-                      ElevatedButton.icon(
-                        onPressed: () => context.pop(), 
-                        icon: const Icon(Icons.arrow_back),
-                        label: Text(isRu ? 'Назад' : 'Go Back'),
-                      ),
-                    ],
-                  ))
-                else if (_readMode == ReadMode.vertical)
-                  Scrollbar(
+        body: GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onTapUp: _handleTap,
+          child: Stack(
+            children: [
+              if (_totalPages == 0)
+                Center(child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.menu_book_rounded, color: Colors.grey, size: 48),
+                    const SizedBox(height: 16),
+                    Text(isRu ? 'Страницы не найдены.' : 'No pages found.', style: TextStyle(color: _bgColor == ReadBgColor.white ? Colors.black : Colors.white)),
+                    const SizedBox(height: 24),
+                    ElevatedButton.icon(
+                      onPressed: () => context.pop(), 
+                      icon: const Icon(Icons.arrow_back),
+                      label: Text(isRu ? 'Назад' : 'Go Back'),
+                    ),
+                  ],
+                ))
+              else if (_readMode == ReadMode.vertical)
+                Scrollbar(
+                  controller: _scrollController,
+                  thumbVisibility: true,
+                  child: ListView.builder(
                     controller: _scrollController,
-                    thumbVisibility: true,
-                    child: ListView.builder(
-                      controller: _scrollController,
-                      physics: _activePointers >= 2 
-                        ? const NeverScrollableScrollPhysics() 
-                        : const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-                      itemCount: _totalPages + 1,
-                      itemBuilder: (context, index) {
-                        if (index == _totalPages) {
-                          return _buildNextChapterSwipeCard(isRu);
-                        }
-                        return _buildVerticalImage(index);
-                      },
-                    ),
-                  )
-                else
-                  PageView.builder(
-                    controller: _pageController,
-                    itemCount: _totalPages,
-                    reverse: _readMode == ReadMode.rtl,
-                    onPageChanged: _onPageChanged,
-                    physics: _activePointers >= 2 
-                      ? const NeverScrollableScrollPhysics() 
-                      : const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-                    itemBuilder: (context, index) => _buildHorizontalImage(index),
+                    physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+                    itemCount: _totalPages + 1,
+                    itemBuilder: (context, index) {
+                      if (index == _totalPages) {
+                        return _buildNextChapterSwipeCard(isRu);
+                      }
+                      return _buildVerticalImage(index);
+                    },
                   ),
-                  
-                // Top controls bar
-                if (_showControls)
-                  Positioned(
-                    top: 0, left: 0, right: 0,
-                    child: AppBar(
-                      backgroundColor: Colors.black.withValues(alpha: 0.85),
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      leading: const BackButton(),
-                      title: Text(_chapterTitle, style: const TextStyle(fontSize: 16)),
-                      actions: [
-                        IconButton(
-                          icon: const Icon(Icons.grid_view_rounded),
-                          tooltip: 'Сетка страниц',
-                          onPressed: _showPageJumperDialog,
-                        ),
-                        if (_readMode == ReadMode.vertical)
-                          IconButton(
-                            icon: Icon(_isAutoScrolling ? Icons.pause_circle_filled_rounded : Icons.play_circle_fill_rounded, color: _isAutoScrolling ? Colors.orange : Colors.white),
-                            tooltip: _isAutoScrolling ? 'Остановить автопрокрутку (A)' : 'Автопрокрутка (A)',
-                            onPressed: _toggleAutoScroll,
-                          ),
-                        IconButton(
-                          icon: Icon(_isFullscreen ? Icons.fullscreen_exit_rounded : Icons.fullscreen_rounded),
-                          tooltip: 'Полноэкранный режим (F11)',
-                          onPressed: _toggleFullscreen,
-                        ),
-                        if (_nextChapter != null)
-                          IconButton(
-                            icon: const Icon(Icons.skip_next_rounded),
-                            tooltip: 'Следующая глава (Том ${_nextChapter!.volume} Гл ${_nextChapter!.number})',
-                            onPressed: () {
-                              final branchQ = _nextChapter!.branchId != null ? "?branchId=${_nextChapter!.branchId}" : "";
-                              context.pushReplacement('/read/${widget.slugUrl}/${_nextChapter!.volume}/${_nextChapter!.number}$branchQ');
-                            },
-                          ),
-                        IconButton(
-                          icon: const Icon(Icons.refresh_rounded),
-                          tooltip: Localizations.localeOf(context).languageCode == 'ru' ? 'Сбросить кэш и перезагрузить главу' : 'Reload chapter',
-                          onPressed: _reloadCurrentChapter,
-                        ),
-                        IconButton(icon: const Icon(Icons.tune_rounded), tooltip: 'Настройки', onPressed: _showSettingsSheet),
-                      ],
-                    ),
-                  ),
-
-                // Floating Auto-Scroll Speed Controller
-                if (_isAutoScrolling)
-                  Positioned(
-                    top: 60,
-                    left: 0,
-                    right: 0,
-                    child: Center(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF2C2C2C).withValues(alpha: 0.9),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: const Color(0xFF8A897C)),
-                          boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 8, offset: Offset(0, 3))],
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.play_circle_fill_rounded, size: 16, color: Color(0xFF8A897C)),
-                            const SizedBox(width: 6),
-                            const Text('Автоскролл', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
-                            const SizedBox(width: 8),
-                            IconButton(
-                              icon: const Icon(Icons.remove_rounded, size: 16, color: Color(0xFFD2D7DF)),
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-                              onPressed: () {
-                                setState(() {
-                                  _autoScrollSpeed = (_autoScrollSpeed - 0.5).clamp(0.5, 5.0);
-                                });
-                              },
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF353535),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                '${_autoScrollSpeed}x',
-                                style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.add_rounded, size: 16, color: Color(0xFFD2D7DF)),
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-                              onPressed: () {
-                                setState(() {
-                                  _autoScrollSpeed = (_autoScrollSpeed + 0.5).clamp(0.5, 5.0);
-                                });
-                              },
-                            ),
-                            const SizedBox(width: 4),
-                            IconButton(
-                              icon: const Icon(Icons.close_rounded, size: 16, color: Colors.white70),
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-                              onPressed: _toggleAutoScroll,
-                            ),
-                          ],
-                        ),
+                )
+              else
+                PageView.builder(
+                  controller: _pageController,
+                  itemCount: _totalPages,
+                  reverse: _readMode == ReadMode.rtl,
+                  onPageChanged: _onPageChanged,
+                  physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+                  itemBuilder: (context, index) => _buildHorizontalImage(index),
+                ),
+                
+              // Top controls bar
+              if (_showControls)
+                Positioned(
+                  top: 0, left: 0, right: 0,
+                  child: AppBar(
+                    backgroundColor: Colors.black.withValues(alpha: 0.85),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    leading: const BackButton(),
+                    title: Text(_chapterTitle, style: const TextStyle(fontSize: 16)),
+                    actions: [
+                      IconButton(
+                        icon: const Icon(Icons.grid_view_rounded),
+                        tooltip: 'Сетка страниц',
+                        onPressed: _showPageJumperDialog,
                       ),
-                    ),
+                      if (_readMode == ReadMode.vertical)
+                        IconButton(
+                          icon: Icon(_isAutoScrolling ? Icons.pause_circle_filled_rounded : Icons.play_circle_fill_rounded, color: _isAutoScrolling ? Colors.orange : Colors.white),
+                          tooltip: _isAutoScrolling ? 'Остановить автопрокрутку (A)' : 'Автопрокрутка (A)',
+                          onPressed: _toggleAutoScroll,
+                        ),
+                      IconButton(
+                        icon: Icon(_isFullscreen ? Icons.fullscreen_exit_rounded : Icons.fullscreen_rounded),
+                        tooltip: 'Полноэкранный режим (F11)',
+                        onPressed: _toggleFullscreen,
+                      ),
+                      if (_nextChapter != null)
+                        IconButton(
+                          icon: const Icon(Icons.skip_next_rounded),
+                          tooltip: 'Следующая глава (Том ${_nextChapter!.volume} Гл ${_nextChapter!.number})',
+                          onPressed: () {
+                            final branchQ = _nextChapter!.branchId != null ? "?branchId=${_nextChapter!.branchId}" : "";
+                            context.pushReplacement('/read/${widget.slugUrl}/${_nextChapter!.volume}/${_nextChapter!.number}$branchQ');
+                          },
+                        ),
+                      IconButton(
+                        icon: const Icon(Icons.refresh_rounded),
+                        tooltip: Localizations.localeOf(context).languageCode == 'ru' ? 'Сбросить кэш и перезагрузить главу' : 'Reload chapter',
+                        onPressed: _reloadCurrentChapter,
+                      ),
+                      IconButton(icon: const Icon(Icons.tune_rounded), tooltip: 'Настройки', onPressed: _showSettingsSheet),
+                    ],
                   ),
+                ),
 
-                // Floating Zoom Toolbar
-                if (_showControls)
-                  Positioned(
-                    right: 16,
-                    bottom: 100,
+              // Floating Auto-Scroll Speed Controller
+              if (_isAutoScrolling)
+                Positioned(
+                  top: 60,
+                  left: 0,
+                  right: 0,
+                  child: Center(
                     child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.8),
-                        borderRadius: BorderRadius.circular(24),
-                        border: Border.all(color: Colors.white24),
+                        color: const Color(0xFF2C2C2C).withValues(alpha: 0.9),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: const Color(0xFF8A897C)),
+                        boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 8, offset: Offset(0, 3))],
                       ),
-                      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
-                      child: Column(
+                      child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
+                          const Icon(Icons.play_circle_fill_rounded, size: 16, color: Color(0xFF8A897C)),
+                          const SizedBox(width: 6),
+                          const Text('Автоскролл', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                          const SizedBox(width: 8),
                           IconButton(
-                            icon: const Icon(Icons.zoom_in_rounded, color: Colors.white),
-                            tooltip: 'Приблизить (+)',
-                            onPressed: _zoomIn,
+                            icon: const Icon(Icons.remove_rounded, size: 16, color: Color(0xFFD2D7DF)),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                            onPressed: () {
+                              setState(() {
+                                _autoScrollSpeed = (_autoScrollSpeed - 0.5).clamp(0.5, 5.0);
+                              });
+                            },
                           ),
-                          TextButton(
-                            onPressed: _resetZoom,
-                            style: TextButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(horizontal: 6),
-                              minimumSize: Size.zero,
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF353535),
+                              borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(
-                              '${(_zoomLevel * 100).toInt()}%',
+                              '${_autoScrollSpeed}x',
                               style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
                             ),
                           ),
                           IconButton(
-                            icon: const Icon(Icons.zoom_out_rounded, color: Colors.white),
-                            tooltip: 'Отдалить (-)',
-                            onPressed: _zoomOut,
+                            icon: const Icon(Icons.add_rounded, size: 16, color: Color(0xFFD2D7DF)),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                            onPressed: () {
+                              setState(() {
+                                _autoScrollSpeed = (_autoScrollSpeed + 0.5).clamp(0.5, 5.0);
+                              });
+                            },
+                          ),
+                          const SizedBox(width: 4),
+                          IconButton(
+                            icon: const Icon(Icons.close_rounded, size: 16, color: Colors.white70),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                            onPressed: _toggleAutoScroll,
                           ),
                         ],
                       ),
                     ),
                   ),
+                ),
 
-                // Smart HUD (Bottom right corner)
-                if (_showHud && _totalPages > 0 && !_showControls)
-                  Positioned(
-                    bottom: 12,
-                    right: 14,
-                    child: IgnorePointer(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.65),
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: Colors.white12),
-                          boxShadow: const [
-                            BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2)),
-                          ],
+              // Floating Zoom Toolbar
+              if (_showControls)
+                Positioned(
+                  right: 16,
+                  bottom: 100,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.8),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(color: Colors.white24),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.zoom_in_rounded, color: Colors.white),
+                          tooltip: 'Приблизить (+)',
+                          onPressed: _zoomIn,
                         ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (_currentTime.isNotEmpty) ...[
-                              Text(_currentTime, style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold)),
-                              const SizedBox(width: 8),
+                        TextButton(
+                          onPressed: _resetZoom,
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 6),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          child: Text(
+                            '${(_zoomLevel * 100).toInt()}%',
+                            style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.zoom_out_rounded, color: Colors.white),
+                          tooltip: 'Отдалить (-)',
+                          onPressed: _zoomOut,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+              // Smart HUD (Bottom right corner)
+              if (_showHud && _totalPages > 0 && !_showControls)
+                Positioned(
+                  bottom: 12,
+                  right: 14,
+                  child: _ReaderHud(
+                    pageIndexNotifier: _pageIndexNotifier,
+                    totalPages: _totalPages,
+                  ),
+                ),
+
+              // Bottom progress and page controls
+              if (_showControls && _totalPages > 0)
+                Positioned(
+                  bottom: 0, left: 0, right: 0,
+                  child: Container(
+                    color: Colors.black.withValues(alpha: 0.85),
+                    padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom + 8, left: 16, right: 16, top: 12),
+                    child: SafeArea(
+                      top: false,
+                      child: ValueListenableBuilder<int>(
+                        valueListenable: _pageIndexNotifier,
+                        builder: (context, pageIndex, _) {
+                          return Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (_totalPages > 1)
+                                Slider(
+                                  value: pageIndex.toDouble().clamp(0.0, (_totalPages - 1).toDouble()),
+                                  min: 0,
+                                  max: (_totalPages - 1).toDouble(),
+                                  activeColor: const Color(0xFF8A897C),
+                                  inactiveColor: const Color(0xFF353535),
+                                  onChanged: (val) {
+                                    _jumpToPageIndex(val.toInt());
+                                  },
+                                ),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  TextButton.icon(
+                                    onPressed: _showPageJumperDialog,
+                                    icon: const Icon(Icons.menu_book_rounded, size: 16, color: Colors.white70),
+                                    label: Text('${pageIndex + 1} / $_totalPages стр.', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                  ),
+                                  Row(
+                                    children: [
+                                      if (_nextChapter != null) ...[
+                                        Text('След: Гл ${_nextChapter!.number}', style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                                        const SizedBox(width: 8),
+                                      ],
+                                      Icon(_isDownloaded ? Icons.offline_pin_rounded : Icons.cloud_rounded, color: _isDownloaded ? Colors.green : Colors.grey, size: 20),
+                                    ],
+                                  ),
+                                ],
+                              ),
                             ],
-                            Icon(
-                              _batteryState == BatteryState.charging ? Icons.battery_charging_full_rounded : Icons.battery_std_rounded,
-                              color: Colors.white70,
-                              size: 13,
-                            ),
-                            const SizedBox(width: 2),
-                            Text('$_batteryLevel%', style: const TextStyle(color: Colors.white70, fontSize: 11)),
-                            const SizedBox(width: 8),
-                            Container(width: 1, height: 10, color: Colors.white24),
-                            const SizedBox(width: 8),
-                            Text(
-                              '${_currentPageIndex + 1}/$_totalPages (${((_currentPageIndex + 1) / _totalPages * 100).toInt()}%)',
-                              style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-                            ),
-                          ],
-                        ),
+                          );
+                        },
                       ),
                     ),
                   ),
-
-                // Bottom progress and page controls
-                if (_showControls && _totalPages > 0)
-                  Positioned(
-                    bottom: 0, left: 0, right: 0,
-                    child: Container(
-                      color: Colors.black.withValues(alpha: 0.85),
-                      padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom + 8, left: 16, right: 16, top: 12),
-                      child: SafeArea(
-                        top: false,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (_totalPages > 1)
-                              Slider(
-                                value: _currentPageIndex.toDouble().clamp(0.0, (_totalPages - 1).toDouble()),
-                                min: 0,
-                                max: (_totalPages - 1).toDouble(),
-                                activeColor: const Color(0xFF8A897C),
-                                inactiveColor: const Color(0xFF353535),
-                                onChanged: (val) {
-                                  _jumpToPageIndex(val.toInt());
-                                },
-                              ),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                TextButton.icon(
-                                  onPressed: _showPageJumperDialog,
-                                  icon: const Icon(Icons.menu_book_rounded, size: 16, color: Colors.white70),
-                                  label: Text('${_currentPageIndex + 1} / $_totalPages стр.', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                                ),
-                                Row(
-                                  children: [
-                                    if (_nextChapter != null) ...[
-                                      Text('След: Гл ${_nextChapter!.number}', style: const TextStyle(color: Colors.white70, fontSize: 12)),
-                                      const SizedBox(width: 8),
-                                    ],
-                                    Icon(_isDownloaded ? Icons.offline_pin_rounded : Icons.cloud_rounded, color: _isDownloaded ? Colors.green : Colors.grey, size: 20),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  )
-              ],
-            ),
+                )
+            ],
           ),
         ),
       ),
@@ -1798,3 +1655,104 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     );
   }
 }
+
+class _ReaderHud extends StatefulWidget {
+  final ValueNotifier<int> pageIndexNotifier;
+  final int totalPages;
+
+  const _ReaderHud({
+    required this.pageIndexNotifier,
+    required this.totalPages,
+  });
+
+  @override
+  State<_ReaderHud> createState() => _ReaderHudState();
+}
+
+class _ReaderHudState extends State<_ReaderHud> {
+  String _currentTime = "";
+  int _batteryLevel = 100;
+  BatteryState _batteryState = BatteryState.full;
+  Timer? _clockTimer;
+  StreamSubscription<BatteryState>? _batteryStateSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _updateTime();
+    _clockTimer = Timer.periodic(const Duration(seconds: 30), (_) => _updateTime());
+    _initBattery();
+  }
+
+  @override
+  void dispose() {
+    _clockTimer?.cancel();
+    _batteryStateSub?.cancel();
+    super.dispose();
+  }
+
+  void _updateTime() {
+    final now = DateTime.now();
+    final h = now.hour.toString().padLeft(2, '0');
+    final m = now.minute.toString().padLeft(2, '0');
+    if (mounted) setState(() => _currentTime = '$h:$m');
+  }
+
+  void _initBattery() async {
+    try {
+      final battery = Battery();
+      final lvl = await battery.batteryLevel;
+      if (mounted) setState(() => _batteryLevel = lvl);
+      _batteryStateSub = battery.onBatteryStateChanged.listen((state) {
+        if (mounted) setState(() => _batteryState = state);
+      });
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<int>(
+      valueListenable: widget.pageIndexNotifier,
+      builder: (context, pageIndex, _) {
+        final pct = widget.totalPages > 0 ? (((pageIndex + 1) / widget.totalPages) * 100).toInt() : 0;
+        return IgnorePointer(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.65),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.white12),
+              boxShadow: const [
+                BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2)),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_currentTime.isNotEmpty) ...[
+                  Text(_currentTime, style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold)),
+                  const SizedBox(width: 8),
+                ],
+                Icon(
+                  _batteryState == BatteryState.charging ? Icons.battery_charging_full_rounded : Icons.battery_std_rounded,
+                  color: Colors.white70,
+                  size: 13,
+                ),
+                const SizedBox(width: 2),
+                Text('$_batteryLevel%', style: const TextStyle(color: Colors.white70, fontSize: 11)),
+                const SizedBox(width: 8),
+                Container(width: 1, height: 10, color: Colors.white24),
+                const SizedBox(width: 8),
+                Text(
+                  '${pageIndex + 1}/${widget.totalPages} ($pct%)',
+                  style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+

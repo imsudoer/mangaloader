@@ -104,8 +104,10 @@ pub async fn init_database(app_dir: String) -> Result<()> {
             manga_id INTEGER NOT NULL,
             volume TEXT NOT NULL,
             number TEXT NOT NULL,
+            id INTEGER DEFAULT 0,
             name TEXT DEFAULT '',
             branch_id INTEGER,
+            branches_count INTEGER DEFAULT 0,
             is_paid BOOLEAN DEFAULT 0,
             created_at TEXT DEFAULT '',
             PRIMARY KEY (manga_id, volume, number)
@@ -149,6 +151,8 @@ pub async fn init_database(app_dir: String) -> Result<()> {
         "ALTER TABLE manga ADD COLUMN age_restriction TEXT DEFAULT ''",
         "ALTER TABLE manga ADD COLUMN authors_json TEXT DEFAULT '[]'",
         "ALTER TABLE manga ADD COLUMN artists_json TEXT DEFAULT '[]'",
+        "ALTER TABLE cached_chapters ADD COLUMN id INTEGER DEFAULT 0",
+        "ALTER TABLE cached_chapters ADD COLUMN branches_count INTEGER DEFAULT 0",
     ];
     for sql in migrations {
         let _ = conn.execute(sql, []);
@@ -879,21 +883,23 @@ pub async fn get_cached_chapters(manga_id: i64) -> Result<Vec<Chapter>> {
     )?;
 
     let iter = stmt.query_map(params![manga_id], |row| {
-        let name: String = row.get("name")?;
+        let name: String = row.get("name").unwrap_or_default();
         Ok(Chapter {
-            id: row.get("id")?,
+            id: row.get("id").unwrap_or(0),
             volume: row.get("volume")?,
             number: row.get("number")?,
             name: if name.is_empty() { None } else { Some(name) },
-            branch_id: row.get("branch_id")?,
-            branches_count: row.get("branches_count")?,
-            is_paid: row.get("is_paid")?,
+            branch_id: row.get("branch_id").unwrap_or(None),
+            branches_count: row.get("branches_count").unwrap_or(0),
+            is_paid: row.get("is_paid").unwrap_or(false),
         })
     })?;
 
     let mut chapters = Vec::new();
     for c in iter {
-        chapters.push(c?);
+        if let Ok(chap) = c {
+            chapters.push(chap);
+        }
     }
 
     if chapters.is_empty() {
@@ -907,15 +913,28 @@ pub async fn get_cached_chapters(manga_id: i64) -> Result<Vec<Chapter>> {
                 volume: row.get("volume")?,
                 number: row.get("number")?,
                 name: None,
-                branch_id: row.get("branch_id")?,
+                branch_id: row.get("branch_id").unwrap_or(None),
                 branches_count: 0,
                 is_paid: false,
             })
         })?;
         for c in d_iter {
-            chapters.push(c?);
+            if let Ok(chap) = c {
+                chapters.push(chap);
+            }
         }
     }
+
+    chapters.sort_by(|a, b| {
+        let va: f64 = a.volume.parse().unwrap_or(0.0);
+        let vb: f64 = b.volume.parse().unwrap_or(0.0);
+        if (va - vb).abs() > f64::EPSILON {
+            return va.partial_cmp(&vb).unwrap_or(std::cmp::Ordering::Equal);
+        }
+        let na: f64 = a.number.parse().unwrap_or(0.0);
+        let nb: f64 = b.number.parse().unwrap_or(0.0);
+        na.partial_cmp(&nb).unwrap_or(std::cmp::Ordering::Equal)
+    });
 
     Ok(chapters)
 }
