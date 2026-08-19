@@ -6,7 +6,8 @@ use serde_json::Value;
 use std::sync::Mutex;
 use crate::api::models::{
     Chapter, ChapterPage, CommentItem, CommentsData, ConstantItem, Genre, HomePageData, MangaConstants, MangaDetails,
-    MangaRelationItem, MangaSearchResult, MangaSimilarItem, Person, Tag, UserProfile
+    MangaRelationItem, MangaSearchResult, MangaSimilarItem, Person, Tag, UserProfile, UserDetailedProfile,
+    UserPrivacySettings, NotificationCountInfo
 };
 
 static COOKIES: Lazy<Mutex<Option<String>>> = Lazy::new(|| Mutex::new(None));
@@ -912,5 +913,227 @@ pub async fn get_latest_site_updates() -> Result<Vec<MangaSearchResult>> {
     }
 
     Ok(results)
+}
+
+pub async fn get_user_detailed_profile(user_id: i64) -> Result<UserDetailedProfile> {
+    let url = format!(
+        "https://api.cdnlibs.org/api/user/{}?fields[]=about&fields[]=gender&fields[]=background&fields[]=avatar_frame_id&fields[]=premium_background_id&fields[]=points",
+        user_id
+    );
+    let res = HTTP_CLIENT
+        .get(&url)
+        .headers(get_api_headers())
+        .send()
+        .await
+        .context("Failed to fetch user detailed profile")?;
+
+    let json: Value = res.json().await.context("Failed to parse user profile JSON")?;
+    let data = json.get("data").context("Missing data in user profile")?;
+
+    let id = data.get("id").and_then(|v| v.as_i64()).unwrap_or(user_id);
+    let username = data.get("username").and_then(|v| v.as_str()).unwrap_or("User").to_string();
+    let avatar_url = data.get("avatar")
+        .and_then(|a| a.get("url"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    let background_url = data.get("background")
+        .and_then(|b| b.get("url"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+    let gender = data.get("gender")
+        .and_then(|g| g.get("id").or_else(|| g.get("value")))
+        .and_then(|v| v.as_i64())
+        .unwrap_or(0);
+    let about = data.get("about").and_then(|v| v.as_str()).unwrap_or("").to_string();
+    let points = data.get("points").and_then(|v| v.as_i64()).unwrap_or(0);
+    let streak = data.get("login_streak")
+        .and_then(|s| s.get("streak"))
+        .and_then(|v| v.as_i64())
+        .unwrap_or(0);
+    let created_at = data.get("created_at").and_then(|v| v.as_str()).map(|s| s.to_string());
+    
+    let mut roles = Vec::new();
+    if let Some(arr) = data.get("roles").and_then(|r| r.as_array()) {
+        for r in arr {
+            if let Some(name) = r.get("name").and_then(|n| n.as_str()) {
+                roles.push(name.to_string());
+            }
+        }
+    }
+
+    let avatar_frame_id = data.get("avatar_frame_id").and_then(|v| v.as_i64());
+    let premium_background_id = data.get("premium_background_id").and_then(|v| v.as_i64());
+
+    Ok(UserDetailedProfile {
+        id,
+        username,
+        avatar_url,
+        background_url,
+        gender,
+        about,
+        points,
+        login_streak: streak,
+        created_at,
+        roles,
+        avatar_frame_id,
+        premium_background_id,
+    })
+}
+
+pub async fn update_user_profile(
+    user_id: i64,
+    username: Option<String>,
+    gender: Option<i64>,
+    about: Option<String>,
+    avatar: Option<String>,
+    cover: Option<String>,
+) -> Result<bool> {
+    let url = format!("https://api.cdnlibs.org/api/user/{}", user_id);
+    let mut payload = serde_json::json!({
+        "update_type": "info"
+    });
+
+    if let Some(u) = username {
+        payload["username"] = serde_json::json!(u);
+    }
+    if let Some(g) = gender {
+        payload["gender"] = serde_json::json!(g);
+    }
+    if let Some(a) = about {
+        payload["about"] = serde_json::json!(a);
+    }
+    if let Some(av) = avatar {
+        payload["avatar"] = serde_json::json!(av);
+    }
+    if let Some(c) = cover {
+        payload["cover"] = serde_json::json!(c);
+    }
+
+    let res = HTTP_CLIENT
+        .post(&url)
+        .headers(get_api_headers())
+        .json(&payload)
+        .send()
+        .await
+        .context("Failed to update user profile")?;
+
+    Ok(res.status().is_success())
+}
+
+pub async fn get_user_privacy(user_id: i64) -> Result<UserPrivacySettings> {
+    let url = format!("https://api.cdnlibs.org/api/user/{}/settings/privacy", user_id);
+    let res = HTTP_CLIENT
+        .get(&url)
+        .headers(get_api_headers())
+        .send()
+        .await
+        .context("Failed to fetch privacy settings")?;
+
+    if !res.status().is_success() {
+        return Ok(UserPrivacySettings {
+            profile_visibility: 0,
+            statistics_visibility: 3,
+            statistics_site_ids: vec![1],
+            previous_usernames_visibility: 0,
+        });
+    }
+
+    let json: Value = res.json().await.unwrap_or(Value::Null);
+    let data = json.get("data").unwrap_or(&json);
+
+    let profile_visibility = data.get("profile_visibility").and_then(|v| v.as_i64()).unwrap_or(0);
+    let statistics_visibility = data.get("statistics_visibility").and_then(|v| v.as_i64()).unwrap_or(3);
+    let previous_usernames_visibility = data.get("previous_usernames_visibility").and_then(|v| v.as_i64()).unwrap_or(0);
+    
+    let mut stats_sites = vec![1];
+    if let Some(arr) = data.get("statistics_site_ids").and_then(|a| a.as_array()) {
+        stats_sites = arr.iter().filter_map(|v| v.as_i64()).collect();
+    }
+
+    Ok(UserPrivacySettings {
+        profile_visibility,
+        statistics_visibility,
+        statistics_site_ids: stats_sites,
+        previous_usernames_visibility,
+    })
+}
+
+pub async fn update_user_privacy(
+    user_id: i64,
+    profile_visibility: i64,
+    statistics_visibility: i64,
+    previous_usernames_visibility: i64,
+) -> Result<bool> {
+    let url = format!("https://api.cdnlibs.org/api/user/{}/settings/privacy", user_id);
+    let payload = serde_json::json!({
+        "profile_visibility": profile_visibility,
+        "statistics_visibility": statistics_visibility,
+        "previous_usernames_visibility": previous_usernames_visibility,
+        "statistics_site_ids": [1]
+    });
+
+    let res = HTTP_CLIENT
+        .put(&url)
+        .headers(get_api_headers())
+        .json(&payload)
+        .send()
+        .await
+        .context("Failed to update privacy settings")?;
+
+    Ok(res.status().is_success())
+}
+
+pub async fn get_notification_count() -> Result<NotificationCountInfo> {
+    let url = "https://api.cdnlibs.org/api/notifications/count";
+    let res = HTTP_CLIENT
+        .get(url)
+        .headers(get_api_headers())
+        .send()
+        .await
+        .context("Failed to fetch notifications count")?;
+
+    if !res.status().is_success() {
+        return Ok(NotificationCountInfo { count: 0, unread_cards: 0 });
+    }
+
+    let json: Value = res.json().await.unwrap_or(Value::Null);
+    let data = json.get("data").unwrap_or(&json);
+
+    let count = data.get("count").or_else(|| data.get("unread")).and_then(|v| v.as_i64()).unwrap_or(0);
+    let unread_cards = data.get("unread_cards").and_then(|v| v.as_i64()).unwrap_or(0);
+
+    Ok(NotificationCountInfo { count, unread_cards })
+}
+
+pub async fn set_manga_bookmark(media_slug: String, status_id: i64) -> Result<bool> {
+    let url = "https://api.cdnlibs.org/api/bookmarks";
+    let payload = serde_json::json!({
+        "media_type": "manga",
+        "media_slug": media_slug,
+        "status": status_id
+    });
+
+    let res = HTTP_CLIENT
+        .post(url)
+        .headers(get_api_headers())
+        .json(&payload)
+        .send()
+        .await
+        .context("Failed to update bookmark on MangaLib")?;
+
+    Ok(res.status().is_success())
+}
+
+pub async fn delete_manga_bookmark(bookmark_id: i64) -> Result<bool> {
+    let url = format!("https://api.cdnlibs.org/api/bookmarks/{}", bookmark_id);
+    let res = HTTP_CLIENT
+        .delete(&url)
+        .headers(get_api_headers())
+        .send()
+        .await
+        .context("Failed to delete bookmark on MangaLib")?;
+
+    Ok(res.status().is_success())
 }
 

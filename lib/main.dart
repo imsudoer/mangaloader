@@ -13,6 +13,7 @@ import 'pages/home_page.dart';
 import 'pages/search_page.dart';
 import 'pages/library_page.dart';
 import 'pages/downloads_page.dart';
+import 'pages/profile_page.dart';
 import 'pages/settings_page.dart';
 import 'pages/manga_details_page.dart';
 import 'pages/reader_page.dart';
@@ -131,10 +132,25 @@ final _router = GoRouter(
           pageBuilder: (context, state) => const NoTransitionPage(child: DownloadsPage()),
         ),
         GoRoute(
-          path: '/settings',
-          pageBuilder: (context, state) => const NoTransitionPage(child: SettingsPage()),
+          path: '/profile',
+          pageBuilder: (context, state) => const NoTransitionPage(child: ProfilePage()),
         ),
       ],
+    ),
+    GoRoute(
+      path: '/settings',
+      pageBuilder: (context, state) => CustomTransitionPage(
+        key: state.pageKey,
+        child: const SettingsPage(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return SlideTransition(
+            position: Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero)
+                .chain(CurveTween(curve: Curves.easeOutCubic))
+                .animate(animation),
+            child: child,
+          );
+        },
+      ),
     ),
     GoRoute(
       path: '/login',
@@ -256,7 +272,7 @@ class _AppShellState extends State<AppShell> {
     if (location.startsWith('/search')) return 1;
     if (location.startsWith('/library')) return 2;
     if (location.startsWith('/downloads')) return 3;
-    if (location.startsWith('/settings')) return 4;
+    if (location.startsWith('/profile')) return 4;
     return 0;
   }
 
@@ -321,64 +337,119 @@ class _AppShellState extends State<AppShell> {
         ],
       ),
       bottomNavigationBar: Container(
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
+          color: Color(0xFF181818),
           border: Border(
             top: BorderSide(
-              color: Theme.of(context).dividerColor.withValues(alpha: 0.12),
+              color: Color(0xFF2C2C2C),
               width: 0.8,
             ),
           ),
         ),
-        child: NavigationBar(
-          selectedIndex: selectedIndex,
-          onDestinationSelected: (index) {
-            if (index == selectedIndex) return;
-            setState(() {
-              _previousIndex = selectedIndex;
-            });
-            switch (index) {
-              case 0:
-                context.go('/');
-                break;
-              case 1:
-                context.go('/search');
-                break;
-              case 2:
-                context.go('/library');
-                break;
-              case 3:
-                context.go('/downloads');
-                break;
-              case 4:
-                context.go('/settings');
-                break;
-            }
-          },
-          destinations: [
-            NavigationDestination(
-              icon: const Icon(Icons.home_outlined),
-              selectedIcon: const Icon(Icons.home_rounded),
-              label: isRu ? 'Главная' : 'Home',
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildNavItem(
+                  index: 0,
+                  selectedIndex: selectedIndex,
+                  label: isRu ? 'Главная' : 'Home',
+                  icon: Icons.home_outlined,
+                  selectedIcon: Icons.home_rounded,
+                  onTap: () => _navigateTo(0, '/'),
+                ),
+                _buildNavItem(
+                  index: 1,
+                  selectedIndex: selectedIndex,
+                  label: isRu ? 'Каталог' : 'Catalog',
+                  icon: Icons.explore_outlined,
+                  selectedIcon: Icons.explore_rounded,
+                  onTap: () => _navigateTo(1, '/search'),
+                ),
+                _buildNavItem(
+                  index: 2,
+                  selectedIndex: selectedIndex,
+                  label: isRu ? 'Библиотека' : 'Library',
+                  icon: Icons.collections_bookmark_outlined,
+                  selectedIcon: Icons.collections_bookmark_rounded,
+                  onTap: () => _navigateTo(2, '/library'),
+                ),
+                _buildNavItem(
+                  index: 3,
+                  selectedIndex: selectedIndex,
+                  label: isRu ? 'Загрузки' : 'Downloads',
+                  icon: Icons.download_outlined,
+                  selectedIcon: Icons.download_rounded,
+                  onTap: () => _navigateTo(3, '/downloads'),
+                ),
+                _buildNavItem(
+                  index: 4,
+                  selectedIndex: selectedIndex,
+                  label: isRu ? 'Профиль' : 'Profile',
+                  icon: Icons.person_outline_rounded,
+                  selectedIcon: Icons.person_rounded,
+                  onTap: () => _navigateTo(4, '/profile'),
+                ),
+              ],
             ),
-            NavigationDestination(
-              icon: const Icon(Icons.explore_outlined),
-              selectedIcon: const Icon(Icons.explore_rounded),
-              label: isRu ? 'Каталог' : 'Catalog',
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _navigateTo(int index, String route) {
+    if (index == _previousIndex) return;
+    setState(() {
+      _previousIndex = index;
+    });
+    context.go(route);
+  }
+
+  Widget _buildNavItem({
+    required int index,
+    required int selectedIndex,
+    required String label,
+    required IconData icon,
+    required IconData selectedIcon,
+    required VoidCallback onTap,
+  }) {
+    final isSelected = index == selectedIndex;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF8A897C).withValues(alpha: 0.20) : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          border: isSelected
+              ? Border.all(color: const Color(0xFF8A897C).withValues(alpha: 0.45), width: 1.0)
+              : Border.all(color: Colors.transparent, width: 1.0),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isSelected ? selectedIcon : icon,
+              size: 22,
+              color: isSelected ? Colors.white : const Color(0xFF9E9E9E),
             ),
-            NavigationDestination(
-              icon: const Icon(Icons.collections_bookmark_outlined),
-              selectedIcon: const Icon(Icons.collections_bookmark_rounded),
-              label: isRu ? 'Библиотека' : 'Library',
-            ),
-            NavigationDestination(
-              icon: const Icon(Icons.download_outlined),
-              selectedIcon: const Icon(Icons.download_rounded),
-              label: isRu ? 'Загрузки' : 'Downloads',
-            ),
-            NavigationDestination(
-              icon: const Icon(Icons.tune_outlined),
-              selectedIcon: const Icon(Icons.tune_rounded),
-              label: isRu ? 'Настройки' : 'Settings',
+            const SizedBox(height: 3),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                color: isSelected ? Colors.white : const Color(0xFF9E9E9E),
+                letterSpacing: -0.2,
+              ),
             ),
           ],
         ),

@@ -107,3 +107,49 @@ Future<List<MangaSearchResult>> getUserBookmarks(
 
 Future<List<MangaSearchResult>> getLatestSiteUpdates() =>
     RustLib.instance.api.crateApiMangalibClientGetLatestSiteUpdates();
+
+Future<UserDetailedProfile> getUserDetailedProfile(
+        {required PlatformInt64 userId}) =>
+    RustLib.instance.api
+        .crateApiMangalibClientGetUserDetailedProfile(userId: userId);
+
+Future<bool> updateUserProfile(
+        {required PlatformInt64 userId,
+        String? username,
+        PlatformInt64? gender,
+        String? about,
+        String? avatar,
+        String? cover}) =>
+    RustLib.instance.api.crateApiMangalibClientUpdateUserProfile(
+        userId: userId,
+        username: username,
+        gender: gender,
+        about: about,
+        avatar: avatar,
+        cover: cover);
+
+Future<UserPrivacySettings> getUserPrivacy({required PlatformInt64 userId}) =>
+    RustLib.instance.api.crateApiMangalibClientGetUserPrivacy(userId: userId);
+
+Future<bool> updateUserPrivacy(
+        {required PlatformInt64 userId,
+        required PlatformInt64 profileVisibility,
+        required PlatformInt64 statisticsVisibility,
+        required PlatformInt64 previousUsernamesVisibility}) =>
+    RustLib.instance.api.crateApiMangalibClientUpdateUserPrivacy(
+        userId: userId,
+        profileVisibility: profileVisibility,
+        statisticsVisibility: statisticsVisibility,
+        previousUsernamesVisibility: previousUsernamesVisibility);
+
+Future<NotificationCountInfo> getNotificationCount() =>
+    RustLib.instance.api.crateApiMangalibClientGetNotificationCount();
+
+Future<bool> setMangaBookmark(
+        {required String mediaSlug, required PlatformInt64 statusId}) =>
+    RustLib.instance.api.crateApiMangalibClientSetMangaBookmark(
+        mediaSlug: mediaSlug, statusId: statusId);
+
+Future<bool> deleteMangaBookmark({required PlatformInt64 bookmarkId}) =>
+    RustLib.instance.api
+        .crateApiMangalibClientDeleteMangaBookmark(bookmarkId: bookmarkId);

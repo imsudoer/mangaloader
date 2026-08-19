@@ -212,6 +212,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   MangaSimilarItem dco_decode_manga_similar_item(dynamic raw);
 
   @protected
+  NotificationCountInfo dco_decode_notification_count_info(dynamic raw);
+
+  @protected
   String? dco_decode_opt_String(dynamic raw);
 
   @protected
@@ -252,6 +255,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void dco_decode_unit(dynamic raw);
+
+  @protected
+  UserDetailedProfile dco_decode_user_detailed_profile(dynamic raw);
+
+  @protected
+  UserPrivacySettings dco_decode_user_privacy_settings(dynamic raw);
 
   @protected
   UserProfile dco_decode_user_profile(dynamic raw);
@@ -462,6 +471,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   MangaSimilarItem sse_decode_manga_similar_item(SseDeserializer deserializer);
 
   @protected
+  NotificationCountInfo sse_decode_notification_count_info(
+      SseDeserializer deserializer);
+
+  @protected
   String? sse_decode_opt_String(SseDeserializer deserializer);
 
   @protected
@@ -506,6 +519,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_decode_unit(SseDeserializer deserializer);
+
+  @protected
+  UserDetailedProfile sse_decode_user_detailed_profile(
+      SseDeserializer deserializer);
+
+  @protected
+  UserPrivacySettings sse_decode_user_privacy_settings(
+      SseDeserializer deserializer);
 
   @protected
   UserProfile sse_decode_user_profile(SseDeserializer deserializer);
@@ -733,6 +754,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       MangaSimilarItem self, SseSerializer serializer);
 
   @protected
+  void sse_encode_notification_count_info(
+      NotificationCountInfo self, SseSerializer serializer);
+
+  @protected
   void sse_encode_opt_String(String? self, SseSerializer serializer);
 
   @protected
@@ -782,6 +807,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_unit(void self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_user_detailed_profile(
+      UserDetailedProfile self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_user_privacy_settings(
+      UserPrivacySettings self, SseSerializer serializer);
 
   @protected
   void sse_encode_user_profile(UserProfile self, SseSerializer serializer);

@@ -386,4 +386,41 @@ pub struct LibraryUpdateItem {
     pub latest_chapter: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserDetailedProfile {
+    pub id: i64,
+    pub username: String,
+    pub avatar_url: String,
+    pub background_url: Option<String>,
+    pub gender: i64,
+    pub about: String,
+    pub points: i64,
+    pub login_streak: i64,
+    pub created_at: Option<String>,
+    pub roles: Vec<String>,
+    pub avatar_frame_id: Option<i64>,
+    pub premium_background_id: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserPrivacySettings {
+    pub profile_visibility: i64,
+    pub statistics_visibility: i64,
+    pub statistics_site_ids: Vec<i64>,
+    pub previous_usernames_visibility: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContentFilterItem {
+    pub value: i64,
+    pub filter_type: String,
+    pub site_id: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NotificationCountInfo {
+    pub count: i64,
+    pub unread_cards: i64,
+}
+
 

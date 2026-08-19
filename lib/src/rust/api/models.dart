@@ -6,8 +6,8 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `LibraryUpdateItem`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ContentFilterItem`, `LibraryUpdateItem`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 
 class AppSettingItem {
   final String key;
@@ -1051,6 +1051,27 @@ class MangaSimilarItem {
           manga == other.manga;
 }
 
+class NotificationCountInfo {
+  final PlatformInt64 count;
+  final PlatformInt64 unreadCards;
+
+  const NotificationCountInfo({
+    required this.count,
+    required this.unreadCards,
+  });
+
+  @override
+  int get hashCode => count.hashCode ^ unreadCards.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is NotificationCountInfo &&
+          runtimeType == other.runtimeType &&
+          count == other.count &&
+          unreadCards == other.unreadCards;
+}
+
 class Person {
   final PlatformInt64 id;
   final String name;
@@ -1305,6 +1326,100 @@ class TimeOfDayDistribution {
           morningCount == other.morningCount &&
           afternoonCount == other.afternoonCount &&
           eveningCount == other.eveningCount;
+}
+
+class UserDetailedProfile {
+  final PlatformInt64 id;
+  final String username;
+  final String avatarUrl;
+  final String? backgroundUrl;
+  final PlatformInt64 gender;
+  final String about;
+  final PlatformInt64 points;
+  final PlatformInt64 loginStreak;
+  final String? createdAt;
+  final List<String> roles;
+  final PlatformInt64? avatarFrameId;
+  final PlatformInt64? premiumBackgroundId;
+
+  const UserDetailedProfile({
+    required this.id,
+    required this.username,
+    required this.avatarUrl,
+    this.backgroundUrl,
+    required this.gender,
+    required this.about,
+    required this.points,
+    required this.loginStreak,
+    this.createdAt,
+    required this.roles,
+    this.avatarFrameId,
+    this.premiumBackgroundId,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      username.hashCode ^
+      avatarUrl.hashCode ^
+      backgroundUrl.hashCode ^
+      gender.hashCode ^
+      about.hashCode ^
+      points.hashCode ^
+      loginStreak.hashCode ^
+      createdAt.hashCode ^
+      roles.hashCode ^
+      avatarFrameId.hashCode ^
+      premiumBackgroundId.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is UserDetailedProfile &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          username == other.username &&
+          avatarUrl == other.avatarUrl &&
+          backgroundUrl == other.backgroundUrl &&
+          gender == other.gender &&
+          about == other.about &&
+          points == other.points &&
+          loginStreak == other.loginStreak &&
+          createdAt == other.createdAt &&
+          roles == other.roles &&
+          avatarFrameId == other.avatarFrameId &&
+          premiumBackgroundId == other.premiumBackgroundId;
+}
+
+class UserPrivacySettings {
+  final PlatformInt64 profileVisibility;
+  final PlatformInt64 statisticsVisibility;
+  final Int64List statisticsSiteIds;
+  final PlatformInt64 previousUsernamesVisibility;
+
+  const UserPrivacySettings({
+    required this.profileVisibility,
+    required this.statisticsVisibility,
+    required this.statisticsSiteIds,
+    required this.previousUsernamesVisibility,
+  });
+
+  @override
+  int get hashCode =>
+      profileVisibility.hashCode ^
+      statisticsVisibility.hashCode ^
+      statisticsSiteIds.hashCode ^
+      previousUsernamesVisibility.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is UserPrivacySettings &&
+          runtimeType == other.runtimeType &&
+          profileVisibility == other.profileVisibility &&
+          statisticsVisibility == other.statisticsVisibility &&
+          statisticsSiteIds == other.statisticsSiteIds &&
+          previousUsernamesVisibility == other.previousUsernamesVisibility;
 }
 
 class UserProfile {
