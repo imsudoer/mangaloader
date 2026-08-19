@@ -158,6 +158,44 @@ class StreakNotificationService {
     }
   }
 
+  static Future<void> showChapterUpdateNotification({
+    required int mangaId,
+    required String mangaTitle,
+    required String chapterInfo,
+    bool isRu = true,
+  }) async {
+    if (!_initialized) return;
+    if (!Platform.isAndroid && !Platform.isIOS) return;
+
+    try {
+      final title = isRu ? 'Вышла новая глава!' : 'New Chapter Released!';
+      final body = '$mangaTitle — $chapterInfo';
+
+      const androidDetails = AndroidNotificationDetails(
+        'chapter_updates',
+        'Новые главы',
+        channelDescription: 'Уведомления о выходе новых глав отслеживаемой манги',
+        importance: Importance.high,
+        priority: Priority.high,
+        icon: '@mipmap/ic_launcher',
+      );
+
+      const notificationDetails = NotificationDetails(
+        android: androidDetails,
+        iOS: DarwinNotificationDetails(),
+      );
+
+      await _notifications.show(
+        (10000 + (mangaId % 50000)).toInt(),
+        title,
+        body,
+        notificationDetails,
+      );
+    } catch (e) {
+      debugPrint('Error showing chapter notification: $e');
+    }
+  }
+
   static Future<void> cancelReminder() async {
     if (!_initialized) return;
     try {

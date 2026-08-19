@@ -93,3 +93,17 @@ Future<List<MangaRelationItem>> getMangaRelations({required String slugUrl}) =>
 Future<List<MangaSimilarItem>> getMangaSimilar({required String slugUrl}) =>
     RustLib.instance.api
         .crateApiMangalibClientGetMangaSimilar(slugUrl: slugUrl);
+
+Future<List<UserProfile>> searchUsers({required String query}) =>
+    RustLib.instance.api.crateApiMangalibClientSearchUsers(query: query);
+
+Future<UserProfile> getUserProfile({required PlatformInt64 userId}) =>
+    RustLib.instance.api.crateApiMangalibClientGetUserProfile(userId: userId);
+
+Future<List<MangaSearchResult>> getUserBookmarks(
+        {required PlatformInt64 userId, required PlatformInt64 status}) =>
+    RustLib.instance.api
+        .crateApiMangalibClientGetUserBookmarks(userId: userId, status: status);
+
+Future<List<MangaSearchResult>> getLatestSiteUpdates() =>
+    RustLib.instance.api.crateApiMangalibClientGetLatestSiteUpdates();

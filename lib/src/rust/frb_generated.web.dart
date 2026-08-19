@@ -35,6 +35,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   String dco_decode_String(dynamic raw);
 
   @protected
+  AppSettingItem dco_decode_app_setting_item(dynamic raw);
+
+  @protected
   bool dco_decode_bool(dynamic raw);
 
   @protected
@@ -113,6 +116,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<String> dco_decode_list_String(dynamic raw);
 
   @protected
+  List<AppSettingItem> dco_decode_list_app_setting_item(dynamic raw);
+
+  @protected
   List<Chapter> dco_decode_list_chapter(dynamic raw);
 
   @protected
@@ -173,10 +179,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
 
   @protected
+  List<RecapMangaItem> dco_decode_list_recap_manga_item(dynamic raw);
+
+  @protected
   List<Tag> dco_decode_list_tag(dynamic raw);
 
   @protected
   ListType dco_decode_list_type(dynamic raw);
+
+  @protected
+  List<UserProfile> dco_decode_list_user_profile(dynamic raw);
 
   @protected
   MalImportResult dco_decode_mal_import_result(dynamic raw);
@@ -186,6 +198,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   MangaDetails dco_decode_manga_details(dynamic raw);
+
+  @protected
+  MangaRecapData dco_decode_manga_recap_data(dynamic raw);
 
   @protected
   MangaRelationItem dco_decode_manga_relation_item(dynamic raw);
@@ -224,6 +239,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ReadingStreakInfo dco_decode_reading_streak_info(dynamic raw);
 
   @protected
+  RecapMangaItem dco_decode_recap_manga_item(dynamic raw);
+
+  @protected
   Tag dco_decode_tag(dynamic raw);
 
   @protected
@@ -236,6 +254,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void dco_decode_unit(dynamic raw);
 
   @protected
+  UserProfile dco_decode_user_profile(dynamic raw);
+
+  @protected
   AnyhowException sse_decode_AnyhowException(SseDeserializer deserializer);
 
   @protected
@@ -244,6 +265,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   String sse_decode_String(SseDeserializer deserializer);
+
+  @protected
+  AppSettingItem sse_decode_app_setting_item(SseDeserializer deserializer);
 
   @protected
   bool sse_decode_bool(SseDeserializer deserializer);
@@ -330,6 +354,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<String> sse_decode_list_String(SseDeserializer deserializer);
 
   @protected
+  List<AppSettingItem> sse_decode_list_app_setting_item(
+      SseDeserializer deserializer);
+
+  @protected
   List<Chapter> sse_decode_list_chapter(SseDeserializer deserializer);
 
   @protected
@@ -398,10 +426,17 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
 
   @protected
+  List<RecapMangaItem> sse_decode_list_recap_manga_item(
+      SseDeserializer deserializer);
+
+  @protected
   List<Tag> sse_decode_list_tag(SseDeserializer deserializer);
 
   @protected
   ListType sse_decode_list_type(SseDeserializer deserializer);
+
+  @protected
+  List<UserProfile> sse_decode_list_user_profile(SseDeserializer deserializer);
 
   @protected
   MalImportResult sse_decode_mal_import_result(SseDeserializer deserializer);
@@ -411,6 +446,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   MangaDetails sse_decode_manga_details(SseDeserializer deserializer);
+
+  @protected
+  MangaRecapData sse_decode_manga_recap_data(SseDeserializer deserializer);
 
   @protected
   MangaRelationItem sse_decode_manga_relation_item(
@@ -454,6 +492,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       SseDeserializer deserializer);
 
   @protected
+  RecapMangaItem sse_decode_recap_manga_item(SseDeserializer deserializer);
+
+  @protected
   Tag sse_decode_tag(SseDeserializer deserializer);
 
   @protected
@@ -467,6 +508,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_decode_unit(SseDeserializer deserializer);
 
   @protected
+  UserProfile sse_decode_user_profile(SseDeserializer deserializer);
+
+  @protected
   void sse_encode_AnyhowException(
       AnyhowException self, SseSerializer serializer);
 
@@ -476,6 +520,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_String(String self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_app_setting_item(
+      AppSettingItem self, SseSerializer serializer);
 
   @protected
   void sse_encode_bool(bool self, SseSerializer serializer);
@@ -567,6 +615,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_list_String(List<String> self, SseSerializer serializer);
 
   @protected
+  void sse_encode_list_app_setting_item(
+      List<AppSettingItem> self, SseSerializer serializer);
+
+  @protected
   void sse_encode_list_chapter(List<Chapter> self, SseSerializer serializer);
 
   @protected
@@ -640,10 +692,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       Uint8List self, SseSerializer serializer);
 
   @protected
+  void sse_encode_list_recap_manga_item(
+      List<RecapMangaItem> self, SseSerializer serializer);
+
+  @protected
   void sse_encode_list_tag(List<Tag> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_type(ListType self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_user_profile(
+      List<UserProfile> self, SseSerializer serializer);
 
   @protected
   void sse_encode_mal_import_result(
@@ -655,6 +715,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_manga_details(MangaDetails self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_manga_recap_data(
+      MangaRecapData self, SseSerializer serializer);
 
   @protected
   void sse_encode_manga_relation_item(
@@ -703,6 +767,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       ReadingStreakInfo self, SseSerializer serializer);
 
   @protected
+  void sse_encode_recap_manga_item(
+      RecapMangaItem self, SseSerializer serializer);
+
+  @protected
   void sse_encode_tag(Tag self, SseSerializer serializer);
 
   @protected
@@ -714,6 +782,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_unit(void self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_user_profile(UserProfile self, SseSerializer serializer);
 }
 
 // Section: wire_class

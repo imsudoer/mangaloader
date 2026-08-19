@@ -1,6 +1,7 @@
 use crate::api::models::{
     DownloadedChapterInfo, DownloadedMangaGroup, LibraryEntry, ListType, MangaDetails, ReadingPosition, Genre, Tag, Person, ChapterHistory,
-    Chapter, ReadingStreakInfo, ContinueReadingItem, CustomUserList, ReadingStatistics, GenreCount, TimeOfDayDistribution, MalImportResult
+    Chapter, ReadingStreakInfo, ContinueReadingItem, CustomUserList, ReadingStatistics, GenreCount, TimeOfDayDistribution, MalImportResult,
+    AppSettingItem, MangaRecapData, RecapMangaItem
 };
 use anyhow::{Context, Result};
 use once_cell::sync::Lazy;
@@ -135,6 +136,11 @@ pub async fn init_database(app_dir: String) -> Result<()> {
             tag_name TEXT NOT NULL,
             UNIQUE(manga_id, tag_name),
             FOREIGN KEY(manga_id) REFERENCES manga(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS app_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
         );
         "
     )?;
@@ -1644,4 +1650,192 @@ pub async fn import_mal_xml(xml_content: String) -> Result<MalImportResult> {
         failed_count: failed,
     })
 }
+
+pub async fn get_setting(key: String) -> Result<Option<String>> {
+    let guard = get_conn()?;
+    let conn = guard.as_ref().unwrap();
+
+    let mut stmt = conn.prepare("SELECT value FROM app_settings WHERE key = ?1")?;
+    let mut rows = stmt.query(params![key])?;
+
+    if let Some(row) = rows.next()? {
+        Ok(Some(row.get(0)?))
+    } else {
+        Ok(None)
+    }
+}
+
+pub async fn set_setting(key: String, value: String) -> Result<()> {
+    let guard = get_conn()?;
+    let conn = guard.as_ref().unwrap();
+
+    conn.execute(
+        "INSERT OR REPLACE INTO app_settings (key, value) VALUES (?1, ?2)",
+        params![key, value],
+    )?;
+
+    Ok(())
+}
+
+pub async fn get_all_settings() -> Result<Vec<AppSettingItem>> {
+    let guard = get_conn()?;
+    let conn = guard.as_ref().unwrap();
+
+    let mut stmt = conn.prepare("SELECT key, value FROM app_settings")?;
+    let rows = stmt.query_map([], |row| {
+        Ok(AppSettingItem {
+            key: row.get(0)?,
+            value: row.get(1)?,
+        })
+    })?;
+
+    let mut items = Vec::new();
+    for row in rows {
+        if let Ok(item) = row {
+            items.push(item);
+        }
+    }
+
+    Ok(items)
+}
+
+pub async fn get_manga_recap() -> Result<MangaRecapData> {
+    let guard = get_conn()?;
+    let conn = guard.as_ref().unwrap();
+
+    // Total chapters & pages read from chapter_history
+    let (total_chapters_read, total_pages_read): (i64, i64) = conn.query_row(
+        "SELECT COUNT(*), COALESCE(SUM(total_pages), 0) FROM chapter_history WHERE is_completed = 1 OR page_index > 0",
+        [],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    ).unwrap_or((0, 0));
+
+    // Reading streak stats
+    let (current_streak, max_streak, total_days): (i64, i64, i64) = conn.query_row(
+        "SELECT current_streak, max_streak, total_days_read FROM reading_streak WHERE id = 1",
+        [],
+        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+    ).unwrap_or((0, 0, 0));
+
+    // Top read manga
+    let mut stmt_manga = conn.prepare(
+        "SELECT m.id, m.name, m.rus_name, m.cover_url, COUNT(h.number) as chaps_count
+         FROM chapter_history h
+         JOIN manga m ON h.manga_id = m.id
+         GROUP BY m.id
+         ORDER BY chaps_count DESC
+         LIMIT 5",
+    )?;
+
+    let manga_rows = stmt_manga.query_map([], |row| {
+        Ok(RecapMangaItem {
+            manga_id: row.get(0)?,
+            name: row.get(1)?,
+            rus_name: row.get(2)?,
+            cover_url: row.get(3)?,
+            chapters_read: row.get(4)?,
+        })
+    })?;
+
+    let mut top_manga = Vec::new();
+    for row in manga_rows {
+        if let Ok(item) = row {
+            top_manga.push(item);
+        }
+    }
+
+    // Top genres
+    let mut stmt_genres = conn.prepare(
+        "SELECT m.genres_json FROM chapter_history h
+         JOIN manga m ON h.manga_id = m.id
+         WHERE m.genres_json IS NOT NULL AND m.genres_json != '[]'",
+    )?;
+
+    let mut genre_counts: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
+    let mut total_genre_hits = 0i64;
+
+    let genre_rows = stmt_genres.query_map([], |row| {
+        let json_str: String = row.get(0)?;
+        Ok(json_str)
+    })?;
+
+    for json_res in genre_rows {
+        if let Ok(json_str) = json_res {
+            if let Ok(genres) = serde_json::from_str::<Vec<Genre>>(&json_str) {
+                for g in genres {
+                    *genre_counts.entry(g.name).or_insert(0) += 1;
+                    total_genre_hits += 1;
+                }
+            }
+        }
+    }
+
+    let mut top_genres: Vec<GenreCount> = genre_counts
+        .into_iter()
+        .map(|(name, count)| {
+            let pct = if total_genre_hits > 0 {
+                (count as f64 / total_genre_hits as f64) * 100.0
+            } else {
+                0.0
+            };
+            GenreCount {
+                name,
+                count,
+                percentage: (pct * 10.0).round() / 10.0,
+            }
+        })
+        .collect();
+
+    top_genres.sort_by(|a, b| b.count.cmp(&a.count));
+    top_genres.truncate(5);
+
+    // Time of day distribution from chapter_history
+    let mut stmt_time = conn.prepare(
+        "SELECT strftime('%H', last_read_at) as read_hour FROM chapter_history",
+    )?;
+
+    let mut night = 0i64;
+    let mut morning = 0i64;
+    let mut afternoon = 0i64;
+    let mut evening = 0i64;
+
+    let time_rows = stmt_time.query_map([], |row| {
+        let hour_str: Option<String> = row.get(0)?;
+        Ok(hour_str.and_then(|s| s.parse::<i64>().ok()).unwrap_or(12))
+    })?;
+
+    for h_res in time_rows {
+        if let Ok(hour) = h_res {
+            if hour < 6 {
+                night += 1;
+            } else if hour < 12 {
+                morning += 1;
+            } else if hour < 18 {
+                afternoon += 1;
+            } else {
+                evening += 1;
+            }
+        }
+    }
+
+    let estimated_reading_hours = (total_chapters_read as f64 * 3.5) / 60.0;
+
+    Ok(MangaRecapData {
+        total_chapters_read,
+        total_pages_read,
+        estimated_reading_hours: (estimated_reading_hours * 10.0).round() / 10.0,
+        current_streak,
+        max_streak,
+        active_days_count: total_days,
+        top_genres,
+        top_manga,
+        time_of_day: TimeOfDayDistribution {
+            night_count: night,
+            morning_count: morning,
+            afternoon_count: afternoon,
+            evening_count: evening,
+        },
+    })
+}
+
 

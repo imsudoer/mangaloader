@@ -3,9 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:mangaloader/providers/settings_provider.dart';
 import 'package:mangaloader/src/rust/api/mangalib_client.dart' as rust_api;
-
-final userCookiesProvider = StateProvider<String?>((ref) => null);
 
 class LoginWebviewPage extends ConsumerStatefulWidget {
   const LoginWebviewPage({super.key});
@@ -17,6 +16,7 @@ class LoginWebviewPage extends ConsumerStatefulWidget {
 class _LoginWebviewPageState extends ConsumerState<LoginWebviewPage> {
   WebViewController? _webViewController;
   bool _isLoading = true;
+  bool _isProcessingLogin = false;
   final TextEditingController _cookieInputController = TextEditingController();
 
   @override
@@ -40,26 +40,22 @@ class _LoginWebviewPageState extends ConsumerState<LoginWebviewPage> {
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageStarted: (url) {
-            setState(() {
-              _isLoading = true;
-            });
+            setState(() => _isLoading = true);
             _checkCookies();
           },
           onPageFinished: (url) {
-            setState(() {
-              _isLoading = false;
-            });
+            setState(() => _isLoading = false);
             _checkCookies();
           },
         ),
       )
-      ..loadRequest(Uri.parse('https://mangalib.org/auth/login'));
+      ..loadRequest(Uri.parse('https://mangalib.org/ru/login'));
 
     _webViewController = controller;
   }
 
   Future<void> _checkCookies() async {
-    if (_webViewController == null) return;
+    if (_webViewController == null || _isProcessingLogin) return;
     try {
       final cookies = await _webViewController!.runJavaScriptReturningResult('document.cookie') as String;
       final cleanCookies = cookies.replaceAll('"', '').trim();
@@ -69,15 +65,41 @@ class _LoginWebviewPageState extends ConsumerState<LoginWebviewPage> {
     } catch (_) {}
   }
 
-  void _applyCookies(String cookieString) {
-    rust_api.setCookies(cookies: cookieString);
-    ref.read(userCookiesProvider.notifier).state = cookieString;
+  Future<void> _applyCookies(String cookieString) async {
+    if (_isProcessingLogin) return;
+    setState(() => _isProcessingLogin = true);
 
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Успешный вход в аккаунт MangaLib!')),
-      );
-      Navigator.pop(context);
+    try {
+      ref.read(cookiesProvider.notifier).setCookies(cookieString);
+
+      // Try searching current user profile
+      try {
+        final users = await rust_api.searchUsers(query: 'xiro');
+        if (users.isNotEmpty) {
+          ref.read(currentUserProfileProvider.notifier).setProfile(users.first);
+        }
+      } catch (_) {}
+
+      if (mounted) {
+        final isRu = Localizations.localeOf(context).languageCode == 'ru';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(isRu ? 'Успешный вход в аккаунт MangaLib!' : 'MangaLib login successful!'),
+            backgroundColor: Colors.green.shade800,
+          ),
+        );
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Ошибка применения сессии: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isProcessingLogin = false);
+      }
     }
   }
 

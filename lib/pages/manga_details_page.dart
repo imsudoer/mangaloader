@@ -73,15 +73,17 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
           final libraryList = ref.watch(libraryProvider).value ?? [];
           final isInLibrary = libraryList.any((e) => e.mangaId == manga.id);
 
+          final dynamicAccent = _getDynamicAccentColor(manga);
+
           return SafeArea(
             bottom: false,
             child: NestedScrollView(
               headerSliverBuilder: (context, innerBoxIsScrolled) => [
                 // Collapsible Header (Cover, Badges, Titles, Stats, Action Buttons)
                 SliverToBoxAdapter(
-                  child: _buildStickyHeader(context, ref, manga, isRu, chaptersAsync, historyAsync, isInLibrary),
+                  child: _buildStickyHeader(context, ref, manga, isRu, chaptersAsync, historyAsync, isInLibrary, dynamicAccent),
                 ),
-                // Pinned Tab Bar
+                // Pinned Tab Bar with Dynamic Palette
                 SliverPersistentHeader(
                   pinned: true,
                   delegate: _SliverTabBarDelegate(
@@ -89,9 +91,9 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                       controller: _tabController,
                       indicatorSize: TabBarIndicatorSize.tab,
                       indicator: BoxDecoration(
-                        color: const Color(0xFF8A897C).withValues(alpha: 0.3),
+                        color: dynamicAccent.withValues(alpha: 0.25),
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: const Color(0xFF8A897C), width: 1),
+                        border: Border.all(color: dynamicAccent, width: 1.2),
                       ),
                       dividerColor: Colors.transparent,
                       labelColor: Colors.white,
@@ -152,6 +154,15 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
     );
   }
 
+  Color _getDynamicAccentColor(MangaDetails manga) {
+    int hash = manga.slugUrl.hashCode;
+    if (manga.genres.isNotEmpty) {
+      hash ^= manga.genres.first.name.hashCode;
+    }
+    final hue = (hash.abs() % 360).toDouble();
+    return HSLColor.fromAHSL(1.0, hue, 0.50, 0.56).toColor();
+  }
+
   Widget _buildStickyHeader(
     BuildContext context,
     WidgetRef ref,
@@ -160,11 +171,19 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
     AsyncValue<List<Chapter>> chaptersAsync,
     AsyncValue<List<ChapterHistory>> historyAsync,
     bool isInLibrary,
+    Color dynamicAccent,
   ) {
     return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFF1E1E1E),
-        border: Border(bottom: BorderSide(color: Color(0xFF2E2E2E), width: 1)),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            dynamicAccent.withValues(alpha: 0.18),
+            const Color(0xFF1E1E1E),
+          ],
+        ),
+        border: const Border(bottom: BorderSide(color: Color(0xFF2E2E2E), width: 1)),
       ),
       child: Stack(
         children: [
@@ -264,7 +283,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFF8A897C),
+                                    color: dynamicAccent,
                                     borderRadius: BorderRadius.circular(5),
                                   ),
                                   child: Text(
@@ -366,7 +385,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                       flex: 3,
                       child: FilledButton.icon(
                         style: FilledButton.styleFrom(
-                          backgroundColor: const Color(0xFF8A897C),
+                          backgroundColor: dynamicAccent,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 11),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),

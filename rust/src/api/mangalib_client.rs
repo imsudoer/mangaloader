@@ -4,7 +4,10 @@ use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::{Client, ClientBuilder};
 use serde_json::Value;
 use std::sync::Mutex;
-use crate::api::models::{Chapter, ChapterPage, CommentItem, CommentsData, ConstantItem, Genre, HomePageData, MangaConstants, MangaDetails, MangaRelationItem, MangaSearchResult, MangaSimilarItem, Person, Tag};
+use crate::api::models::{
+    Chapter, ChapterPage, CommentItem, CommentsData, ConstantItem, Genre, HomePageData, MangaConstants, MangaDetails,
+    MangaRelationItem, MangaSearchResult, MangaSimilarItem, Person, Tag, UserProfile
+};
 
 static COOKIES: Lazy<Mutex<Option<String>>> = Lazy::new(|| Mutex::new(None));
 static HTTP_CLIENT: Lazy<Client> = Lazy::new(|| {
@@ -773,3 +776,141 @@ pub async fn get_manga_similar(slug_url: String) -> Result<Vec<MangaSimilarItem>
 
     Ok(similar_items)
 }
+
+pub async fn search_users(query: String) -> Result<Vec<UserProfile>> {
+    let url = format!("https://api.cdnlibs.org/api/user?q={}", urlencoding::encode(&query));
+    let res = HTTP_CLIENT
+        .get(&url)
+        .headers(get_api_headers())
+        .send()
+        .await
+        .context("Failed to search users")?;
+
+    if !res.status().is_success() {
+        return Ok(Vec::new());
+    }
+
+    let json: Value = res.json().await.unwrap_or(Value::Null);
+    let mut users = Vec::new();
+
+    if let Some(arr) = json.get("data").and_then(|d| d.as_array()) {
+        for u in arr {
+            let id = u.get("id").and_then(|v| v.as_i64()).unwrap_or(0);
+            let username = u.get("username").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let avatar_url = u.get("avatar")
+                .and_then(|a| a.get("url"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let created_at = u.get("created_at").and_then(|v| v.as_str()).map(|s| s.to_string());
+            let streak = u.get("login_streak")
+                .and_then(|s| s.get("streak"))
+                .and_then(|v| v.as_i64())
+                .unwrap_or(0);
+
+            if id > 0 && !username.is_empty() {
+                users.push(UserProfile {
+                    id,
+                    username,
+                    avatar_url,
+                    created_at,
+                    login_streak: streak,
+                });
+            }
+        }
+    }
+
+    Ok(users)
+}
+
+pub async fn get_user_profile(user_id: i64) -> Result<UserProfile> {
+    let url = format!("https://api.cdnlibs.org/api/user/{}", user_id);
+    let res = HTTP_CLIENT
+        .get(&url)
+        .headers(get_api_headers())
+        .send()
+        .await
+        .context("Failed to fetch user profile")?;
+
+    let json: Value = res.json().await.context("Failed to parse user profile JSON")?;
+    let data = json.get("data").context("Missing data in user profile")?;
+
+    let id = data.get("id").and_then(|v| v.as_i64()).unwrap_or(user_id);
+    let username = data.get("username").and_then(|v| v.as_str()).unwrap_or("User").to_string();
+    let avatar_url = data.get("avatar")
+        .and_then(|a| a.get("url"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    let created_at = data.get("created_at").and_then(|v| v.as_str()).map(|s| s.to_string());
+    let streak = data.get("login_streak")
+        .and_then(|s| s.get("streak"))
+        .and_then(|v| v.as_i64())
+        .unwrap_or(0);
+
+    Ok(UserProfile {
+        id,
+        username,
+        avatar_url,
+        created_at,
+        login_streak: streak,
+    })
+}
+
+pub async fn get_user_bookmarks(user_id: i64, status: i64) -> Result<Vec<MangaSearchResult>> {
+    let url = format!("https://api.cdnlibs.org/api/bookmarks?user_id={}&status={}&site_id=1", user_id, status);
+    let res = HTTP_CLIENT
+        .get(&url)
+        .headers(get_api_headers())
+        .send()
+        .await
+        .context("Failed to fetch user bookmarks")?;
+
+    if !res.status().is_success() {
+        return Ok(Vec::new());
+    }
+
+    let json: Value = res.json().await.unwrap_or(Value::Null);
+    let mut results = Vec::new();
+
+    if let Some(arr) = json.get("data").and_then(|d| d.as_array()) {
+        for item in arr {
+            let manga_json = item.get("media").unwrap_or(item);
+            let manga = parse_manga_item(manga_json);
+            if manga.id > 0 {
+                results.push(manga);
+            }
+        }
+    }
+
+    Ok(results)
+}
+
+pub async fn get_latest_site_updates() -> Result<Vec<MangaSearchResult>> {
+    let url = "https://api.cdnlibs.org/api/latest-updates?site_id=1";
+    let res = HTTP_CLIENT
+        .get(url)
+        .headers(get_api_headers())
+        .send()
+        .await
+        .context("Failed to fetch latest updates")?;
+
+    if !res.status().is_success() {
+        return Ok(Vec::new());
+    }
+
+    let json: Value = res.json().await.unwrap_or(Value::Null);
+    let mut results = Vec::new();
+
+    if let Some(arr) = json.get("data").and_then(|d| d.as_array()) {
+        for item in arr {
+            let manga = parse_manga_item(item);
+            if manga.id > 0 {
+                results.push(manga);
+            }
+        }
+    }
+
+    Ok(results)
+}
+

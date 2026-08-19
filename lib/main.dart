@@ -23,6 +23,7 @@ import 'widgets/offline_banner.dart';
 import 'providers/settings_provider.dart';
 
 import 'services/streak_notification_service.dart';
+import 'services/chapter_tracker_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -63,11 +64,25 @@ class AppScrollBehavior extends MaterialScrollBehavior {
   };
 }
 
-class MangaLoaderApp extends ConsumerWidget {
+class MangaLoaderApp extends ConsumerStatefulWidget {
   const MangaLoaderApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<MangaLoaderApp> createState() => _MangaLoaderAppState();
+}
+
+class _MangaLoaderAppState extends ConsumerState<MangaLoaderApp> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await loadPersistentSettings(ref);
+      ChapterTrackerService.checkLibraryUpdates(ref);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final themeMode = ref.watch(themeModeProvider);
     final isAmoled = ref.watch(amoledModeProvider);
     final locale = ref.watch(localeProvider);

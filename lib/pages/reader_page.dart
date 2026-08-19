@@ -538,6 +538,18 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       );
       if (isCompleted) {
         StreakNotificationService.scheduleDailyStreakReminder();
+        if (ref.read(autoDeleteReadChaptersProvider) && _isDownloaded) {
+          try {
+            await rust_storage.deleteDownloadedChapter(
+              mangaId: _mangaId,
+              volume: widget.volume,
+              number: widget.number,
+            );
+            _isDownloaded = false;
+          } catch (e) {
+            debugPrint("Auto-delete read chapter error: $e");
+          }
+        }
       }
     });
   }

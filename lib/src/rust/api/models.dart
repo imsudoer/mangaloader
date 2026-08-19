@@ -6,7 +6,29 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `LibraryUpdateItem`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+
+class AppSettingItem {
+  final String key;
+  final String value;
+
+  const AppSettingItem({
+    required this.key,
+    required this.value,
+  });
+
+  @override
+  int get hashCode => key.hashCode ^ value.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is AppSettingItem &&
+          runtimeType == other.runtimeType &&
+          key == other.key &&
+          value == other.value;
+}
 
 class Chapter {
   final PlatformInt64 id;
@@ -850,6 +872,57 @@ class MangaDetails {
           publisherName == other.publisherName;
 }
 
+class MangaRecapData {
+  final PlatformInt64 totalChaptersRead;
+  final PlatformInt64 totalPagesRead;
+  final double estimatedReadingHours;
+  final PlatformInt64 currentStreak;
+  final PlatformInt64 maxStreak;
+  final PlatformInt64 activeDaysCount;
+  final List<GenreCount> topGenres;
+  final List<RecapMangaItem> topManga;
+  final TimeOfDayDistribution timeOfDay;
+
+  const MangaRecapData({
+    required this.totalChaptersRead,
+    required this.totalPagesRead,
+    required this.estimatedReadingHours,
+    required this.currentStreak,
+    required this.maxStreak,
+    required this.activeDaysCount,
+    required this.topGenres,
+    required this.topManga,
+    required this.timeOfDay,
+  });
+
+  @override
+  int get hashCode =>
+      totalChaptersRead.hashCode ^
+      totalPagesRead.hashCode ^
+      estimatedReadingHours.hashCode ^
+      currentStreak.hashCode ^
+      maxStreak.hashCode ^
+      activeDaysCount.hashCode ^
+      topGenres.hashCode ^
+      topManga.hashCode ^
+      timeOfDay.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MangaRecapData &&
+          runtimeType == other.runtimeType &&
+          totalChaptersRead == other.totalChaptersRead &&
+          totalPagesRead == other.totalPagesRead &&
+          estimatedReadingHours == other.estimatedReadingHours &&
+          currentStreak == other.currentStreak &&
+          maxStreak == other.maxStreak &&
+          activeDaysCount == other.activeDaysCount &&
+          topGenres == other.topGenres &&
+          topManga == other.topManga &&
+          timeOfDay == other.timeOfDay;
+}
+
 class MangaRelationItem {
   final String relationTitle;
   final MangaSearchResult manga;
@@ -1147,6 +1220,41 @@ class ReadingStreakInfo {
           historyDates == other.historyDates;
 }
 
+class RecapMangaItem {
+  final PlatformInt64 mangaId;
+  final String name;
+  final String rusName;
+  final String coverUrl;
+  final PlatformInt64 chaptersRead;
+
+  const RecapMangaItem({
+    required this.mangaId,
+    required this.name,
+    required this.rusName,
+    required this.coverUrl,
+    required this.chaptersRead,
+  });
+
+  @override
+  int get hashCode =>
+      mangaId.hashCode ^
+      name.hashCode ^
+      rusName.hashCode ^
+      coverUrl.hashCode ^
+      chaptersRead.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is RecapMangaItem &&
+          runtimeType == other.runtimeType &&
+          mangaId == other.mangaId &&
+          name == other.name &&
+          rusName == other.rusName &&
+          coverUrl == other.coverUrl &&
+          chaptersRead == other.chaptersRead;
+}
+
 class Tag {
   final PlatformInt64 id;
   final String name;
@@ -1197,4 +1305,39 @@ class TimeOfDayDistribution {
           morningCount == other.morningCount &&
           afternoonCount == other.afternoonCount &&
           eveningCount == other.eveningCount;
+}
+
+class UserProfile {
+  final PlatformInt64 id;
+  final String username;
+  final String avatarUrl;
+  final String? createdAt;
+  final PlatformInt64 loginStreak;
+
+  const UserProfile({
+    required this.id,
+    required this.username,
+    required this.avatarUrl,
+    this.createdAt,
+    required this.loginStreak,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      username.hashCode ^
+      avatarUrl.hashCode ^
+      createdAt.hashCode ^
+      loginStreak.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is UserProfile &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          username == other.username &&
+          avatarUrl == other.avatarUrl &&
+          createdAt == other.createdAt &&
+          loginStreak == other.loginStreak;
 }

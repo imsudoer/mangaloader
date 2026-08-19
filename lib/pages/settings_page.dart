@@ -8,10 +8,15 @@ import 'package:mangaloader/src/rust/api/storage.dart' as rust_storage;
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:mangaloader/services/update_checker.dart';
 import 'package:mangaloader/services/update_downloader.dart';
 import 'package:mangaloader/services/streak_notification_service.dart';
 import 'package:mangaloader/widgets/update_bottom_sheet.dart';
+import 'package:mangaloader/widgets/manga_recap_modal.dart';
+import 'package:mangaloader/widgets/user_search_modal.dart';
+import 'package:mangaloader/src/rust/api/mangalib_client.dart' as rust_api;
+import 'package:mangaloader/src/rust/api/models.dart';
 import 'package:go_router/go_router.dart';
 
 class SettingsPage extends ConsumerStatefulWidget {
@@ -245,6 +250,85 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     }
   }
 
+  bool _isSyncingBookmarks = false;
+
+  Future<void> _syncMangaLibBookmarks(bool isRu) async {
+    final profile = ref.read(currentUserProfileProvider);
+    if (profile == null) return;
+
+    setState(() => _isSyncingBookmarks = true);
+    try {
+      int imported = 0;
+      final statusMap = {
+        1: 'reading',
+        2: 'plan_to_read',
+        3: 'dropped',
+        4: 'completed',
+        5: 'favorites',
+        6: 'on_hold',
+      };
+
+      for (final entry in statusMap.entries) {
+        final bookmarks = await rust_api.getUserBookmarks(userId: profile.id, status: entry.key);
+        for (final manga in bookmarks) {
+          try {
+            await rust_storage.saveManga(manga: MangaDetails(
+              id: manga.id,
+              name: manga.name,
+              rusName: manga.rusName,
+              engName: manga.engName,
+              slug: manga.slug,
+              slugUrl: manga.slugUrl,
+              coverUrl: manga.coverUrl,
+              coverThumbUrl: manga.coverThumbUrl,
+              mangaType: manga.mangaType,
+              typeId: manga.typeId,
+              status: manga.status,
+              statusId: manga.statusId,
+              ageRestriction: manga.ageRestriction,
+              ratingAverage: manga.ratingAverage,
+              ratingVotes: manga.ratingVotes,
+              releaseDate: manga.releaseDate,
+              summary: '',
+              genres: const [],
+              tags: const [],
+              authors: const [],
+              artists: const [],
+              viewsTotal: '0',
+              viewsFormatted: '0',
+              chaptersCount: 0,
+              formatLabels: const [],
+              publisherName: null,
+            ));
+            await rust_storage.addToList(mangaId: manga.id, listType: entry.value);
+            imported++;
+          } catch (_) {}
+        }
+      }
+
+      ref.read(libraryProvider.notifier).loadAll();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(isRu ? 'Синхронизировано $imported тайтлов из MangaLib' : 'Synced $imported titles from MangaLib'),
+            backgroundColor: Colors.green.shade800,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Ошибка синхронизации: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSyncingBookmarks = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final selectedLocale = ref.watch(localeProvider);
@@ -255,12 +339,127 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final downloadState = ref.watch(updateDownloadStateProvider);
     final appVersionAsync = ref.watch(appVersionProvider);
     final currentVersionStr = appVersionAsync.value ?? UpdateChecker.currentVersion;
+    final userProfile = ref.watch(currentUserProfileProvider);
 
     return Scaffold(
       appBar: AppBar(title: Text(isRu ? 'Настройки' : 'Settings')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          // 0. Account & MangaLib Profile
+          _buildSectionHeader(isRu ? 'Аккаунт MangaLib' : 'MangaLib Account', Icons.person_rounded),
+          Card(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+              side: const BorderSide(color: Color(0xFF353535)),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: userProfile != null
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 24,
+                              backgroundColor: const Color(0xFF383838),
+                              backgroundImage: userProfile.avatarUrl.isNotEmpty
+                                  ? CachedNetworkImageProvider(userProfile.avatarUrl)
+                                  : null,
+                              child: userProfile.avatarUrl.isEmpty
+                                  ? const Icon(Icons.person, color: Color(0xFF8A897C), size: 28)
+                                  : null,
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    userProfile.username,
+                                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                                  ),
+                                  Text(
+                                    'ID: ${userProfile.id}',
+                                    style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            OutlinedButton.icon(
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.redAccent,
+                                side: const BorderSide(color: Colors.redAccent),
+                              ),
+                              onPressed: () {
+                                ref.read(cookiesProvider.notifier).setCookies('');
+                                ref.read(currentUserProfileProvider.notifier).setProfile(null);
+                              },
+                              icon: const Icon(Icons.logout_rounded, size: 16),
+                              label: Text(isRu ? 'Выйти' : 'Logout'),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        const Divider(height: 1),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: FilledButton.icon(
+                                style: FilledButton.styleFrom(backgroundColor: const Color(0xFF8A897C)),
+                                onPressed: _isSyncingBookmarks ? null : () => _syncMangaLibBookmarks(isRu),
+                                icon: _isSyncingBookmarks
+                                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                                    : const Icon(Icons.sync_rounded, size: 18),
+                                label: Text(isRu ? 'Синхронизировать закладки' : 'Sync Bookmarks'),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            IconButton.filledTonal(
+                              onPressed: () => UserSearchModal.show(context),
+                              tooltip: isRu ? 'Поиск пользователей' : 'Search Users',
+                              icon: const Icon(Icons.search_rounded),
+                            ),
+                          ],
+                        ),
+                      ],
+                    )
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          isRu
+                              ? 'Войдите в свой аккаунт MangaLib для синхронизации закладок и профиля'
+                              : 'Sign in to your MangaLib account to sync bookmarks & profile',
+                          style: const TextStyle(color: Color(0xFFD2D7DF), fontSize: 13),
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: FilledButton.icon(
+                                style: FilledButton.styleFrom(backgroundColor: const Color(0xFF8A897C)),
+                                onPressed: () => GoRouter.of(context).push('/login'),
+                                icon: const Icon(Icons.login_rounded, size: 18),
+                                label: Text(isRu ? 'Войти в MangaLib' : 'Sign in to MangaLib'),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            IconButton.filledTonal(
+                              onPressed: () => UserSearchModal.show(context),
+                              tooltip: isRu ? 'Поиск пользователей' : 'Search Users',
+                              icon: const Icon(Icons.person_search_rounded),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+            ),
+          ),
+          const SizedBox(height: 20),
+
           // 1. Theme & Appearance
           _buildSectionHeader(isRu ? 'Оформление и язык' : 'Appearance & Language', Icons.palette_outlined),
           Card(
@@ -332,7 +531,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
                     ),
                     value: ref.watch(amoledModeProvider),
-                    onChanged: (val) => ref.read(amoledModeProvider.notifier).state = val,
+                    onChanged: (val) => ref.read(amoledModeProvider.notifier).setAmoled(val),
                   ),
                   const SizedBox(height: 8),
                   const Divider(height: 1),
@@ -346,13 +545,26 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     ),
                     value: ref.watch(streakNotificationsEnabledProvider),
                     onChanged: (val) {
-                      ref.read(streakNotificationsEnabledProvider.notifier).state = val;
+                      ref.read(streakNotificationsEnabledProvider.notifier).setEnabled(val);
                       if (val) {
                         StreakNotificationService.scheduleDailyStreakReminder(isRu: isRu, enabled: true);
                       } else {
                         StreakNotificationService.cancelReminder();
                       }
                     },
+                  ),
+                  const SizedBox(height: 8),
+                  const Divider(height: 1),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.auto_awesome_rounded, color: Color(0xFF8A897C)),
+                    title: Text(isRu ? 'Manga Recap / Итоги чтения' : 'Manga Recap Summary'),
+                    subtitle: Text(
+                      isRu ? 'Красивая карточка с вашей статистикой чтения и топами' : 'Beautiful summary card with reading stats & tops',
+                      style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
+                    ),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: () => MangaRecapModal.show(context),
                   ),
                   const SizedBox(height: 8),
                   const Divider(height: 1),
@@ -379,6 +591,19 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     ),
                     trailing: const Icon(Icons.chevron_right_rounded),
                     onTap: () => GoRouter.of(context).push('/statistics'),
+                  ),
+                  const SizedBox(height: 8),
+                  const Divider(height: 1),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    secondary: const Icon(Icons.notifications_active_rounded, color: Color(0xFF8A897C)),
+                    title: Text(isRu ? 'Уведомления о новых главах' : 'New Chapters Notifications'),
+                    subtitle: Text(
+                      isRu ? 'Отслеживание выхода свежих глав для тайтлов в библиотеке' : 'Track newly uploaded chapters for bookmarked titles',
+                      style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
+                    ),
+                    value: ref.watch(chapterNotificationsEnabledProvider),
+                    onChanged: (val) => ref.read(chapterNotificationsEnabledProvider.notifier).setEnabled(val),
                   ),
                 ],
               ),
@@ -504,7 +729,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     max: 30,
                     divisions: 29,
                     activeColor: const Color(0xFF8A897C),
-                    onChanged: (v) => ref.read(downloadConcurrencyImagesProvider.notifier).state = v.toInt(),
+                    onChanged: (v) => ref.read(downloadConcurrencyImagesProvider.notifier).setConcurrency(v.toInt()),
                   ),
                   const SizedBox(height: 10),
                   Row(
@@ -520,7 +745,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     max: 5,
                     divisions: 4,
                     activeColor: const Color(0xFF8A897C),
-                    onChanged: (v) => ref.read(downloadConcurrencyChaptersProvider.notifier).state = v.toInt(),
+                    onChanged: (v) => ref.read(downloadConcurrencyChaptersProvider.notifier).setConcurrency(v.toInt()),
                   ),
                   const SizedBox(height: 6),
                   const Divider(height: 1),
@@ -546,10 +771,23 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       ],
                       onChanged: (val) {
                         if (val != null) {
-                          ref.read(smartAutoDownloadCountProvider.notifier).state = val;
+                          ref.read(smartAutoDownloadCountProvider.notifier).setCount(val);
                         }
                       },
                     ),
+                  ),
+                  const SizedBox(height: 6),
+                  const Divider(height: 1),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    secondary: const Icon(Icons.auto_delete_rounded, color: Color(0xFF8A897C)),
+                    title: Text(isRu ? 'Автоудаление прочитанного' : 'Auto-Delete Read Chapters'),
+                    subtitle: Text(
+                      isRu ? 'Автоматически удалять скачанную главу с устройства после прочтения' : 'Automatically delete downloaded chapter file after finishing reading',
+                      style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
+                    ),
+                    value: ref.watch(autoDeleteReadChaptersProvider),
+                    onChanged: (val) => ref.read(autoDeleteReadChaptersProvider.notifier).setAutoDelete(val),
                   ),
                 ],
               ),
@@ -632,7 +870,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     ],
                     onChanged: (val) {
                       if (val != null) {
-                        ref.read(autoClearCacheDaysProvider.notifier).state = val;
+                        ref.read(autoClearCacheDaysProvider.notifier).setDays(val);
                       }
                     },
                   ),
@@ -789,7 +1027,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
                   ),
                   value: ref.watch(autoCheckUpdatesProvider),
-                  onChanged: (val) => ref.read(autoCheckUpdatesProvider.notifier).state = val,
+                  onChanged: (val) => ref.read(autoCheckUpdatesProvider.notifier).setAutoCheck(val),
                 ),
               ],
             ),

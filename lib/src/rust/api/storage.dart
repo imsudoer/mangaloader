@@ -183,3 +183,15 @@ Future<String> exportMalXml() =>
 
 Future<MalImportResult> importMalXml({required String xmlContent}) =>
     RustLib.instance.api.crateApiStorageImportMalXml(xmlContent: xmlContent);
+
+Future<String?> getSetting({required String key}) =>
+    RustLib.instance.api.crateApiStorageGetSetting(key: key);
+
+Future<void> setSetting({required String key, required String value}) =>
+    RustLib.instance.api.crateApiStorageSetSetting(key: key, value: value);
+
+Future<List<AppSettingItem>> getAllSettings() =>
+    RustLib.instance.api.crateApiStorageGetAllSettings();
+
+Future<MangaRecapData> getMangaRecap() =>
+    RustLib.instance.api.crateApiStorageGetMangaRecap();

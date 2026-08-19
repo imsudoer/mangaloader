@@ -338,3 +338,52 @@ pub struct MalImportResult {
     pub failed_count: i64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AppSettingItem {
+    pub key: String,
+    pub value: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserProfile {
+    pub id: i64,
+    pub username: String,
+    pub avatar_url: String,
+    pub created_at: Option<String>,
+    pub login_streak: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RecapMangaItem {
+    pub manga_id: i64,
+    pub name: String,
+    pub rus_name: String,
+    pub cover_url: String,
+    pub chapters_read: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MangaRecapData {
+    pub total_chapters_read: i64,
+    pub total_pages_read: i64,
+    pub estimated_reading_hours: f64,
+    pub current_streak: i64,
+    pub max_streak: i64,
+    pub active_days_count: i64,
+    pub top_genres: Vec<GenreCount>,
+    pub top_manga: Vec<RecapMangaItem>,
+    pub time_of_day: TimeOfDayDistribution,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LibraryUpdateItem {
+    pub manga_id: i64,
+    pub slug_url: String,
+    pub name: String,
+    pub rus_name: String,
+    pub cover_url: String,
+    pub new_chapters_count: i64,
+    pub latest_chapter: String,
+}
+
+
