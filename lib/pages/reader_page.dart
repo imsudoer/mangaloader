@@ -46,7 +46,7 @@ class ReaderPage extends ConsumerStatefulWidget {
 }
 
 class _ReaderPageState extends ConsumerState<ReaderPage> {
-  bool _showControls = false;
+  final ValueNotifier<bool> _showControlsNotifier = ValueNotifier<bool>(false);
   ReadMode _readMode = ReadMode.vertical;
   ReadBgColor _bgColor = ReadBgColor.black;
   final ReadBoxFit _boxFit = ReadBoxFit.fitWidth;
@@ -77,17 +77,16 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   // For online reading
   List<ChapterPage> _onlinePages = [];
   
-  // Cache for CBZ page bytes
+  // Memory cache for CBZ page bytes
   final Map<int, Uint8List> _pageCache = {};
+  // Track measured page heights for vertical webtoon mode
+  final Map<int, double> _pageHeights = {};
   
   int _currentPageIndex = 0;
   PageController? _pageController;
   final ScrollController _scrollController = ScrollController();
   final FocusNode _focusNode = FocusNode();
   
-  // Vertical mode: track item positions via GlobalKeys
-  final Map<int, GlobalKey> _itemKeys = {};
-  // Guard against scroll listener updating page index while we're programmatically jumping
   bool _isJumping = false;
   
   Timer? _saveTimer;
@@ -110,56 +109,41 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     _loadChapter();
   }
 
-  /// Get or create a GlobalKey for a vertical list item at [index].
-  GlobalKey _keyForIndex(int index) {
-    return _itemKeys.putIfAbsent(index, () => GlobalKey());
+  double get _estimatedPageHeight {
+    final screenWidth = MediaQuery.of(context).size.width;
+    return (screenWidth * _zoomLevel) * 1.4;
   }
 
-  /// Determine which page item is most visible in the viewport center.
-  int _findCenterPageIndex() {
-    if (!_scrollController.hasClients || _totalPages <= 0) return 0;
-
-    final viewportHeight = _scrollController.position.viewportDimension;
-    final viewportCenter = _scrollController.offset + viewportHeight / 2;
-
-    int bestIndex = _currentPageIndex;
-    double bestDistance = double.infinity;
-
-    // Check all rendered items to find the one closest to viewport center
-    for (final entry in _itemKeys.entries) {
-      final key = entry.value;
-      final ctx = key.currentContext;
-      if (ctx == null) continue;
-      final renderBox = ctx.findRenderObject() as RenderBox?;
-      if (renderBox == null || !renderBox.hasSize) continue;
-
-      // Get the item's position relative to the scroll viewport
-      final scrollableState = Scrollable.maybeOf(ctx);
-      if (scrollableState == null) continue;
-      
-      final scrollRenderBox = scrollableState.context.findRenderObject() as RenderBox?;
-      if (scrollRenderBox == null) continue;
-
-      final itemOffset = renderBox.localToGlobal(Offset.zero, ancestor: scrollRenderBox);
-      final itemTop = _scrollController.offset + itemOffset.dy;
-      final itemBottom = itemTop + renderBox.size.height;
-      final itemCenter = (itemTop + itemBottom) / 2;
-
-      final distance = (itemCenter - viewportCenter).abs();
-      if (distance < bestDistance) {
-        bestDistance = distance;
-        bestIndex = entry.key;
+  int _findCurrentPageIndexFromOffset(double offset) {
+    if (_totalPages <= 1) return 0;
+    final viewportDimension = _scrollController.position.viewportDimension;
+    final viewportCenter = offset + (viewportDimension * 0.35); // 35% from top
+    
+    double accumulated = 0.0;
+    for (int i = 0; i < _totalPages; i++) {
+      final h = _pageHeights[i] ?? _estimatedPageHeight;
+      if (accumulated + h >= viewportCenter) {
+        return i;
       }
+      accumulated += h;
     }
+    return _totalPages - 1;
+  }
 
-    return bestIndex.clamp(0, _totalPages - 1);
+  double _getOffsetForPageIndex(int targetIndex) {
+    if (targetIndex <= 0) return 0.0;
+    double offset = 0.0;
+    for (int i = 0; i < targetIndex && i < _totalPages; i++) {
+      offset += _pageHeights[i] ?? _estimatedPageHeight;
+    }
+    return offset;
   }
 
   void _onVerticalScroll() {
     if (_readMode != ReadMode.vertical || !_scrollController.hasClients || _totalPages <= 1) return;
     if (_isJumping) return;
     
-    final currentVisible = _findCenterPageIndex();
+    final currentVisible = _findCurrentPageIndexFromOffset(_scrollController.offset);
     
     if (currentVisible != _currentPageIndex) {
       _currentPageIndex = currentVisible;
@@ -189,6 +173,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     _scrollController.removeListener(_onVerticalScroll);
     _stopAutoScroll();
     _saveTimer?.cancel();
+    _showControlsNotifier.dispose();
     _pageIndexNotifier.dispose();
     if (_mangaId > 0) {
       rust_storage.saveReadingProgress(
@@ -312,69 +297,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     
     // For vertical mode, scroll to saved position after first frame
     if (_totalPages > 0 && _currentPageIndex > 0 && _readMode == ReadMode.vertical) {
-      // Schedule scroll after the ListView has built its items
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _scrollToItemIndex(_currentPageIndex);
+        _jumpToPageIndex(_currentPageIndex);
       });
     }
-  }
-
-  /// Scroll the vertical ListView so that item at [targetIndex] is visible at the top.
-  void _scrollToItemIndex(int targetIndex) {
-    if (targetIndex < 0 || targetIndex >= _totalPages) return;
-    final key = _itemKeys[targetIndex];
-    if (key == null || key.currentContext == null) {
-      // Item not yet rendered - try rough scroll first, then refine
-      _roughScrollToIndex(targetIndex);
-      return;
-    }
-    _isJumping = true;
-    Scrollable.ensureVisible(
-      key.currentContext!,
-      duration: Duration.zero,
-      alignment: 0.0, // align to top of viewport
-    ).then((_) {
-      _isJumping = false;
-      _currentPageIndex = targetIndex;
-      _pageIndexNotifier.value = targetIndex;
-      _scheduleSaveProgress();
-    });
-  }
-
-  /// Rough scroll for vertical mode when the target item isn't rendered yet.
-  /// We scroll proportionally, wait for build, then refine with ensureVisible.
-  void _roughScrollToIndex(int targetIndex) {
-    if (!_scrollController.hasClients) return;
-    _isJumping = true;
-    
-    final maxExtent = _scrollController.position.maxScrollExtent;
-    // Estimate: scroll proportionally by index
-    final estimated = _totalPages > 1
-        ? (maxExtent * targetIndex / (_totalPages - 1)).clamp(0.0, maxExtent)
-        : 0.0;
-    _scrollController.jumpTo(estimated);
-    
-    // After the jump, items near the target should be built.
-    // Wait for the frame, then try to use ensureVisible for precision.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final key = _itemKeys[targetIndex];
-      if (key != null && key.currentContext != null) {
-        Scrollable.ensureVisible(
-          key.currentContext!,
-          duration: Duration.zero,
-          alignment: 0.0,
-        ).then((_) {
-          _isJumping = false;
-          _currentPageIndex = targetIndex;
-          _pageIndexNotifier.value = targetIndex;
-        });
-      } else {
-        // Still not rendered, accept the rough position
-        _isJumping = false;
-        _currentPageIndex = targetIndex;
-        _pageIndexNotifier.value = targetIndex;
-      }
-    });
   }
 
   void _jumpToPageIndex(int targetIndex) {
@@ -386,8 +312,15 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       if (_pageController != null && _pageController!.hasClients) {
         _pageController!.jumpToPage(targetIndex);
       }
-    } else {
-      _scrollToItemIndex(targetIndex);
+    } else if (_scrollController.hasClients) {
+      _isJumping = true;
+      final targetOffset = _getOffsetForPageIndex(targetIndex);
+      final maxExtent = _scrollController.position.maxScrollExtent;
+      _scrollController.jumpTo(targetOffset.clamp(0.0, maxExtent));
+      
+      Future.delayed(const Duration(milliseconds: 50), () {
+        if (mounted) _isJumping = false;
+      });
     }
     _scheduleSaveProgress();
   }
@@ -536,7 +469,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       final bytes = await rust_cbz.readCbzPage(cbzPath: _cbzPath, pageIndex: index);
       final data = Uint8List.fromList(bytes);
       _pageCache[index] = data;
-      _pageCache.removeWhere((k, _) => (k - index).abs() > 8);
+      _pageCache.removeWhere((k, _) => (k - index).abs() > 10);
       return data;
     } catch (e) {
       debugPrint("Error reading CBZ page $index: $e");
@@ -573,7 +506,6 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       }
       if (_mangaId == 0) return;
 
-      // Auto-add to library as "reading" if not already in any list
       try {
         final existingType = await rust_storage.getMangaListType(mangaId: _mangaId);
         if (existingType == null || existingType.isEmpty) {
@@ -622,7 +554,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         else if (!isRtl) { _nextPageAction(); }
       }
     } else {
-      setState(() => _showControls = !_showControls);
+      _showControlsNotifier.value = !_showControlsNotifier.value;
     }
   }
 
@@ -732,6 +664,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   }
 
   Future<void> _reloadCurrentChapter() async {
+    _pageCache.clear();
+    _pageHeights.clear();
     for (final p in _onlinePages) {
       final url = _resolveImageUrl(p.url);
       try {
@@ -854,208 +788,6 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     }
 
     return result;
-  }
-
-  Widget _buildImageContent(int index) {
-    Widget content;
-    if (_isDownloaded) {
-      content = FutureBuilder<Uint8List?>(
-        future: _getCbzPage(index),
-        builder: (ctx, snap) {
-          if (snap.connectionState == ConnectionState.waiting) {
-            return const AspectRatio(aspectRatio: 0.7, child: Center(child: CircularProgressIndicator()));
-          }
-          if (snap.hasData && snap.data != null) {
-            return Image.memory(
-              snap.data!, 
-              fit: _resolvedBoxFit, 
-              gaplessPlayback: true,
-            );
-          }
-          return const AspectRatio(
-            aspectRatio: 0.7,
-            child: Center(child: Icon(Icons.broken_image, color: Colors.white)),
-          );
-        },
-      );
-    } else if (index < _onlinePages.length) {
-      final pageUrl = _resolveImageUrl(_onlinePages[index].url);
-      final screenWidth = MediaQuery.of(context).size.width;
-      final dpr = MediaQuery.of(context).devicePixelRatio;
-      final memWidth = (screenWidth * _zoomLevel * dpr).toInt().clamp(300, 2560);
-      
-      content = CachedNetworkImage(
-        imageUrl: pageUrl,
-        httpHeaders: const {'Referer': 'https://mangalib.org/'},
-        fit: _resolvedBoxFit,
-        memCacheWidth: memWidth,
-        placeholder: (ctx, url) => const AspectRatio(aspectRatio: 0.7, child: Center(child: CircularProgressIndicator())),
-        errorWidget: (ctx, url, err) => InkWell(
-          onTap: () => _reloadImage(pageUrl),
-          child: AspectRatio(
-            aspectRatio: 0.7,
-            child: Container(
-              color: const Color(0xFF181818),
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.refresh_rounded, color: Colors.white70, size: 32),
-                    const SizedBox(height: 8),
-                    Text(
-                      Localizations.localeOf(context).languageCode == 'ru' ? 'Нажмите для повтора' : 'Tap to retry',
-                      style: const TextStyle(color: Colors.white70, fontSize: 12),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      );
-    } else {
-      content = const AspectRatio(
-        aspectRatio: 0.7,
-        child: Center(child: Icon(Icons.broken_image, color: Colors.white)),
-      );
-    }
-
-    // Border Crop wrapping
-    if (_cropBorders) {
-      final scaleFactor = 1.0 + (_cropPercent * 2 / 100.0);
-      content = ClipRect(
-        child: Transform.scale(
-          scale: scaleFactor,
-          child: content,
-        ),
-      );
-    }
-
-    return _applyColorFilter(content);
-  }
-
-  Widget _buildVerticalImage(int index) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final itemWidth = screenWidth * _zoomLevel;
-
-    double? knownAspectRatio;
-    if (index < _onlinePages.length) {
-      final p = _onlinePages[index];
-      if (p.width != null && p.height != null && p.width! > 0 && p.height! > 0) {
-        knownAspectRatio = p.width! / p.height!;
-      }
-    }
-
-    final placeholderHeight = (knownAspectRatio != null && knownAspectRatio > 0)
-        ? itemWidth / knownAspectRatio
-        : itemWidth * 1.4;
-
-    Widget content;
-    if (_isDownloaded) {
-      content = FutureBuilder<Uint8List?>(
-        future: _getCbzPage(index),
-        builder: (ctx, snap) {
-          if (snap.connectionState == ConnectionState.waiting) {
-            return Container(
-              height: placeholderHeight,
-              color: const Color(0xFF181818),
-              child: const Center(
-                child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2)),
-              ),
-            );
-          }
-          if (snap.hasData && snap.data != null) {
-            return Image.memory(
-              snap.data!, 
-              fit: BoxFit.fitWidth, 
-              alignment: Alignment.topCenter,
-              gaplessPlayback: true,
-            );
-          }
-          return Container(
-            height: placeholderHeight,
-            color: const Color(0xFF181818),
-            child: const Center(child: Icon(Icons.broken_image, color: Colors.white54)),
-          );
-        },
-      );
-    } else if (index < _onlinePages.length) {
-      final pageUrl = _resolveImageUrl(_onlinePages[index].url);
-      final dpr = MediaQuery.of(context).devicePixelRatio;
-      final memWidth = (itemWidth * dpr).toInt().clamp(300, 2560);
-
-      content = CachedNetworkImage(
-        imageUrl: pageUrl,
-        httpHeaders: const {'Referer': 'https://mangalib.org/'},
-        fit: BoxFit.fitWidth,
-        alignment: Alignment.topCenter,
-        memCacheWidth: memWidth,
-        placeholder: (ctx, url) => Container(
-          height: placeholderHeight,
-          color: const Color(0xFF181818),
-          child: const Center(
-            child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2)),
-          ),
-        ),
-        errorWidget: (ctx, url, err) => InkWell(
-          onTap: () => _reloadImage(pageUrl),
-          child: Container(
-            height: placeholderHeight,
-            color: const Color(0xFF181818),
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.refresh_rounded, color: Colors.white70, size: 32),
-                  const SizedBox(height: 8),
-                  Text(
-                    Localizations.localeOf(context).languageCode == 'ru' ? 'Нажмите для повтора' : 'Tap to retry',
-                    style: const TextStyle(color: Colors.white70, fontSize: 12),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      );
-    } else {
-      content = Container(
-        height: placeholderHeight,
-        color: const Color(0xFF181818),
-        child: const Center(child: Icon(Icons.broken_image, color: Colors.white54)),
-      );
-    }
-
-    if (_cropBorders) {
-      final scaleFactor = 1.0 + (_cropPercent * 2 / 100.0);
-      content = ClipRect(
-        child: Transform.scale(scale: scaleFactor, child: content),
-      );
-    }
-
-    return Container(
-      key: _keyForIndex(index),
-      padding: const EdgeInsets.only(bottom: 1),
-      child: Center(
-        child: SizedBox(
-          width: itemWidth,
-          child: _applyColorFilter(content),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHorizontalImage(int index) {
-    final imageContent = _buildImageContent(index);
-
-    return InteractiveViewer(
-      minScale: 1.0,
-      maxScale: 4.0,
-      clipBehavior: Clip.none,
-      child: Center(
-        child: imageContent,
-      ),
-    );
   }
 
   void _showPageJumperDialog() {
@@ -1285,7 +1017,24 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                       if (index == _totalPages) {
                         return _buildNextChapterSwipeCard(isRu);
                       }
-                      return _buildVerticalImage(index);
+                      return _VerticalReaderPageItem(
+                        key: ValueKey('page_$index'),
+                        index: index,
+                        totalPages: _totalPages,
+                        isDownloaded: _isDownloaded,
+                        cbzPath: _cbzPath,
+                        onlinePages: _onlinePages,
+                        resolveImageUrl: _resolveImageUrl,
+                        getCbzPage: _getCbzPage,
+                        reloadImage: _reloadImage,
+                        zoomLevel: _zoomLevel,
+                        cropBorders: _cropBorders,
+                        cropPercent: _cropPercent,
+                        applyColorFilter: _applyColorFilter,
+                        onHeightMeasured: (idx, height) {
+                          _pageHeights[idx] = height;
+                        },
+                      );
                     },
                   ),
                 )
@@ -1296,54 +1045,193 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                   reverse: _readMode == ReadMode.rtl,
                   onPageChanged: _onPageChanged,
                   physics: const ClampingScrollPhysics(),
-                  itemBuilder: (context, index) => _buildHorizontalImage(index),
+                  itemBuilder: (context, index) {
+                    return _HorizontalReaderPageItem(
+                      key: ValueKey('h_page_$index'),
+                      index: index,
+                      isDownloaded: _isDownloaded,
+                      onlinePages: _onlinePages,
+                      resolveImageUrl: _resolveImageUrl,
+                      getCbzPage: _getCbzPage,
+                      reloadImage: _reloadImage,
+                      zoomLevel: _zoomLevel,
+                      cropBorders: _cropBorders,
+                      cropPercent: _cropPercent,
+                      boxFit: _resolvedBoxFit,
+                      applyColorFilter: _applyColorFilter,
+                    );
+                  },
                 ),
-                
-              // Top controls bar
-              if (_showControls)
+
+              // Smart HUD (Bottom right corner) - independent of controls
+              if (_showHud && _totalPages > 0)
                 Positioned(
-                  top: 0, left: 0, right: 0,
-                  child: AppBar(
-                    backgroundColor: Colors.black.withValues(alpha: 0.85),
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    leading: const BackButton(),
-                    title: Text(_chapterTitle, style: const TextStyle(fontSize: 16)),
-                    actions: [
-                      IconButton(
-                        icon: const Icon(Icons.grid_view_rounded),
-                        tooltip: 'Сетка страниц',
-                        onPressed: _showPageJumperDialog,
-                      ),
-                      if (_readMode == ReadMode.vertical)
-                        IconButton(
-                          icon: Icon(_isAutoScrolling ? Icons.pause_circle_filled_rounded : Icons.play_circle_fill_rounded, color: _isAutoScrolling ? Colors.orange : Colors.white),
-                          tooltip: _isAutoScrolling ? 'Остановить автопрокрутку (A)' : 'Автопрокрутка (A)',
-                          onPressed: _toggleAutoScroll,
-                        ),
-                      IconButton(
-                        icon: Icon(_isFullscreen ? Icons.fullscreen_exit_rounded : Icons.fullscreen_rounded),
-                        tooltip: 'Полноэкранный режим (F11)',
-                        onPressed: _toggleFullscreen,
-                      ),
-                      if (_nextChapter != null)
-                        IconButton(
-                          icon: const Icon(Icons.skip_next_rounded),
-                          tooltip: 'Следующая глава (Том ${_nextChapter!.volume} Гл ${_nextChapter!.number})',
-                          onPressed: () {
-                            final branchQ = _nextChapter!.branchId != null ? "?branchId=${_nextChapter!.branchId}" : "";
-                            context.pushReplacement('/read/${widget.slugUrl}/${_nextChapter!.volume}/${_nextChapter!.number}$branchQ');
-                          },
-                        ),
-                      IconButton(
-                        icon: const Icon(Icons.refresh_rounded),
-                        tooltip: Localizations.localeOf(context).languageCode == 'ru' ? 'Сбросить кэш и перезагрузить главу' : 'Reload chapter',
-                        onPressed: _reloadCurrentChapter,
-                      ),
-                      IconButton(icon: const Icon(Icons.tune_rounded), tooltip: 'Настройки', onPressed: _showSettingsSheet),
-                    ],
+                  bottom: 12,
+                  right: 14,
+                  child: ValueListenableBuilder<bool>(
+                    valueListenable: _showControlsNotifier,
+                    builder: (context, showControls, _) {
+                      if (showControls) return const SizedBox.shrink();
+                      return _ReaderHud(
+                        pageIndexNotifier: _pageIndexNotifier,
+                        totalPages: _totalPages,
+                      );
+                    },
                   ),
                 ),
+
+              // Top & bottom controls overlay with independent ValueListenableBuilder
+              ValueListenableBuilder<bool>(
+                valueListenable: _showControlsNotifier,
+                builder: (context, showControls, _) {
+                  if (!showControls) return const SizedBox.shrink();
+                  return Stack(
+                    children: [
+                      // Top controls bar
+                      Positioned(
+                        top: 0, left: 0, right: 0,
+                        child: AppBar(
+                          backgroundColor: Colors.black.withValues(alpha: 0.85),
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          leading: const BackButton(),
+                          title: Text(_chapterTitle, style: const TextStyle(fontSize: 16)),
+                          actions: [
+                            IconButton(
+                              icon: const Icon(Icons.grid_view_rounded),
+                              tooltip: 'Сетка страниц',
+                              onPressed: _showPageJumperDialog,
+                            ),
+                            if (_readMode == ReadMode.vertical)
+                              IconButton(
+                                icon: Icon(_isAutoScrolling ? Icons.pause_circle_filled_rounded : Icons.play_circle_fill_rounded, color: _isAutoScrolling ? Colors.orange : Colors.white),
+                                tooltip: _isAutoScrolling ? 'Остановить автопрокрутку (A)' : 'Автопрокрутка (A)',
+                                onPressed: _toggleAutoScroll,
+                              ),
+                            IconButton(
+                              icon: Icon(_isFullscreen ? Icons.fullscreen_exit_rounded : Icons.fullscreen_rounded),
+                              tooltip: 'Полноэкранный режим (F11)',
+                              onPressed: _toggleFullscreen,
+                            ),
+                            if (_nextChapter != null)
+                              IconButton(
+                                icon: const Icon(Icons.skip_next_rounded),
+                                tooltip: 'Следующая глава (Том ${_nextChapter!.volume} Гл ${_nextChapter!.number})',
+                                onPressed: () {
+                                  final branchQ = _nextChapter!.branchId != null ? "?branchId=${_nextChapter!.branchId}" : "";
+                                  context.pushReplacement('/read/${widget.slugUrl}/${_nextChapter!.volume}/${_nextChapter!.number}$branchQ');
+                                },
+                              ),
+                            IconButton(
+                              icon: const Icon(Icons.refresh_rounded),
+                              tooltip: Localizations.localeOf(context).languageCode == 'ru' ? 'Сбросить кэш и перезагрузить главу' : 'Reload chapter',
+                              onPressed: _reloadCurrentChapter,
+                            ),
+                            IconButton(icon: const Icon(Icons.tune_rounded), tooltip: 'Настройки', onPressed: _showSettingsSheet),
+                          ],
+                        ),
+                      ),
+
+                      // Floating Zoom Toolbar
+                      Positioned(
+                        right: 16,
+                        bottom: 100,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.8),
+                            borderRadius: BorderRadius.circular(24),
+                            border: Border.all(color: Colors.white24),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.zoom_in_rounded, color: Colors.white),
+                                tooltip: 'Приблизить (+)',
+                                onPressed: _zoomIn,
+                              ),
+                              TextButton(
+                                onPressed: _resetZoom,
+                                style: TextButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                                  minimumSize: Size.zero,
+                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                ),
+                                child: Text(
+                                  '${(_zoomLevel * 100).toInt()}%',
+                                  style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.zoom_out_rounded, color: Colors.white),
+                                tooltip: 'Отдалить (-)',
+                                onPressed: _zoomOut,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                      // Bottom progress and page controls
+                      if (_totalPages > 0)
+                        Positioned(
+                          bottom: 0, left: 0, right: 0,
+                          child: Container(
+                            color: Colors.black.withValues(alpha: 0.85),
+                            padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom + 8, left: 16, right: 16, top: 12),
+                            child: SafeArea(
+                              top: false,
+                              child: ValueListenableBuilder<int>(
+                                valueListenable: _pageIndexNotifier,
+                                builder: (context, pageIndex, _) {
+                                  return Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      if (_totalPages > 1)
+                                        Slider(
+                                          value: pageIndex.toDouble().clamp(0.0, (_totalPages - 1).toDouble()),
+                                          min: 0,
+                                          max: (_totalPages - 1).toDouble(),
+                                          activeColor: const Color(0xFF8A897C),
+                                          inactiveColor: const Color(0xFF353535),
+                                          onChanged: (val) {
+                                            final target = val.round();
+                                            if (target != _currentPageIndex) {
+                                              _jumpToPageIndex(target);
+                                            }
+                                          },
+                                        ),
+                                      Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          TextButton.icon(
+                                            onPressed: _showPageJumperDialog,
+                                            icon: const Icon(Icons.menu_book_rounded, size: 16, color: Colors.white70),
+                                            label: Text('${pageIndex + 1} / $_totalPages стр.', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                          ),
+                                          Row(
+                                            children: [
+                                              if (_nextChapter != null) ...[
+                                                Text('След: Гл ${_nextChapter!.number}', style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                                                const SizedBox(width: 8),
+                                              ],
+                                              Icon(_isDownloaded ? Icons.offline_pin_rounded : Icons.cloud_rounded, color: _isDownloaded ? Colors.green : Colors.grey, size: 20),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  );
+                                },
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              ),
 
               // Floating Auto-Scroll Speed Controller
               if (_isAutoScrolling)
@@ -1410,115 +1298,6 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                     ),
                   ),
                 ),
-
-              // Floating Zoom Toolbar
-              if (_showControls)
-                Positioned(
-                  right: 16,
-                  bottom: 100,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.8),
-                      borderRadius: BorderRadius.circular(24),
-                      border: Border.all(color: Colors.white24),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.zoom_in_rounded, color: Colors.white),
-                          tooltip: 'Приблизить (+)',
-                          onPressed: _zoomIn,
-                        ),
-                        TextButton(
-                          onPressed: _resetZoom,
-                          style: TextButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 6),
-                            minimumSize: Size.zero,
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          ),
-                          child: Text(
-                            '${(_zoomLevel * 100).toInt()}%',
-                            style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.zoom_out_rounded, color: Colors.white),
-                          tooltip: 'Отдалить (-)',
-                          onPressed: _zoomOut,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-              // Smart HUD (Bottom right corner)
-              if (_showHud && _totalPages > 0 && !_showControls)
-                Positioned(
-                  bottom: 12,
-                  right: 14,
-                  child: _ReaderHud(
-                    pageIndexNotifier: _pageIndexNotifier,
-                    totalPages: _totalPages,
-                  ),
-                ),
-
-              // Bottom progress and page controls
-              if (_showControls && _totalPages > 0)
-                Positioned(
-                  bottom: 0, left: 0, right: 0,
-                  child: Container(
-                    color: Colors.black.withValues(alpha: 0.85),
-                    padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom + 8, left: 16, right: 16, top: 12),
-                    child: SafeArea(
-                      top: false,
-                      child: ValueListenableBuilder<int>(
-                        valueListenable: _pageIndexNotifier,
-                        builder: (context, pageIndex, _) {
-                          return Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              if (_totalPages > 1)
-                                Slider(
-                                  value: pageIndex.toDouble().clamp(0.0, (_totalPages - 1).toDouble()),
-                                  min: 0,
-                                  max: (_totalPages - 1).toDouble(),
-                                  activeColor: const Color(0xFF8A897C),
-                                  inactiveColor: const Color(0xFF353535),
-                                  onChanged: (val) {
-                                    final target = val.round();
-                                    if (target != _currentPageIndex) {
-                                      _jumpToPageIndex(target);
-                                    }
-                                  },
-                                ),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  TextButton.icon(
-                                    onPressed: _showPageJumperDialog,
-                                    icon: const Icon(Icons.menu_book_rounded, size: 16, color: Colors.white70),
-                                    label: Text('${pageIndex + 1} / $_totalPages стр.', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                                  ),
-                                  Row(
-                                    children: [
-                                      if (_nextChapter != null) ...[
-                                        Text('След: Гл ${_nextChapter!.number}', style: const TextStyle(color: Colors.white70, fontSize: 12)),
-                                        const SizedBox(width: 8),
-                                      ],
-                                      Icon(_isDownloaded ? Icons.offline_pin_rounded : Icons.cloud_rounded, color: _isDownloaded ? Colors.green : Colors.grey, size: 20),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ],
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                )
             ],
           ),
         ),
@@ -1557,17 +1336,15 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                       selected: {_readMode},
                       onSelectionChanged: (val) {
                         final newMode = val.first;
-                        // Recreate page controller when switching to horizontal mode
                         if (newMode != ReadMode.vertical && _readMode == ReadMode.vertical) {
                           _pageController?.dispose();
                           _pageController = PageController(initialPage: _currentPageIndex);
                         }
                         setState(() => _readMode = newMode);
                         setModalState(() {});
-                        // If switching to vertical, scroll to current page after build
                         if (newMode == ReadMode.vertical && _currentPageIndex > 0) {
                           WidgetsBinding.instance.addPostFrameCallback((_) {
-                            _scrollToItemIndex(_currentPageIndex);
+                            _jumpToPageIndex(_currentPageIndex);
                           });
                         }
                       },
@@ -1775,6 +1552,355 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Dedicated vertical page item with AutomaticKeepAliveClientMixin to prevent rebuilding/flashing on scroll
+class _VerticalReaderPageItem extends StatefulWidget {
+  final int index;
+  final int totalPages;
+  final bool isDownloaded;
+  final String cbzPath;
+  final List<ChapterPage> onlinePages;
+  final String Function(String) resolveImageUrl;
+  final Future<Uint8List?> Function(int) getCbzPage;
+  final Future<void> Function(String) reloadImage;
+  final double zoomLevel;
+  final bool cropBorders;
+  final double cropPercent;
+  final Widget Function(Widget) applyColorFilter;
+  final void Function(int index, double height) onHeightMeasured;
+
+  const _VerticalReaderPageItem({
+    super.key,
+    required this.index,
+    required this.totalPages,
+    required this.isDownloaded,
+    required this.cbzPath,
+    required this.onlinePages,
+    required this.resolveImageUrl,
+    required this.getCbzPage,
+    required this.reloadImage,
+    required this.zoomLevel,
+    required this.cropBorders,
+    required this.cropPercent,
+    required this.applyColorFilter,
+    required this.onHeightMeasured,
+  });
+
+  @override
+  State<_VerticalReaderPageItem> createState() => _VerticalReaderPageItemState();
+}
+
+class _VerticalReaderPageItemState extends State<_VerticalReaderPageItem> with AutomaticKeepAliveClientMixin {
+  Uint8List? _cbzBytes;
+  bool _isLoadingCbz = false;
+  bool _cbzError = false;
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.isDownloaded) {
+      _loadCbzBytes();
+    }
+  }
+
+  void _loadCbzBytes() async {
+    if (_isLoadingCbz) return;
+    _isLoadingCbz = true;
+    try {
+      final bytes = await widget.getCbzPage(widget.index);
+      if (mounted) {
+        setState(() {
+          _cbzBytes = bytes;
+          _cbzError = bytes == null;
+          _isLoadingCbz = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _cbzError = true;
+          _isLoadingCbz = false;
+        });
+      }
+    }
+  }
+
+  void _reportHeight(BuildContext context) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final size = context.size;
+      if (size != null && size.height > 0) {
+        widget.onHeightMeasured(widget.index, size.height);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    _reportHeight(context);
+
+    final screenWidth = MediaQuery.of(context).size.width;
+    final itemWidth = screenWidth * widget.zoomLevel;
+
+    double? knownAspectRatio;
+    if (widget.index < widget.onlinePages.length) {
+      final p = widget.onlinePages[widget.index];
+      if (p.width != null && p.height != null && p.width! > 0 && p.height! > 0) {
+        knownAspectRatio = p.width! / p.height!;
+      }
+    }
+
+    final placeholderHeight = (knownAspectRatio != null && knownAspectRatio > 0)
+        ? itemWidth / knownAspectRatio
+        : itemWidth * 1.4;
+
+    Widget content;
+    if (widget.isDownloaded) {
+      if (_cbzBytes != null) {
+        content = Image.memory(
+          _cbzBytes!,
+          fit: BoxFit.fitWidth,
+          alignment: Alignment.topCenter,
+          gaplessPlayback: true,
+        );
+      } else if (_cbzError) {
+        content = Container(
+          height: placeholderHeight,
+          color: const Color(0xFF181818),
+          child: const Center(child: Icon(Icons.broken_image, color: Colors.white54)),
+        );
+      } else {
+        content = Container(
+          height: placeholderHeight,
+          color: const Color(0xFF181818),
+          child: const Center(
+            child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2)),
+          ),
+        );
+      }
+    } else if (widget.index < widget.onlinePages.length) {
+      final pageUrl = widget.resolveImageUrl(widget.onlinePages[widget.index].url);
+      final dpr = MediaQuery.of(context).devicePixelRatio;
+      final memWidth = (itemWidth * dpr).toInt().clamp(300, 2560);
+
+      content = CachedNetworkImage(
+        imageUrl: pageUrl,
+        httpHeaders: const {'Referer': 'https://mangalib.org/'},
+        fit: BoxFit.fitWidth,
+        alignment: Alignment.topCenter,
+        memCacheWidth: memWidth,
+        placeholder: (ctx, url) => Container(
+          height: placeholderHeight,
+          color: const Color(0xFF181818),
+          child: const Center(
+            child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2)),
+          ),
+        ),
+        errorWidget: (ctx, url, err) => InkWell(
+          onTap: () => widget.reloadImage(pageUrl),
+          child: Container(
+            height: placeholderHeight,
+            color: const Color(0xFF181818),
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.refresh_rounded, color: Colors.white70, size: 32),
+                  const SizedBox(height: 8),
+                  Text(
+                    Localizations.localeOf(context).languageCode == 'ru' ? 'Нажмите для повтора' : 'Tap to retry',
+                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    } else {
+      content = Container(
+        height: placeholderHeight,
+        color: const Color(0xFF181818),
+        child: const Center(child: Icon(Icons.broken_image, color: Colors.white54)),
+      );
+    }
+
+    if (widget.cropBorders) {
+      final scaleFactor = 1.0 + (widget.cropPercent * 2 / 100.0);
+      content = ClipRect(
+        child: Transform.scale(scale: scaleFactor, child: content),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.only(bottom: 1),
+      child: Center(
+        child: SizedBox(
+          width: itemWidth,
+          child: widget.applyColorFilter(content),
+        ),
+      ),
+    );
+  }
+}
+
+/// Dedicated horizontal page item with AutomaticKeepAliveClientMixin and InteractiveViewer
+class _HorizontalReaderPageItem extends StatefulWidget {
+  final int index;
+  final bool isDownloaded;
+  final List<ChapterPage> onlinePages;
+  final String Function(String) resolveImageUrl;
+  final Future<Uint8List?> Function(int) getCbzPage;
+  final Future<void> Function(String) reloadImage;
+  final double zoomLevel;
+  final bool cropBorders;
+  final double cropPercent;
+  final BoxFit boxFit;
+  final Widget Function(Widget) applyColorFilter;
+
+  const _HorizontalReaderPageItem({
+    super.key,
+    required this.index,
+    required this.isDownloaded,
+    required this.onlinePages,
+    required this.resolveImageUrl,
+    required this.getCbzPage,
+    required this.reloadImage,
+    required this.zoomLevel,
+    required this.cropBorders,
+    required this.cropPercent,
+    required this.boxFit,
+    required this.applyColorFilter,
+  });
+
+  @override
+  State<_HorizontalReaderPageItem> createState() => _HorizontalReaderPageItemState();
+}
+
+class _HorizontalReaderPageItemState extends State<_HorizontalReaderPageItem> with AutomaticKeepAliveClientMixin {
+  Uint8List? _cbzBytes;
+  bool _isLoadingCbz = false;
+  bool _cbzError = false;
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.isDownloaded) {
+      _loadCbzBytes();
+    }
+  }
+
+  void _loadCbzBytes() async {
+    if (_isLoadingCbz) return;
+    _isLoadingCbz = true;
+    try {
+      final bytes = await widget.getCbzPage(widget.index);
+      if (mounted) {
+        setState(() {
+          _cbzBytes = bytes;
+          _cbzError = bytes == null;
+          _isLoadingCbz = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _cbzError = true;
+          _isLoadingCbz = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+
+    Widget content;
+    if (widget.isDownloaded) {
+      if (_cbzBytes != null) {
+        content = Image.memory(
+          _cbzBytes!,
+          fit: widget.boxFit,
+          gaplessPlayback: true,
+        );
+      } else if (_cbzError) {
+        content = const AspectRatio(
+          aspectRatio: 0.7,
+          child: Center(child: Icon(Icons.broken_image, color: Colors.white)),
+        );
+      } else {
+        content = const AspectRatio(
+          aspectRatio: 0.7,
+          child: Center(child: CircularProgressIndicator()),
+        );
+      }
+    } else if (widget.index < widget.onlinePages.length) {
+      final pageUrl = widget.resolveImageUrl(widget.onlinePages[widget.index].url);
+      final screenWidth = MediaQuery.of(context).size.width;
+      final dpr = MediaQuery.of(context).devicePixelRatio;
+      final memWidth = (screenWidth * widget.zoomLevel * dpr).toInt().clamp(300, 2560);
+      
+      content = CachedNetworkImage(
+        imageUrl: pageUrl,
+        httpHeaders: const {'Referer': 'https://mangalib.org/'},
+        fit: widget.boxFit,
+        memCacheWidth: memWidth,
+        placeholder: (ctx, url) => const AspectRatio(aspectRatio: 0.7, child: Center(child: CircularProgressIndicator())),
+        errorWidget: (ctx, url, err) => InkWell(
+          onTap: () => widget.reloadImage(pageUrl),
+          child: AspectRatio(
+            aspectRatio: 0.7,
+            child: Container(
+              color: const Color(0xFF181818),
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.refresh_rounded, color: Colors.white70, size: 32),
+                    const SizedBox(height: 8),
+                    Text(
+                      Localizations.localeOf(context).languageCode == 'ru' ? 'Нажмите для повтора' : 'Tap to retry',
+                      style: const TextStyle(color: Colors.white70, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    } else {
+      content = const AspectRatio(
+        aspectRatio: 0.7,
+        child: Center(child: Icon(Icons.broken_image, color: Colors.white)),
+      );
+    }
+
+    if (widget.cropBorders) {
+      final scaleFactor = 1.0 + (widget.cropPercent * 2 / 100.0);
+      content = ClipRect(
+        child: Transform.scale(scale: scaleFactor, child: content),
+      );
+    }
+
+    return InteractiveViewer(
+      minScale: 1.0,
+      maxScale: 4.0,
+      clipBehavior: Clip.none,
+      child: Center(
+        child: widget.applyColorFilter(content),
       ),
     );
   }
