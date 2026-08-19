@@ -15,6 +15,9 @@ jobs:
   build-windows:
     name: Build Windows Release
     runs-on: windows-latest
+    env:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
 
     steps:
       - name: Checkout Code
@@ -25,15 +28,47 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Setup sccache
+        uses: mozilla/sccache-action@v0.0.8
+
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: "rust -> target"
+          workspaces: "rust -> rust/target"
+          cache-all-crates: true
+          shared-key: "windows-rust"
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
+          cache: true
+          cache-key-id: 'flutter-:os:-:channel:-:version:-:arch:-:hash:'
+
+      - name: Cache Flutter Pub Packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.PUB_CACHE || 'C:\Users\runneradmin\AppData\Local\Pub\Cache' }}
+          key: pub-cache-windows-${{ hashFiles('pubspec.lock') }}
+          restore-keys: |
+            pub-cache-windows-
+
+      - name: Cache Cargokit Build Directory
+        uses: actions/cache@v4
+        with:
+          path: build/windows/x64/plugins/rust_lib_mangaloader/cargokit_build
+          key: cargokit-windows-${{ hashFiles('rust/Cargo.lock', 'rust_builder/**') }}
+          restore-keys: |
+            cargokit-windows-
+
+      - name: Cache Cargo Binaries
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin
+          key: cargo-bin-windows-${{ hashFiles('rust/Cargo.lock') }}
+          restore-keys: |
+            cargo-bin-windows-
 
       - name: Install cargo-binstall
         uses: cargo-bins/cargo-binstall@main
@@ -64,6 +99,9 @@ jobs:
   build-android:
     name: Build Android APKs
     runs-on: ubuntu-latest
+    env:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
 
     steps:
       - name: Checkout Code
@@ -77,25 +115,66 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
+      - name: Setup Gradle Cache
+        uses: gradle/actions/setup-gradle@v4
+
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
 
+      - name: Setup sccache
+        uses: mozilla/sccache-action@v0.0.8
+
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: "rust -> target"
+          workspaces: "rust -> rust/target"
+          cache-all-crates: true
+          shared-key: "android-rust"
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
+          cache: true
+          cache-key-id: 'flutter-:os:-:channel:-:version:-:arch:-:hash:'
+
+      - name: Cache Flutter Pub Packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache
+          key: pub-cache-ubuntu-${{ hashFiles('pubspec.lock') }}
+          restore-keys: |
+            pub-cache-ubuntu-
+
+      - name: Cache Android NDK
+        id: cache-ndk
+        uses: actions/cache@v4
+        with:
+          path: /usr/local/lib/android/sdk/ndk/26.1.10909125
+          key: ndk-26.1.10909125-${{ runner.os }}
 
       - name: Install Android NDK
         uses: nttld/setup-ndk@v1
         with:
           ndk-version: r26b
+
+      - name: Cache Cargokit Build Directory
+        uses: actions/cache@v4
+        with:
+          path: build/rust_lib_mangaloader
+          key: cargokit-android-${{ hashFiles('rust/Cargo.lock', 'rust_builder/**') }}
+          restore-keys: |
+            cargokit-android-
+
+      - name: Cache Cargo Binaries
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin
+          key: cargo-bin-ubuntu-${{ hashFiles('rust/Cargo.lock') }}
+          restore-keys: |
+            cargo-bin-ubuntu-
 
       - name: Install cargo-binstall
         uses: cargo-bins/cargo-binstall@main

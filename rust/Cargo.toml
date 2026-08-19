@@ -22,10 +22,10 @@ url = "2"
 urlencoding = "2"
 
 [profile.release]
-lto = true
+lto = "thin"
 opt-level = "z"
 strip = true
-codegen-units = 1
+codegen-units = 16
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }

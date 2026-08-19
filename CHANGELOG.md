@@ -2,6 +2,18 @@
 
 Все важные изменения проекта документируются в этом файле.
 
+## [1.7.3] - 2026-08-19
+
+### Оптимизация и ускорение CI/CD:
+- **Многоуровневое кэширование в GitHub Actions**:
+  - Интегрирован `sccache` (Mozilla Shared Compiler Cache) для Rust и C/C++ компиляции с сохранением артефактов в кэше GitHub Actions, предотвращающий повторную сборку зависимостей (rusqlite, tokio, reqwest, rustls-tls).
+  - Настроено кэширование Flutter SDK и `.pub-cache` в `subosito/flutter-action` и `actions/cache`.
+  - Добавлен `gradle/actions/setup-gradle@v4` для кэширования Gradle Wrapper, плагинов, зависимостей и кэша сборки Android.
+  - Настроено кэширование Android NDK (r26b) и бинарников `cargo-binstall`.
+  - Добавлено прямое кэширование каталогов сборки Cargokit (`cargokit_build` на Windows и `build/rust_lib_mangaloader` на Android).
+- **Оптимизация параллельной компиляции Rust**:
+  - В профиле `[profile.release]` включен `lto = "thin"` и `codegen-units = 16` для параллельной многопоточной генерации кода LLVM на раннерах CI.
+
 ## [1.7.2] - 2026-08-19
 
 ### Исправлено и улучшено:
