@@ -3,13 +3,16 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
+import 'package:path_provider/path_provider.dart';
 import 'package:mangaloader/src/rust/api/storage.dart' as rust_storage;
+import 'package:mangaloader/services/update_checker.dart';
 
 class StreakNotificationService {
   static final FlutterLocalNotificationsPlugin _notifications = FlutterLocalNotificationsPlugin();
   static bool _initialized = false;
 
   static const int streakNotificationId = 777;
+  static const int updateNotificationId = 888;
 
   static Future<void> init() async {
     if (_initialized) return;
@@ -103,6 +106,55 @@ class StreakNotificationService {
       );
     } catch (e) {
       debugPrint('Error scheduling streak reminder: $e');
+    }
+  }
+
+  static Future<void> showUpdateNotificationOnce(AppUpdateInfo info, {bool isRu = true}) async {
+    if (!_initialized) return;
+    if (!Platform.isAndroid && !Platform.isIOS) return;
+
+    try {
+      final appDir = await getApplicationDocumentsDirectory();
+      final markerFile = File('${appDir.path}/last_notified_update.txt');
+      if (markerFile.existsSync()) {
+        final lastNotified = await markerFile.readAsString();
+        if (lastNotified.trim() == info.tagName.trim()) {
+          return;
+        }
+      }
+
+      final tag = info.tagName.startsWith('v') ? info.tagName : 'v${info.tagName}';
+      final title = isRu
+          ? 'Доступно обновление MangaLoader $tag'
+          : 'MangaLoader update $tag is available';
+      final body = isRu
+          ? 'Вышла новая версия приложения с улучшениями. Нажмите, чтобы обновиться.'
+          : 'A new version with improvements is available. Tap to update.';
+
+      const androidDetails = AndroidNotificationDetails(
+        'app_updates',
+        'Обновления приложения',
+        channelDescription: 'Уведомления о выходе новых версий MangaLoader',
+        importance: Importance.high,
+        priority: Priority.high,
+        icon: '@mipmap/ic_launcher',
+      );
+
+      const notificationDetails = NotificationDetails(
+        android: androidDetails,
+        iOS: DarwinNotificationDetails(),
+      );
+
+      await _notifications.show(
+        updateNotificationId,
+        title,
+        body,
+        notificationDetails,
+      );
+
+      await markerFile.writeAsString(info.tagName.trim());
+    } catch (e) {
+      debugPrint('Error showing update notification: $e');
     }
   }
 

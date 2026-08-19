@@ -168,9 +168,16 @@ final _router = GoRouter(
   ],
 );
 
-class AppShell extends StatelessWidget {
+class AppShell extends StatefulWidget {
   final Widget child;
   const AppShell({super.key, required this.child});
+
+  @override
+  State<AppShell> createState() => _AppShellState();
+}
+
+class _AppShellState extends State<AppShell> {
+  int _previousIndex = 0;
 
   int _calculateSelectedIndex(BuildContext context) {
     final location = GoRouterState.of(context).uri.path;
@@ -186,62 +193,123 @@ class AppShell extends StatelessWidget {
   Widget build(BuildContext context) {
     final isRu = Localizations.localeOf(context).languageCode == 'ru';
     final selectedIndex = _calculateSelectedIndex(context);
+    final prevIndex = _previousIndex;
+    if (selectedIndex != _previousIndex) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _previousIndex = selectedIndex);
+      });
+    }
+
+    final isForward = selectedIndex >= prevIndex;
+    final slideOffset = isForward ? const Offset(0.06, 0.0) : const Offset(-0.06, 0.0);
 
     return Scaffold(
       body: Column(
         children: [
           const OfflineBanner(),
-          Expanded(child: child),
+          Expanded(
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 240),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeInCubic,
+              layoutBuilder: (currentChild, previousChildren) {
+                return Stack(
+                  alignment: Alignment.topLeft,
+                  children: [
+                    ...previousChildren,
+                    if (currentChild != null) currentChild,
+                  ],
+                );
+              },
+              transitionBuilder: (child, animation) {
+                final slide = Tween<Offset>(
+                  begin: slideOffset,
+                  end: Offset.zero,
+                ).animate(animation);
+
+                final fade = CurvedAnimation(
+                  parent: animation,
+                  curve: Curves.easeOut,
+                );
+
+                return SlideTransition(
+                  position: slide,
+                  child: FadeTransition(
+                    opacity: fade,
+                    child: child,
+                  ),
+                );
+              },
+              child: KeyedSubtree(
+                key: ValueKey<int>(selectedIndex),
+                child: widget.child,
+              ),
+            ),
+          ),
         ],
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: selectedIndex,
-        onDestinationSelected: (index) {
-          switch (index) {
-            case 0:
-              context.go('/');
-              break;
-            case 1:
-              context.go('/search');
-              break;
-            case 2:
-              context.go('/library');
-              break;
-            case 3:
-              context.go('/downloads');
-              break;
-            case 4:
-              context.go('/settings');
-              break;
-          }
-        },
-        destinations: [
-          NavigationDestination(
-            icon: const Icon(Icons.home_outlined),
-            selectedIcon: const Icon(Icons.home_rounded),
-            label: isRu ? 'Главная' : 'Home',
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          border: Border(
+            top: BorderSide(
+              color: Theme.of(context).dividerColor.withValues(alpha: 0.12),
+              width: 0.8,
+            ),
           ),
-          NavigationDestination(
-            icon: const Icon(Icons.search_rounded),
-            selectedIcon: const Icon(Icons.search_rounded),
-            label: isRu ? 'Поиск' : 'Search',
-          ),
-          NavigationDestination(
-            icon: const Icon(Icons.collections_bookmark_outlined),
-            selectedIcon: const Icon(Icons.collections_bookmark_rounded),
-            label: isRu ? 'Библиотека' : 'Library',
-          ),
-          NavigationDestination(
-            icon: const Icon(Icons.download_outlined),
-            selectedIcon: const Icon(Icons.download_rounded),
-            label: isRu ? 'Загрузки' : 'Downloads',
-          ),
-          NavigationDestination(
-            icon: const Icon(Icons.settings_outlined),
-            selectedIcon: const Icon(Icons.settings_rounded),
-            label: isRu ? 'Настройки' : 'Settings',
-          ),
-        ],
+        ),
+        child: NavigationBar(
+          selectedIndex: selectedIndex,
+          onDestinationSelected: (index) {
+            if (index == selectedIndex) return;
+            setState(() {
+              _previousIndex = selectedIndex;
+            });
+            switch (index) {
+              case 0:
+                context.go('/');
+                break;
+              case 1:
+                context.go('/search');
+                break;
+              case 2:
+                context.go('/library');
+                break;
+              case 3:
+                context.go('/downloads');
+                break;
+              case 4:
+                context.go('/settings');
+                break;
+            }
+          },
+          destinations: [
+            NavigationDestination(
+              icon: const Icon(Icons.home_outlined),
+              selectedIcon: const Icon(Icons.home_rounded),
+              label: isRu ? 'Главная' : 'Home',
+            ),
+            NavigationDestination(
+              icon: const Icon(Icons.explore_outlined),
+              selectedIcon: const Icon(Icons.explore_rounded),
+              label: isRu ? 'Каталог' : 'Catalog',
+            ),
+            NavigationDestination(
+              icon: const Icon(Icons.collections_bookmark_outlined),
+              selectedIcon: const Icon(Icons.collections_bookmark_rounded),
+              label: isRu ? 'Библиотека' : 'Library',
+            ),
+            NavigationDestination(
+              icon: const Icon(Icons.download_outlined),
+              selectedIcon: const Icon(Icons.download_rounded),
+              label: isRu ? 'Загрузки' : 'Downloads',
+            ),
+            NavigationDestination(
+              icon: const Icon(Icons.tune_outlined),
+              selectedIcon: const Icon(Icons.tune_rounded),
+              label: isRu ? 'Настройки' : 'Settings',
+            ),
+          ],
+        ),
       ),
     );
   }

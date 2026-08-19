@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:mangaloader/src/rust/api/mangalib_client.dart' as rust_api;
 import 'package:mangaloader/src/rust/api/models.dart';
 import 'package:mangaloader/widgets/manga_card.dart';
@@ -12,6 +11,7 @@ import 'package:mangaloader/providers/continue_reading_provider.dart';
 import 'package:mangaloader/widgets/update_bottom_sheet.dart';
 import 'package:mangaloader/widgets/reading_streak_button.dart';
 import 'package:mangaloader/widgets/continue_reading_section.dart';
+import 'package:mangaloader/services/streak_notification_service.dart';
 
 final homeDataProvider = FutureProvider.autoDispose<HomePageData>((ref) async {
   return await rust_api.getHomepage();
@@ -51,6 +51,8 @@ class _HomePageState extends ConsumerState<HomePage> {
       final info = await UpdateChecker.checkForUpdates();
       if (info != null && info.hasUpdate && mounted) {
         ref.read(availableUpdateProvider.notifier).state = info;
+        final isRu = Localizations.localeOf(context).languageCode == 'ru';
+        StreakNotificationService.showUpdateNotificationOnce(info, isRu: isRu);
       }
     } catch (_) {}
   }
@@ -112,12 +114,7 @@ class _HomePageState extends ConsumerState<HomePage> {
 
               // Continue Reading (Always at the top)
               ContinueReadingSection(isRu: isRu),
-
-              // Hero / Featured Carousel from Popular
-              if (data.popular.isNotEmpty) ...[
-                _buildHeroBanner(data.popular.take(5).toList(), isRu),
-                const SizedBox(height: 24),
-              ],
+              const SizedBox(height: 16),
 
               // Popular Section
               if (data.popular.isNotEmpty) ...[
@@ -294,98 +291,6 @@ class _HomePageState extends ConsumerState<HomePage> {
     );
   }
 
-  Widget _buildHeroBanner(List<MangaSearchResult> items, bool isRu) {
-    return SizedBox(
-      height: 200,
-      child: PageView.builder(
-        controller: PageController(viewportFraction: 0.9),
-        itemCount: items.length,
-        itemBuilder: (context, index) {
-          final manga = items[index];
-          final title = manga.rusName.isNotEmpty ? manga.rusName : manga.name;
-
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6),
-            child: InkWell(
-              onTap: () => context.push('/manga/${manga.slugUrl}'),
-              borderRadius: BorderRadius.circular(16),
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  color: const Color(0xFF2C2C2C),
-                  border: Border.all(color: const Color(0xFF8A897C).withValues(alpha: 0.3)),
-                  boxShadow: const [
-                    BoxShadow(color: Colors.black38, blurRadius: 8, offset: Offset(0, 4)),
-                  ],
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    CachedNetworkImage(
-                      imageUrl: manga.coverUrl,
-                      httpHeaders: const {'Referer': 'https://mangalib.org/'},
-                      fit: BoxFit.cover,
-                      alignment: Alignment.topCenter,
-                      placeholder: (_, __) => Container(color: const Color(0xFF353535)),
-                      errorWidget: (_, __, ___) => const Icon(Icons.broken_image),
-                    ),
-                    DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.black.withValues(alpha: 0.2),
-                            Colors.black.withValues(alpha: 0.9),
-                          ],
-                          stops: const [0.3, 1.0],
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      bottom: 16,
-                      left: 16,
-                      right: 16,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF8A897C),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text(
-                                  manga.mangaType,
-                                  style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            title,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
   Widget _buildSectionHeader({
     required IconData icon,
     required Color iconColor,
@@ -484,39 +389,83 @@ class _HomePageState extends ConsumerState<HomePage> {
   Widget _buildUpdateBanner(BuildContext context, AppUpdateInfo update, bool isRu) {
     return InkWell(
       onTap: () => AppUpdateBottomSheet.show(context, ref, update, isRu),
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(16),
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          color: const Color(0xFF2C2C2C),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFF8A897C)),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              const Color(0xFF8A897C).withValues(alpha: 0.22),
+              const Color(0xFF2C2C2C),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: const Color(0xFF8A897C).withValues(alpha: 0.45),
+            width: 1.2,
+          ),
+          boxShadow: const [
+            BoxShadow(color: Colors.black26, blurRadius: 8, offset: Offset(0, 3)),
+          ],
         ),
         child: Row(
           children: [
-            const Icon(Icons.system_update_rounded, color: Color(0xFF8A897C), size: 22),
-            const SizedBox(width: 12),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF8A897C).withValues(alpha: 0.25),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: const Color(0xFF8A897C).withValues(alpha: 0.5),
+                  width: 1,
+                ),
+              ),
+              child: const Icon(Icons.system_update_rounded, color: Color(0xFFD2D7DF), size: 22),
+            ),
+            const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    isRu ? 'Доступна новая версия: ${update.tagName}' : 'New version available: ${update.tagName}',
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white),
+                  Row(
+                    children: [
+                      Text(
+                        isRu ? 'Новое обновление' : 'New Update',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF8A897C),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          update.tagName.startsWith('v') ? update.tagName : 'v${update.tagName}',
+                          style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Colors.white),
+                        ),
+                      ),
+                    ],
                   ),
+                  const SizedBox(height: 2),
                   Text(
-                    isRu ? 'Нажмите, чтобы посмотреть список изменений и обновить' : 'Tap to view changelog and update',
-                    style: const TextStyle(fontSize: 11, color: Color(0xFFBDBBB0)),
+                    isRu ? 'Нажмите, чтобы открыть список изменений' : 'Tap to see changelog & install',
+                    style: const TextStyle(fontSize: 11.5, color: Color(0xFFBDBBB0)),
                   ),
                 ],
               ),
             ),
-            FilledButton.tonal(
+            FilledButton(
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF8A897C).withValues(alpha: 0.25),
-                foregroundColor: const Color(0xFFD2D7DF),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                backgroundColor: const Color(0xFF8A897C),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
               onPressed: () => AppUpdateBottomSheet.show(context, ref, update, isRu),
               child: Text(isRu ? 'Обновить' : 'Update', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),

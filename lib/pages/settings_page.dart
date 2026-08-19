@@ -122,6 +122,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       }
 
       ref.read(availableUpdateProvider.notifier).state = updateInfo;
+      StreakNotificationService.showUpdateNotificationOnce(updateInfo, isRu: isRu);
       _showUpdateSheet(context, updateInfo, isRu);
     } catch (e) {
       if (mounted) {

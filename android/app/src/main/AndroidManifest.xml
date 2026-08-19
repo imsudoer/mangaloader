@@ -7,7 +7,11 @@
     <application
         android:label="Manga Loader"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:allowBackup="false"
+        android:fullBackupContent="false"
+        android:usesCleartextTraffic="false"
+        android:hasFragileUserData="false">
         <activity
             android:name=".MainActivity"
             android:exported="true"
