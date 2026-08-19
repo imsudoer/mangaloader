@@ -47,9 +47,13 @@ class _LoginWebviewPageState extends ConsumerState<LoginWebviewPage> {
             setState(() => _isLoading = false);
             _checkCookies();
           },
+          onNavigationRequest: (request) {
+            _checkCookies();
+            return NavigationDecision.navigate;
+          },
         ),
       )
-      ..loadRequest(Uri.parse('https://mangalib.org/ru/login'));
+      ..loadRequest(Uri.parse('https://mangalib.org/ru/front/auth'));
 
     _webViewController = controller;
   }
@@ -59,7 +63,7 @@ class _LoginWebviewPageState extends ConsumerState<LoginWebviewPage> {
     try {
       final cookies = await _webViewController!.runJavaScriptReturningResult('document.cookie') as String;
       final cleanCookies = cookies.replaceAll('"', '').trim();
-      if (cleanCookies.contains('mangalib_session') || cleanCookies.contains('remember_web')) {
+      if (cleanCookies.contains('mangalib_session') || cleanCookies.contains('remember_web') || cleanCookies.contains('token')) {
         _applyCookies(cleanCookies);
       }
     } catch (_) {}
@@ -186,13 +190,13 @@ class _LoginWebviewPageState extends ConsumerState<LoginWebviewPage> {
                             minimumSize: const Size.fromHeight(42),
                           ),
                           onPressed: () async {
-                            final uri = Uri.parse('https://mangalib.org/auth/login');
+                            final uri = Uri.parse('https://mangalib.org/ru/front/auth');
                             if (await canLaunchUrl(uri)) {
                               await launchUrl(uri, mode: LaunchMode.externalApplication);
                             }
                           },
                           icon: const Icon(Icons.open_in_browser_rounded, size: 18),
-                          label: Text(isRu ? 'Открыть mangalib.org/auth/login' : 'Open in Browser'),
+                          label: Text(isRu ? 'Открыть mangalib.org/ru/front/auth' : 'Open in Browser'),
                         ),
                         const SizedBox(height: 16),
                         TextField(
