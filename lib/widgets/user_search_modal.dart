@@ -191,6 +191,8 @@ class _UserSearchModalState extends State<UserSearchModal> {
                                     height: 56,
                                     child: CachedNetworkImage(
                                       imageUrl: manga.coverUrl,
+                                      memCacheWidth: 200,
+                                      memCacheHeight: 280,
                                       fit: BoxFit.cover,
                                       errorWidget: (_, __, ___) => const Icon(Icons.broken_image),
                                     ),

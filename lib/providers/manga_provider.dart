@@ -24,11 +24,16 @@ final mangaChaptersProvider = FutureProvider.family<List<Chapter>, String>((ref,
     final chapters = await rust_api.getChapters(slugUrl: slugUrl);
     final cachedManga = await rust_storage.getCachedManga(slugUrl: slugUrl);
     if (cachedManga != null) {
-      await rust_storage.cacheChapters(mangaId: cachedManga.id, chapters: chapters);
+      if (chapters.isNotEmpty) {
+        await rust_storage.cacheChapters(mangaId: cachedManga.id, chapters: chapters);
+      } else {
+        final cached = await rust_storage.getCachedChapters(mangaId: cachedManga.id);
+        if (cached.isNotEmpty) return cached;
+      }
     }
     return chapters;
   } catch (e) {
-    // Offline fallback: try reading cached chapters from SQLite
+    // Offline / Network error fallback: try reading cached & downloaded chapters from SQLite
     final cachedManga = await rust_storage.getCachedManga(slugUrl: slugUrl);
     if (cachedManga != null) {
       final cachedChaps = await rust_storage.getCachedChapters(mangaId: cachedManga.id);

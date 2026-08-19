@@ -100,6 +100,13 @@ Future<List<UserProfile>> searchUsers({required String query}) =>
 Future<UserProfile> getUserProfile({required PlatformInt64 userId}) =>
     RustLib.instance.api.crateApiMangalibClientGetUserProfile(userId: userId);
 
+Future<List<MangaSearchResult>> getUserBookmarksPage(
+        {required PlatformInt64 userId,
+        required PlatformInt64 status,
+        required PlatformInt64 page}) =>
+    RustLib.instance.api.crateApiMangalibClientGetUserBookmarksPage(
+        userId: userId, status: status, page: page);
+
 Future<List<MangaSearchResult>> getUserBookmarks(
         {required PlatformInt64 userId, required PlatformInt64 status}) =>
     RustLib.instance.api

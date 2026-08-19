@@ -461,6 +461,8 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
         final crossAxisCount = (constraints.maxWidth / 160).floor().clamp(2, 6);
         return GridView.builder(
           padding: const EdgeInsets.all(12),
+          // ignore: deprecated_member_use
+          cacheExtent: 600.0,
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: crossAxisCount,
             childAspectRatio: 0.65,
@@ -487,6 +489,8 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
                     // Cover
                     CachedNetworkImage(
                       imageUrl: entry.coverUrl,
+                      memCacheWidth: 320,
+                      memCacheHeight: 460,
                       httpHeaders: const {'Referer': 'https://mangalib.org/'},
                       fit: BoxFit.cover,
                       placeholder: (_, __) => Container(color: const Color(0xFF242424)),
@@ -609,6 +613,8 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
   Widget _buildListView(List<LibraryEntry> items, bool isRu) {
     return ListView.separated(
       padding: const EdgeInsets.all(12),
+      // ignore: deprecated_member_use
+      cacheExtent: 600.0,
       itemCount: items.length,
       separatorBuilder: (_, __) => const SizedBox(height: 8),
       itemBuilder: (ctx, i) {
@@ -628,6 +634,8 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
               borderRadius: BorderRadius.circular(8),
               child: CachedNetworkImage(
                 imageUrl: entry.coverUrl,
+                memCacheWidth: 150,
+                memCacheHeight: 210,
                 httpHeaders: const {'Referer': 'https://mangalib.org/'},
                 width: 50,
                 height: 70,

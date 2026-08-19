@@ -92,8 +92,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   int _mangaId = 0;
   String _chapterTitle = "";
   
-  // Next chapter info for prefetching & seamless transition
+  // Chapter info for navigation & seamless transition
+  Chapter? _prevChapter;
   Chapter? _nextChapter;
+  String? _prevLocalCbzPath;
+  String? _nextLocalCbzPath;
   List<Chapter> _allChapters = [];
   bool _isNextChapterPrefetched = false;
 
@@ -330,19 +333,79 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   }
 
   Future<void> _findNextChapter() async {
-    if (widget.slugUrl.isEmpty) return;
     try {
-      _allChapters = await rust_api.getChapters(slugUrl: widget.slugUrl);
-      final currentIndex = _allChapters.indexWhere(
-        (c) => c.volume == widget.volume && c.number == widget.number
-      );
-      if (currentIndex != -1 && currentIndex + 1 < _allChapters.length) {
-        final next = _allChapters[currentIndex + 1];
-        if (!next.isPaid) {
-          _nextChapter = next;
-          _prefetchNextChapter(next);
+      if (widget.slugUrl.isNotEmpty) {
+        List<Chapter> chapters = [];
+        try {
+          chapters = await rust_api.getChapters(slugUrl: widget.slugUrl);
+        } catch (_) {
+          if (_mangaId > 0) {
+            chapters = await rust_storage.getCachedChapters(mangaId: _mangaId);
+          }
+        }
+        if (chapters.isEmpty && _mangaId > 0) {
+          chapters = await rust_storage.getCachedChapters(mangaId: _mangaId);
+        }
+
+        final sorted = List<Chapter>.from(chapters);
+        sorted.sort((a, b) {
+          final va = double.tryParse(a.volume) ?? 0.0;
+          final vb = double.tryParse(b.volume) ?? 0.0;
+          if (va != vb) return va.compareTo(vb);
+          final na = double.tryParse(a.number) ?? 0.0;
+          final nb = double.tryParse(b.number) ?? 0.0;
+          return na.compareTo(nb);
+        });
+
+        _allChapters = sorted;
+
+        final currentVol = double.tryParse(widget.volume) ?? 0.0;
+        final currentNum = double.tryParse(widget.number) ?? 0.0;
+
+        final currentIndex = _allChapters.indexWhere((c) {
+          final v = double.tryParse(c.volume) ?? 0.0;
+          final n = double.tryParse(c.number) ?? 0.0;
+          return (v == currentVol || c.volume == widget.volume) &&
+                 (n == currentNum || c.number == widget.number);
+        });
+
+        if (currentIndex != -1) {
+          if (currentIndex > 0) {
+            _prevChapter = _allChapters[currentIndex - 1];
+          } else {
+            _prevChapter = null;
+          }
+
+          if (currentIndex + 1 < _allChapters.length) {
+            final next = _allChapters[currentIndex + 1];
+            _nextChapter = next;
+            _prefetchNextChapter(next);
+          } else {
+            _nextChapter = null;
+          }
+        }
+      } else if (widget.localCbzPath != null && widget.localCbzPath!.isNotEmpty) {
+        final file = File(widget.localCbzPath!);
+        final dir = file.parent;
+        if (dir.existsSync()) {
+          final files = dir.listSync().whereType<File>().where((f) {
+            final ext = f.path.split('.').last.toLowerCase();
+            return ext == 'cbz' || ext == 'zip';
+          }).toList();
+
+          files.sort((a, b) => a.path.compareTo(b.path));
+          final idx = files.indexWhere((f) => f.path == file.path);
+          if (idx != -1) {
+            if (idx > 0) {
+              _prevLocalCbzPath = files[idx - 1].path;
+            }
+            if (idx + 1 < files.length) {
+              _nextLocalCbzPath = files[idx + 1].path;
+            }
+          }
         }
       }
+      if (mounted) setState(() {});
     } catch (_) {}
   }
 
@@ -1005,245 +1068,231 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
           onTapUp: _handleTap,
           child: Stack(
             children: [
-              if (_totalPages == 0)
-                Center(child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.menu_book_rounded, color: Colors.grey, size: 48),
-                    const SizedBox(height: 16),
-                    Text(isRu ? 'Страницы не найдены.' : 'No pages found.', style: TextStyle(color: _bgColor == ReadBgColor.white ? Colors.black : Colors.white)),
-                    const SizedBox(height: 24),
-                    ElevatedButton.icon(
-                      onPressed: () => context.pop(), 
-                      icon: const Icon(Icons.arrow_back),
-                      label: Text(isRu ? 'Назад' : 'Go Back'),
-                    ),
-                  ],
-                ))
-              else if (_readMode == ReadMode.vertical)
-                Scrollbar(
-                  controller: _scrollController,
-                  thumbVisibility: true,
-                  child: SingleChildScrollView(
-                    controller: _scrollController,
-                    physics: const ClampingScrollPhysics(),
-                    child: Column(
-                      children: [
-                        for (int i = 0; i < _totalPages; i++)
-                          _VerticalReaderPageItem(
-                            key: i < _pageKeys.length ? _pageKeys[i] : ValueKey('page_$i'),
-                            index: i,
-                            totalPages: _totalPages,
-                            isDownloaded: _isDownloaded,
-                            cbzPath: _cbzPath,
-                            onlinePages: _onlinePages,
-                            resolveImageUrl: _resolveImageUrl,
-                            getCbzPage: _getCbzPage,
-                            reloadImage: _reloadImage,
-                            zoomLevel: _zoomLevel,
-                            cropBorders: _cropBorders,
-                            cropPercent: _cropPercent,
-                            applyColorFilter: _applyColorFilter,
-                          ),
-                        _buildNextChapterSwipeCard(isRu),
-                      ],
-                    ),
-                  ),
-                )
-              else
-                PageView.builder(
-                  controller: _pageController!,
-                  itemCount: _totalPages,
-                  reverse: _readMode == ReadMode.rtl,
-                  onPageChanged: _onPageChanged,
-                  physics: const ClampingScrollPhysics(),
-                  itemBuilder: (context, index) {
-                    return _HorizontalReaderPageItem(
-                      key: ValueKey('h_page_$index'),
-                      index: index,
-                      isDownloaded: _isDownloaded,
-                      onlinePages: _onlinePages,
-                      resolveImageUrl: _resolveImageUrl,
-                      getCbzPage: _getCbzPage,
-                      reloadImage: _reloadImage,
-                      zoomLevel: _zoomLevel,
-                      cropBorders: _cropBorders,
-                      cropPercent: _cropPercent,
-                      boxFit: _resolvedBoxFit,
-                      applyColorFilter: _applyColorFilter,
-                    );
-                  },
-                ),
+              _buildReaderContent(isRu),
 
-              // Smart HUD (Bottom right corner) - independent of controls
               if (_showHud && _totalPages > 0)
-                Positioned(
-                  bottom: 12,
-                  right: 14,
-                  child: ValueListenableBuilder<bool>(
-                    valueListenable: _showControlsNotifier,
-                    builder: (context, showControls, _) {
-                      if (showControls) return const SizedBox.shrink();
-                      return _ReaderHud(
-                        pageIndexNotifier: _pageIndexNotifier,
-                        totalPages: _totalPages,
-                      );
-                    },
-                  ),
-                ),
-
-              // Top & bottom controls overlay with independent ValueListenableBuilder
-              ValueListenableBuilder<bool>(
+            Positioned(
+              bottom: 12,
+              right: 14,
+              child: ValueListenableBuilder<bool>(
                 valueListenable: _showControlsNotifier,
                 builder: (context, showControls, _) {
-                  if (!showControls) return const SizedBox.shrink();
-                  return Stack(
-                    children: [
-                      // Top controls bar
-                      Positioned(
-                        top: 0, left: 0, right: 0,
-                        child: AppBar(
-                          backgroundColor: Colors.black.withValues(alpha: 0.85),
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          leading: const BackButton(),
-                          title: Text(_chapterTitle, style: const TextStyle(fontSize: 16)),
-                          actions: [
-                            IconButton(
-                              icon: const Icon(Icons.grid_view_rounded),
-                              tooltip: 'Сетка страниц',
-                              onPressed: _showPageJumperDialog,
-                            ),
-                            if (_readMode == ReadMode.vertical)
-                              IconButton(
-                                icon: Icon(_isAutoScrolling ? Icons.pause_circle_filled_rounded : Icons.play_circle_fill_rounded, color: _isAutoScrolling ? Colors.orange : Colors.white),
-                                tooltip: _isAutoScrolling ? 'Остановить автопрокрутку (A)' : 'Автопрокрутка (A)',
-                                onPressed: _toggleAutoScroll,
-                              ),
-                            IconButton(
-                              icon: Icon(_isFullscreen ? Icons.fullscreen_exit_rounded : Icons.fullscreen_rounded),
-                              tooltip: 'Полноэкранный режим (F11)',
-                              onPressed: _toggleFullscreen,
-                            ),
-                            if (_nextChapter != null)
-                              IconButton(
-                                icon: const Icon(Icons.skip_next_rounded),
-                                tooltip: 'Следующая глава (Том ${_nextChapter!.volume} Гл ${_nextChapter!.number})',
-                                onPressed: () {
-                                  final branchQ = _nextChapter!.branchId != null ? "?branchId=${_nextChapter!.branchId}" : "";
-                                  context.pushReplacement('/read/${widget.slugUrl}/${_nextChapter!.volume}/${_nextChapter!.number}$branchQ');
-                                },
-                              ),
-                            IconButton(
-                              icon: const Icon(Icons.refresh_rounded),
-                              tooltip: Localizations.localeOf(context).languageCode == 'ru' ? 'Сбросить кэш и перезагрузить главу' : 'Reload chapter',
-                              onPressed: _reloadCurrentChapter,
-                            ),
-                            IconButton(icon: const Icon(Icons.tune_rounded), tooltip: 'Настройки', onPressed: _showSettingsSheet),
-                          ],
-                        ),
-                      ),
+                  if (showControls) return const SizedBox.shrink();
+                  return _ReaderHud(
+                    pageIndexNotifier: _pageIndexNotifier,
+                    totalPages: _totalPages,
+                  );
+                },
+              ),
+            ),
 
-                      // Floating Zoom Toolbar
-                      Positioned(
-                        right: 16,
-                        bottom: 100,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.8),
-                            borderRadius: BorderRadius.circular(24),
-                            border: Border.all(color: Colors.white24),
-                          ),
-                          padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
-                          child: Column(
+          ValueListenableBuilder<bool>(
+            valueListenable: _showControlsNotifier,
+            builder: (context, showControls, _) {
+              if (!showControls) return const SizedBox.shrink();
+              final hasPrev = _prevChapter != null || _prevLocalCbzPath != null;
+              final hasNext = _nextChapter != null || _nextLocalCbzPath != null;
+
+              return Stack(
+                children: [
+                  Positioned(
+                    top: 0, left: 0, right: 0,
+                    child: AppBar(
+                      backgroundColor: Colors.black.withValues(alpha: 0.85),
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      leading: const BackButton(),
+                      title: InkWell(
+                        onTap: _allChapters.isNotEmpty ? _showChapterListDialog : null,
+                        borderRadius: BorderRadius.circular(8),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                          child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              IconButton(
-                                icon: const Icon(Icons.zoom_in_rounded, color: Colors.white),
-                                tooltip: 'Приблизить (+)',
-                                onPressed: _zoomIn,
-                              ),
-                              TextButton(
-                                onPressed: _resetZoom,
-                                style: TextButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6),
-                                  minimumSize: Size.zero,
-                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                ),
-                                child: Text(
-                                  '${(_zoomLevel * 100).toInt()}%',
-                                  style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.zoom_out_rounded, color: Colors.white),
-                                tooltip: 'Отдалить (-)',
-                                onPressed: _zoomOut,
-                              ),
+                              Flexible(child: Text(_chapterTitle, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
+                              if (_allChapters.isNotEmpty) ...[
+                                const SizedBox(width: 4),
+                                const Icon(Icons.arrow_drop_down_rounded, size: 20, color: Color(0xFF8A897C)),
+                              ],
                             ],
                           ),
                         ),
                       ),
+                      actions: [
+                        if (hasPrev)
+                          IconButton(
+                            icon: const Icon(Icons.skip_previous_rounded),
+                            tooltip: isRu ? 'Предыдущая глава' : 'Previous Chapter',
+                            onPressed: _navigateToPrevChapter,
+                          ),
+                        if (hasNext)
+                          IconButton(
+                            icon: const Icon(Icons.skip_next_rounded),
+                            tooltip: isRu ? 'Следующая глава' : 'Next Chapter',
+                            onPressed: _navigateToNextChapter,
+                          ),
+                        if (_allChapters.isNotEmpty)
+                          IconButton(
+                            icon: const Icon(Icons.format_list_bulleted_rounded),
+                            tooltip: isRu ? 'Список глав' : 'Chapter list',
+                            onPressed: _showChapterListDialog,
+                          ),
+                        IconButton(
+                          icon: const Icon(Icons.grid_view_rounded),
+                          tooltip: isRu ? 'Сетка страниц' : 'Page Grid',
+                          onPressed: _showPageJumperDialog,
+                        ),
+                        if (_readMode == ReadMode.vertical)
+                          IconButton(
+                            icon: Icon(_isAutoScrolling ? Icons.pause_circle_filled_rounded : Icons.play_circle_fill_rounded, color: _isAutoScrolling ? Colors.orange : Colors.white),
+                            tooltip: _isAutoScrolling ? (isRu ? 'Остановить автопрокрутку (A)' : 'Stop autoscroll (A)') : (isRu ? 'Автопрокрутка (A)' : 'Autoscroll (A)'),
+                            onPressed: _toggleAutoScroll,
+                          ),
+                        IconButton(
+                          icon: Icon(_isFullscreen ? Icons.fullscreen_exit_rounded : Icons.fullscreen_rounded),
+                          tooltip: isRu ? 'Полноэкранный режим (F11)' : 'Fullscreen (F11)',
+                          onPressed: _toggleFullscreen,
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.refresh_rounded),
+                          tooltip: isRu ? 'Сбросить кэш и перезагрузить главу' : 'Reload chapter',
+                          onPressed: _reloadCurrentChapter,
+                        ),
+                        IconButton(icon: const Icon(Icons.tune_rounded), tooltip: isRu ? 'Настройки' : 'Settings', onPressed: _showSettingsSheet),
+                      ],
+                    ),
+                  ),
 
-                      // Bottom progress and page controls
-                      if (_totalPages > 0)
-                        Positioned(
-                          bottom: 0, left: 0, right: 0,
-                          child: Container(
-                            color: Colors.black.withValues(alpha: 0.85),
-                            padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom + 8, left: 16, right: 16, top: 12),
-                            child: SafeArea(
-                              top: false,
-                              child: ValueListenableBuilder<int>(
-                                valueListenable: _pageIndexNotifier,
-                                builder: (context, pageIndex, _) {
-                                  return Column(
-                                    mainAxisSize: MainAxisSize.min,
+                  // Floating Zoom Toolbar
+                  Positioned(
+                    right: 16,
+                    bottom: 100,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.8),
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(color: Colors.white24),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.zoom_in_rounded, color: Colors.white),
+                            tooltip: isRu ? 'Приблизить (+)' : 'Zoom In (+)',
+                            onPressed: _zoomIn,
+                          ),
+                          TextButton(
+                            onPressed: _resetZoom,
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 6),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            child: Text(
+                              '${(_zoomLevel * 100).toInt()}%',
+                              style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.zoom_out_rounded, color: Colors.white),
+                            tooltip: isRu ? 'Отдалить (-)' : 'Zoom Out (-)',
+                            onPressed: _zoomOut,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // Bottom progress and page controls
+                  if (_totalPages > 0)
+                    Positioned(
+                      bottom: 0, left: 0, right: 0,
+                      child: Container(
+                        color: Colors.black.withValues(alpha: 0.85),
+                        padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom + 8, left: 16, right: 16, top: 12),
+                        child: SafeArea(
+                          top: false,
+                          child: ValueListenableBuilder<int>(
+                            valueListenable: _pageIndexNotifier,
+                            builder: (context, pageIndex, _) {
+                              return Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (_totalPages > 1)
+                                    Slider(
+                                      value: pageIndex.toDouble().clamp(0.0, (_totalPages - 1).toDouble()),
+                                      min: 0,
+                                      max: (_totalPages - 1).toDouble(),
+                                      activeColor: const Color(0xFF8A897C),
+                                      inactiveColor: const Color(0xFF353535),
+                                      onChanged: (val) {
+                                        final target = val.round();
+                                        if (target != _currentPageIndex) {
+                                          _jumpToPageIndex(target);
+                                        }
+                                      },
+                                    ),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                     children: [
-                                      if (_totalPages > 1)
-                                        Slider(
-                                          value: pageIndex.toDouble().clamp(0.0, (_totalPages - 1).toDouble()),
-                                          min: 0,
-                                          max: (_totalPages - 1).toDouble(),
-                                          activeColor: const Color(0xFF8A897C),
-                                          inactiveColor: const Color(0xFF353535),
-                                          onChanged: (val) {
-                                            final target = val.round();
-                                            if (target != _currentPageIndex) {
-                                              _jumpToPageIndex(target);
-                                            }
-                                          },
-                                        ),
                                       Row(
-                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                         children: [
                                           TextButton.icon(
                                             onPressed: _showPageJumperDialog,
                                             icon: const Icon(Icons.menu_book_rounded, size: 16, color: Colors.white70),
                                             label: Text('${pageIndex + 1} / $_totalPages стр.', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                                           ),
-                                          Row(
-                                            children: [
-                                              if (_nextChapter != null) ...[
-                                                Text('След: Гл ${_nextChapter!.number}', style: const TextStyle(color: Colors.white70, fontSize: 12)),
-                                                const SizedBox(width: 8),
-                                              ],
-                                              Icon(_isDownloaded ? Icons.offline_pin_rounded : Icons.cloud_rounded, color: _isDownloaded ? Colors.green : Colors.grey, size: 20),
-                                            ],
-                                          ),
+                                          if (_allChapters.isNotEmpty)
+                                            IconButton(
+                                              icon: const Icon(Icons.format_list_bulleted_rounded, size: 18, color: Color(0xFF8A897C)),
+                                              tooltip: isRu ? 'Выбрать главу' : 'Select chapter',
+                                              onPressed: _showChapterListDialog,
+                                            ),
+                                        ],
+                                      ),
+                                      Row(
+                                        children: [
+                                          if (hasPrev)
+                                            IconButton(
+                                              icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 16, color: Colors.white70),
+                                              tooltip: isRu ? 'Предыдущая глава' : 'Previous chapter',
+                                              onPressed: _navigateToPrevChapter,
+                                            ),
+                                          if (hasNext) ...[
+                                            FilledButton.tonalIcon(
+                                              style: FilledButton.styleFrom(
+                                                backgroundColor: const Color(0xFF8A897C).withValues(alpha: 0.3),
+                                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                                minimumSize: Size.zero,
+                                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                              ),
+                                              onPressed: _navigateToNextChapter,
+                                              icon: const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Colors.white),
+                                              label: Text(
+                                                _nextChapter != null ? 'Гл. ${_nextChapter!.number}' : (isRu ? 'След. глава' : 'Next Ch.'),
+                                                style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                          ],
+                                          Icon(_isDownloaded ? Icons.offline_pin_rounded : Icons.cloud_rounded, color: _isDownloaded ? Colors.green : Colors.grey, size: 20),
                                         ],
                                       ),
                                     ],
-                                  );
-                                },
-                              ),
-                            ),
+                                  ),
+                                ],
+                              );
+                            },
                           ),
                         ),
-                    ],
-                  );
-                },
-              ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
 
               // Floating Auto-Scroll Speed Controller
               if (_isAutoScrolling)
@@ -1313,6 +1362,229 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildReaderContent(bool isRu) {
+    if (_totalPages == 0) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.menu_book_rounded, color: Colors.grey, size: 48),
+            const SizedBox(height: 16),
+            Text(
+              isRu ? 'Страницы не найдены.' : 'No pages found.',
+              style: TextStyle(color: _bgColor == ReadBgColor.white ? Colors.black : Colors.white),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: () => context.pop(),
+              icon: const Icon(Icons.arrow_back),
+              label: Text(isRu ? 'Назад' : 'Go Back'),
+            ),
+          ],
+        ),
+      );
+    } else if (_readMode == ReadMode.vertical) {
+      return Scrollbar(
+        controller: _scrollController,
+        thumbVisibility: true,
+        child: SingleChildScrollView(
+          controller: _scrollController,
+          physics: const ClampingScrollPhysics(),
+          child: Column(
+            children: [
+              for (int i = 0; i < _totalPages; i++)
+                _VerticalReaderPageItem(
+                  key: i < _pageKeys.length ? _pageKeys[i] : ValueKey('page_$i'),
+                  index: i,
+                  totalPages: _totalPages,
+                  isDownloaded: _isDownloaded,
+                  cbzPath: _cbzPath,
+                  onlinePages: _onlinePages,
+                  resolveImageUrl: _resolveImageUrl,
+                  getCbzPage: _getCbzPage,
+                  reloadImage: _reloadImage,
+                  zoomLevel: _zoomLevel,
+                  cropBorders: _cropBorders,
+                  cropPercent: _cropPercent,
+                  applyColorFilter: _applyColorFilter,
+                ),
+              _buildNextChapterSwipeCard(isRu),
+            ],
+          ),
+        ),
+      );
+    } else {
+      return PageView.builder(
+        controller: _pageController!,
+        itemCount: _totalPages,
+        reverse: _readMode == ReadMode.rtl,
+        onPageChanged: _onPageChanged,
+        physics: const ClampingScrollPhysics(),
+        itemBuilder: (context, index) {
+          return _HorizontalReaderPageItem(
+            key: ValueKey('h_page_$index'),
+            index: index,
+            isDownloaded: _isDownloaded,
+            onlinePages: _onlinePages,
+            resolveImageUrl: _resolveImageUrl,
+            getCbzPage: _getCbzPage,
+            reloadImage: _reloadImage,
+            zoomLevel: _zoomLevel,
+            cropBorders: _cropBorders,
+            cropPercent: _cropPercent,
+            boxFit: _resolvedBoxFit,
+            applyColorFilter: _applyColorFilter,
+          );
+        },
+      );
+    }
+  }
+
+  void _navigateToPrevChapter() {
+    if (_prevChapter != null) {
+      final branchQ = _prevChapter!.branchId != null ? "?branchId=${_prevChapter!.branchId}" : "";
+      context.pushReplacement('/read/${widget.slugUrl}/${_prevChapter!.volume}/${_prevChapter!.number}$branchQ');
+    } else if (_prevLocalCbzPath != null) {
+      context.pushReplacement('/read-local?path=${Uri.encodeComponent(_prevLocalCbzPath!)}');
+    }
+  }
+
+  void _navigateToNextChapter() {
+    if (_nextChapter != null) {
+      final branchQ = _nextChapter!.branchId != null ? "?branchId=${_nextChapter!.branchId}" : "";
+      context.pushReplacement('/read/${widget.slugUrl}/${_nextChapter!.volume}/${_nextChapter!.number}$branchQ');
+    } else if (_nextLocalCbzPath != null) {
+      context.pushReplacement('/read-local?path=${Uri.encodeComponent(_nextLocalCbzPath!)}');
+    }
+  }
+
+  void _showChapterListDialog() {
+    if (_allChapters.isEmpty) return;
+    final isRu = Localizations.localeOf(context).languageCode == 'ru';
+    String filterQuery = '';
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1E1E1E),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) {
+          final filtered = _allChapters.where((c) {
+            if (filterQuery.isEmpty) return true;
+            final q = filterQuery.toLowerCase();
+            return c.number.contains(q) || c.volume.contains(q) || (c.name ?? '').toLowerCase().contains(q);
+          }).toList();
+
+          return DraggableScrollableSheet(
+            initialChildSize: 0.65,
+            minChildSize: 0.4,
+            maxChildSize: 0.9,
+            expand: false,
+            builder: (ctx, scrollController) => Column(
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.symmetric(vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.format_list_bulleted_rounded, color: Color(0xFF8A897C), size: 20),
+                      const SizedBox(width: 8),
+                      Text(
+                        isRu ? 'Список глав (${_allChapters.length})' : 'Chapters (${_allChapters.length})',
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.close_rounded, size: 20),
+                        onPressed: () => Navigator.pop(ctx),
+                      ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: TextField(
+                    decoration: InputDecoration(
+                      hintText: isRu ? 'Поиск главы...' : 'Search chapter...',
+                      prefixIcon: const Icon(Icons.search_rounded, size: 18),
+                      isDense: true,
+                      filled: true,
+                      fillColor: const Color(0xFF2C2C2C),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                    onChanged: (val) => setModalState(() => filterQuery = val.trim()),
+                  ),
+                ),
+                Expanded(
+                  child: ListView.builder(
+                    controller: scrollController,
+                    itemCount: filtered.length,
+                    itemBuilder: (ctx, i) {
+                      final c = filtered[i];
+                      final isCurrent = c.volume == widget.volume && c.number == widget.number;
+
+                      return ListTile(
+                        selected: isCurrent,
+                        selectedTileColor: const Color(0xFF8A897C).withValues(alpha: 0.20),
+                        leading: CircleAvatar(
+                          radius: 16,
+                          backgroundColor: isCurrent ? const Color(0xFF8A897C) : const Color(0xFF2C2C2C),
+                          child: Text(
+                            c.number,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: isCurrent ? Colors.white : const Color(0xFFD2D7DF),
+                            ),
+                          ),
+                        ),
+                        title: Text(
+                          isRu ? 'Том ${c.volume} Глава ${c.number}' : 'Volume ${c.volume} Chapter ${c.number}',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
+                            color: isCurrent ? Colors.white : const Color(0xFFD2D7DF),
+                          ),
+                        ),
+                        subtitle: c.name != null && c.name!.isNotEmpty
+                            ? Text(c.name!, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Colors.white54))
+                            : null,
+                        trailing: c.isPaid
+                            ? const Icon(Icons.lock_outline_rounded, size: 16, color: Colors.amber)
+                            : isCurrent
+                                ? const Icon(Icons.bookmark_rounded, size: 18, color: Color(0xFF8A897C))
+                                : null,
+                        onTap: () {
+                          Navigator.pop(ctx);
+                          if (!isCurrent) {
+                            final branchQ = c.branchId != null ? "?branchId=${c.branchId}" : "";
+                            context.pushReplacement('/read/${widget.slugUrl}/${c.volume}/${c.number}$branchQ');
+                          }
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -1499,6 +1771,28 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
               isRu ? 'Ожидайте выхода новых глав от переводчиков' : 'Stay tuned for upcoming releases',
               style: const TextStyle(fontSize: 12, color: Color(0xFFBDBBB0)),
               textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 14),
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFF8A897C),
+                side: const BorderSide(color: Color(0xFF8A897C)),
+              ),
+              onPressed: () async {
+                await _findNextChapter();
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(_nextChapter != null
+                          ? (isRu ? 'Найдена следующая глава: Том ${_nextChapter!.volume} Гл ${_nextChapter!.number}' : 'Next chapter found!')
+                          : (isRu ? 'Новых глав пока нет' : 'No new chapters yet')),
+                      duration: const Duration(seconds: 2),
+                    ),
+                  );
+                }
+              },
+              icon: const Icon(Icons.refresh_rounded, size: 18),
+              label: Text(isRu ? 'Проверить новые главы' : 'Check for new chapters'),
             ),
           ],
         ),

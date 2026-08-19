@@ -491,6 +491,16 @@ pub async fn get_chapters(slug_url: String) -> Result<Vec<Chapter>> {
             is_paid,
         });
     }
+
+    chapters.sort_by(|a, b| {
+        let vol_a = a.volume.parse::<f64>().unwrap_or(0.0);
+        let vol_b = b.volume.parse::<f64>().unwrap_or(0.0);
+        let num_a = a.number.parse::<f64>().unwrap_or(0.0);
+        let num_b = b.number.parse::<f64>().unwrap_or(0.0);
+        vol_a.partial_cmp(&vol_b).unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| num_a.partial_cmp(&num_b).unwrap_or(std::cmp::Ordering::Equal))
+    });
+
     Ok(chapters)
 }
 
@@ -858,14 +868,17 @@ pub async fn get_user_profile(user_id: i64) -> Result<UserProfile> {
     })
 }
 
-pub async fn get_user_bookmarks(user_id: i64, status: i64) -> Result<Vec<MangaSearchResult>> {
-    let url = format!("https://api.cdnlibs.org/api/bookmarks?user_id={}&status={}&site_id=1", user_id, status);
+pub async fn get_user_bookmarks_page(user_id: i64, status: i64, page: i64) -> Result<Vec<MangaSearchResult>> {
+    let url = format!(
+        "https://api.cdnlibs.org/api/bookmarks?user_id={}&status={}&site_id=1&page={}",
+        user_id, status, page
+    );
     let res = HTTP_CLIENT
         .get(&url)
         .headers(get_api_headers())
         .send()
         .await
-        .context("Failed to fetch user bookmarks")?;
+        .context("Failed to fetch user bookmarks page")?;
 
     if !res.status().is_success() {
         return Ok(Vec::new());
@@ -885,6 +898,28 @@ pub async fn get_user_bookmarks(user_id: i64, status: i64) -> Result<Vec<MangaSe
     }
 
     Ok(results)
+}
+
+pub async fn get_user_bookmarks(user_id: i64, status: i64) -> Result<Vec<MangaSearchResult>> {
+    let mut all_results = Vec::new();
+    let mut page = 1;
+
+    loop {
+        let page_results = get_user_bookmarks_page(user_id, status, page).await?;
+        if page_results.is_empty() {
+            break;
+        }
+        let count = page_results.len();
+        all_results.extend(page_results);
+        
+        // MangaLib typically returns 30 items per page. If fewer, we reached the end.
+        if count < 20 || page >= 100 {
+            break;
+        }
+        page += 1;
+    }
+
+    Ok(all_results)
 }
 
 pub async fn get_latest_site_updates() -> Result<Vec<MangaSearchResult>> {

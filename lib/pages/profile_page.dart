@@ -74,39 +74,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
       for (final entry in statusMap.entries) {
         final bookmarks = await rust_api.getUserBookmarks(userId: profile.id, status: entry.key);
-        for (final manga in bookmarks) {
-          try {
-            await rust_storage.saveManga(manga: MangaDetails(
-              id: manga.id,
-              name: manga.name,
-              rusName: manga.rusName,
-              engName: manga.engName,
-              slug: manga.slug,
-              slugUrl: manga.slugUrl,
-              coverUrl: manga.coverUrl,
-              coverThumbUrl: manga.coverThumbUrl,
-              mangaType: manga.mangaType,
-              typeId: manga.typeId,
-              status: manga.status,
-              statusId: manga.statusId,
-              ageRestriction: manga.ageRestriction,
-              ratingAverage: manga.ratingAverage,
-              ratingVotes: manga.ratingVotes,
-              releaseDate: manga.releaseDate,
-              summary: '',
-              genres: const [],
-              tags: const [],
-              authors: const [],
-              artists: const [],
-              viewsTotal: '0',
-              viewsFormatted: '0',
-              chaptersCount: 0,
-              formatLabels: const [],
-              publisherName: null,
-            ));
-            await rust_storage.addToList(mangaId: manga.id, listType: entry.value);
-            imported++;
-          } catch (_) {}
+        if (bookmarks.isNotEmpty) {
+          final count = await rust_storage.bulkImportBookmarks(items: bookmarks, listType: entry.value);
+          imported += count.toInt();
         }
       }
 

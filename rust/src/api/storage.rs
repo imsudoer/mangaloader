@@ -1,7 +1,7 @@
 use crate::api::models::{
     DownloadedChapterInfo, DownloadedMangaGroup, LibraryEntry, ListType, MangaDetails, ReadingPosition, Genre, Tag, Person, ChapterHistory,
     Chapter, ReadingStreakInfo, ContinueReadingItem, CustomUserList, ReadingStatistics, GenreCount, TimeOfDayDistribution, MalImportResult,
-    AppSettingItem, MangaRecapData, RecapMangaItem
+    AppSettingItem, MangaRecapData, RecapMangaItem, MangaSearchResult
 };
 use anyhow::{Context, Result};
 use once_cell::sync::Lazy;
@@ -219,6 +219,56 @@ pub async fn save_manga(manga: MangaDetails) -> Result<()> {
         ],
     )?;
     Ok(())
+}
+
+pub async fn bulk_import_bookmarks(items: Vec<MangaSearchResult>, list_type: String) -> Result<i64> {
+    let mut guard = get_conn()?;
+    let conn = guard.as_mut().unwrap();
+    let tx = conn.transaction()?;
+    let mut count = 0;
+
+    {
+        let mut manga_stmt = tx.prepare_cached(
+            "INSERT INTO manga (
+                id, slug_url, name, rus_name, eng_name, cover_url, cover_thumb_url,
+                manga_type, status, rating_average, rating_votes, summary, genres_json, tags_json,
+                chapters_count, release_date, last_updated, type_id, status_id, age_restriction,
+                slug, authors_json, artists_json, views_total, views_formatted, format_labels_json, publisher_name
+            ) VALUES (
+                ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, strftime('%s','now'),
+                ?17, ?18, ?19, ?20, '[]', '[]', '0', '0', '[]', NULL
+            )
+            ON CONFLICT(slug_url) DO UPDATE SET
+                name=excluded.name, rus_name=excluded.rus_name, eng_name=excluded.eng_name,
+                cover_url=excluded.cover_url, cover_thumb_url=excluded.cover_thumb_url,
+                manga_type=excluded.manga_type, status=excluded.status,
+                rating_average=excluded.rating_average, rating_votes=excluded.rating_votes,
+                last_updated=strftime('%s','now'), type_id=excluded.type_id, status_id=excluded.status_id,
+                age_restriction=excluded.age_restriction, slug=excluded.slug"
+        )?;
+
+        let mut list_stmt = tx.prepare_cached(
+            "INSERT INTO user_lists (manga_id, list_type, added_at)
+             VALUES (?1, ?2, datetime('now'))
+             ON CONFLICT(manga_id) DO UPDATE SET list_type=excluded.list_type"
+        )?;
+
+        for m in items {
+            let _ = manga_stmt.execute(params![
+                m.id, m.slug_url, m.name, m.rus_name, m.eng_name,
+                m.cover_url, m.cover_thumb_url, m.manga_type, m.status,
+                m.rating_average, m.rating_votes, "", "[]", "[]",
+                0, m.release_date, m.type_id, m.status_id,
+                m.age_restriction, m.slug
+            ]);
+
+            let _ = list_stmt.execute(params![m.id, list_type]);
+            count += 1;
+        }
+    }
+
+    tx.commit()?;
+    Ok(count)
 }
 
 pub async fn get_cached_manga(slug_url: String) -> Result<Option<MangaDetails>> {
@@ -908,12 +958,10 @@ pub async fn get_cached_chapters(manga_id: i64) -> Result<Vec<Chapter>> {
         }
     }
 
-    if chapters.is_empty() {
-        let mut d_stmt = conn.prepare(
-            "SELECT volume, number, branch_id
-             FROM downloaded_chapters WHERE manga_id = ?1"
-        )?;
-        let d_iter = d_stmt.query_map(params![manga_id], |row| {
+    if let Ok(mut d_stmt) = conn.prepare(
+        "SELECT volume, number, branch_id FROM downloaded_chapters WHERE manga_id = ?1"
+    ) {
+        if let Ok(d_iter) = d_stmt.query_map(params![manga_id], |row| {
             Ok(Chapter {
                 id: 0,
                 volume: row.get("volume")?,
@@ -923,10 +971,11 @@ pub async fn get_cached_chapters(manga_id: i64) -> Result<Vec<Chapter>> {
                 branches_count: 0,
                 is_paid: false,
             })
-        })?;
-        for c in d_iter {
-            if let Ok(chap) = c {
-                chapters.push(chap);
+        }) {
+            for c in d_iter.flatten() {
+                if !chapters.iter().any(|existing| existing.volume == c.volume && existing.number == c.number) {
+                    chapters.push(c);
+                }
             }
         }
     }

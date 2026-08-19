@@ -17,6 +17,11 @@ Future<void> initDatabase({required String appDir}) =>
 Future<void> saveManga({required MangaDetails manga}) =>
     RustLib.instance.api.crateApiStorageSaveManga(manga: manga);
 
+Future<PlatformInt64> bulkImportBookmarks(
+        {required List<MangaSearchResult> items, required String listType}) =>
+    RustLib.instance.api
+        .crateApiStorageBulkImportBookmarks(items: items, listType: listType);
+
 Future<MangaDetails?> getCachedManga({required String slugUrl}) =>
     RustLib.instance.api.crateApiStorageGetCachedManga(slugUrl: slugUrl);
 

@@ -529,15 +529,43 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
     final history = historyAsync.value ?? [];
 
     return chaptersAsync.when(
-      data: (chapters) {
+      data: (rawChapters) {
+        final List<Chapter> chapters = rawChapters.isNotEmpty
+            ? List<Chapter>.from(rawChapters)
+            : downloadedChapters.map((dc) => Chapter(
+                id: dc.id,
+                volume: dc.volume,
+                number: dc.number,
+                name: null,
+                branchId: dc.branchId,
+                branchesCount: 1,
+                isPaid: false,
+              )).toList();
+
         if (chapters.isEmpty) {
           return Center(
             child: Padding(
               padding: const EdgeInsets.all(24),
-              child: Text(
-                isRu ? 'Список глав пуст или доступен только на сайте' : 'No chapters available',
-                style: const TextStyle(color: Color(0xFFBDBBB0)),
-                textAlign: TextAlign.center,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.menu_book_rounded, size: 48, color: Color(0xFF8A897C)),
+                  const SizedBox(height: 12),
+                  Text(
+                    isRu ? 'Список глав пуст или доступен только на сайте' : 'No chapters available',
+                    style: const TextStyle(color: Color(0xFFBDBBB0), fontSize: 14),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  FilledButton.icon(
+                    style: FilledButton.styleFrom(backgroundColor: const Color(0xFF8A897C)),
+                    onPressed: () {
+                      ref.invalidate(mangaChaptersProvider(widget.slugUrl));
+                    },
+                    icon: const Icon(Icons.refresh_rounded, size: 18),
+                    label: Text(isRu ? 'Повторить загрузку глав' : 'Refresh chapters'),
+                  ),
+                ],
               ),
             ),
           );
@@ -1011,7 +1039,30 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Center(child: Text('Ошибка загрузки глав: $e')),
+      error: (e, _) => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.cloud_off_rounded, size: 48, color: Colors.amber),
+              const SizedBox(height: 12),
+              Text(
+                isRu ? 'Не удалось загрузить список глав: $e' : 'Failed to load chapters: $e',
+                style: const TextStyle(color: Color(0xFFBDBBB0), fontSize: 13),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                style: FilledButton.styleFrom(backgroundColor: const Color(0xFF8A897C)),
+                onPressed: () => ref.refresh(mangaChaptersProvider(widget.slugUrl)),
+                icon: const Icon(Icons.refresh_rounded, size: 18),
+                label: Text(isRu ? 'Повторить попытку' : 'Retry'),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
