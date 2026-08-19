@@ -101,67 +101,123 @@ final _router = GoRouter(
       routes: [
         GoRoute(
           path: '/',
-          builder: (context, state) => const HomePage(),
+          pageBuilder: (context, state) => const NoTransitionPage(child: HomePage()),
         ),
         GoRoute(
           path: '/search',
-          builder: (context, state) => const SearchPage(),
+          pageBuilder: (context, state) => const NoTransitionPage(child: SearchPage()),
         ),
         GoRoute(
           path: '/library',
-          builder: (context, state) => const LibraryPage(),
+          pageBuilder: (context, state) => const NoTransitionPage(child: LibraryPage()),
         ),
         GoRoute(
           path: '/downloads',
-          builder: (context, state) => const DownloadsPage(),
+          pageBuilder: (context, state) => const NoTransitionPage(child: DownloadsPage()),
         ),
         GoRoute(
           path: '/settings',
-          builder: (context, state) => const SettingsPage(),
+          pageBuilder: (context, state) => const NoTransitionPage(child: SettingsPage()),
         ),
       ],
     ),
     GoRoute(
       path: '/login',
-      builder: (context, state) => const LoginWebviewPage(),
+      pageBuilder: (context, state) => CustomTransitionPage(
+        key: state.pageKey,
+        child: const LoginWebviewPage(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return SlideTransition(
+            position: Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero)
+                .chain(CurveTween(curve: Curves.easeOutCubic))
+                .animate(animation),
+            child: child,
+          );
+        },
+      ),
     ),
     GoRoute(
       path: '/achievements',
-      builder: (context, state) => const AchievementsPage(),
+      pageBuilder: (context, state) => CustomTransitionPage(
+        key: state.pageKey,
+        child: const AchievementsPage(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return SlideTransition(
+            position: Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero)
+                .chain(CurveTween(curve: Curves.easeOutCubic))
+                .animate(animation),
+            child: child,
+          );
+        },
+      ),
     ),
     GoRoute(
       path: '/statistics',
-      builder: (context, state) => const StatisticsPage(),
+      pageBuilder: (context, state) => CustomTransitionPage(
+        key: state.pageKey,
+        child: const StatisticsPage(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return SlideTransition(
+            position: Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero)
+                .chain(CurveTween(curve: Curves.easeOutCubic))
+                .animate(animation),
+            child: child,
+          );
+        },
+      ),
     ),
     GoRoute(
       path: '/manga/:slugUrl',
-      builder: (context, state) {
+      pageBuilder: (context, state) {
         final slugUrl = state.pathParameters['slugUrl']!;
-        return MangaDetailsPage(slugUrl: slugUrl);
+        return CustomTransitionPage(
+          key: state.pageKey,
+          child: MangaDetailsPage(slugUrl: slugUrl),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return SlideTransition(
+              position: Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero)
+                  .chain(CurveTween(curve: Curves.easeOutCubic))
+                  .animate(animation),
+              child: child,
+            );
+          },
+        );
       },
     ),
     GoRoute(
       path: '/read-local',
-      builder: (context, state) {
+      pageBuilder: (context, state) {
         final filePath = state.uri.queryParameters['path'] ?? '';
-        return ReaderPage(
-          slugUrl: '',
-          volume: '1',
-          number: '1',
-          localCbzPath: filePath,
+        return CustomTransitionPage(
+          key: state.pageKey,
+          child: ReaderPage(
+            slugUrl: '',
+            volume: '1',
+            number: '1',
+            localCbzPath: filePath,
+          ),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(opacity: animation, child: child);
+          },
         );
       },
     ),
     GoRoute(
       path: '/read/:slugUrl/:volume/:number',
-      builder: (context, state) {
+      pageBuilder: (context, state) {
         final branchIdStr = state.uri.queryParameters['branchId'];
         final branchId = branchIdStr != null ? int.tryParse(branchIdStr) : null;
-        return ReaderPage(
-          slugUrl: state.pathParameters['slugUrl']!,
-          volume: state.pathParameters['volume']!,
-          number: state.pathParameters['number']!,
-          branchId: branchId,
+        return CustomTransitionPage(
+          key: state.pageKey,
+          child: ReaderPage(
+            slugUrl: state.pathParameters['slugUrl']!,
+            volume: state.pathParameters['volume']!,
+            number: state.pathParameters['number']!,
+            branchId: branchId,
+          ),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(opacity: animation, child: child);
+          },
         );
       },
     ),
@@ -201,7 +257,7 @@ class _AppShellState extends State<AppShell> {
     }
 
     final isForward = selectedIndex >= prevIndex;
-    final slideOffset = isForward ? const Offset(0.06, 0.0) : const Offset(-0.06, 0.0);
+    final beginOffset = isForward ? const Offset(0.20, 0.0) : const Offset(-0.20, 0.0);
 
     return Scaffold(
       body: Column(
@@ -209,12 +265,12 @@ class _AppShellState extends State<AppShell> {
           const OfflineBanner(),
           Expanded(
             child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 240),
+              duration: const Duration(milliseconds: 260),
               switchInCurve: Curves.easeOutCubic,
               switchOutCurve: Curves.easeInCubic,
               layoutBuilder: (currentChild, previousChildren) {
                 return Stack(
-                  alignment: Alignment.topLeft,
+                  fit: StackFit.expand,
                   children: [
                     ...previousChildren,
                     if (currentChild != null) currentChild,
@@ -222,20 +278,21 @@ class _AppShellState extends State<AppShell> {
                 );
               },
               transitionBuilder: (child, animation) {
-                final slide = Tween<Offset>(
-                  begin: slideOffset,
-                  end: Offset.zero,
-                ).animate(animation);
-
-                final fade = CurvedAnimation(
-                  parent: animation,
-                  curve: Curves.easeOut,
-                );
+                final isCurrent = (child.key as ValueKey<int>?)?.value == selectedIndex;
+                final slideTween = isCurrent
+                    ? Tween<Offset>(begin: beginOffset, end: Offset.zero)
+                    : Tween<Offset>(begin: Offset.zero, end: -beginOffset);
 
                 return SlideTransition(
-                  position: slide,
+                  position: slideTween.animate(CurvedAnimation(
+                    parent: animation,
+                    curve: Curves.easeOutCubic,
+                  )),
                   child: FadeTransition(
-                    opacity: fade,
+                    opacity: CurvedAnimation(
+                      parent: animation,
+                      curve: Curves.easeOut,
+                    ),
                     child: child,
                   ),
                 );

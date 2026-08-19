@@ -354,10 +354,18 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
           controller: _tabController,
           isScrollable: true,
           tabAlignment: TabAlignment.start,
-          indicatorColor: const Color(0xFF8A897C),
-          indicatorWeight: 3,
+          indicatorSize: TabBarIndicatorSize.tab,
+          indicator: BoxDecoration(
+            color: const Color(0xFF8A897C).withValues(alpha: 0.3),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: const Color(0xFF8A897C), width: 1),
+          ),
+          dividerColor: Colors.transparent,
           labelColor: Colors.white,
           unselectedLabelColor: const Color(0xFFBDBBB0),
+          labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.normal, fontSize: 13),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           tabs: _categoryTabs.map((tab) {
             final entries = libState.value ?? [];
             final count = tab['type'] == null
@@ -365,13 +373,16 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
               : entries.where((e) => e.listType == tab['type']).length;
             final label = isRu ? tab['labelRu'] : tab['labelEn'];
             return Tab(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(tab['icon'] as IconData, size: 16, color: tab['color'] as Color?),
-                  const SizedBox(width: 6),
-                  Text('$label ($count)'),
-                ],
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(tab['icon'] as IconData, size: 16, color: tab['color'] as Color?),
+                    const SizedBox(width: 6),
+                    Text('$label ($count)'),
+                  ],
+                ),
               ),
             );
           }).toList(),
@@ -465,8 +476,8 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
               elevation: 0,
               clipBehavior: Clip.antiAlias,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-                side: const BorderSide(color: Color(0xFF3E3E3E), width: 0.8),
+                borderRadius: BorderRadius.circular(16),
+                side: const BorderSide(color: Color(0xFF333333), width: 1),
               ),
               child: InkWell(
                 onTap: () => context.push('/manga/${entry.slugUrl}'),
@@ -478,8 +489,8 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
                       imageUrl: entry.coverUrl,
                       httpHeaders: const {'Referer': 'https://mangalib.org/'},
                       fit: BoxFit.cover,
-                      placeholder: (_, __) => Container(color: const Color(0xFF2C2C2C)),
-                      errorWidget: (_, __, ___) => const Icon(Icons.error_rounded),
+                      placeholder: (_, __) => Container(color: const Color(0xFF242424)),
+                      errorWidget: (_, __, ___) => const Icon(Icons.broken_image_rounded, color: Colors.white38),
                     ),
                     // Gradient
                     Positioned.fill(
@@ -488,8 +499,12 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
                           gradient: LinearGradient(
                             begin: Alignment.topCenter,
                             end: Alignment.bottomCenter,
-                            colors: [Colors.transparent, Colors.black.withValues(alpha: 0.85)],
-                            stops: const [0.45, 1.0],
+                            colors: [
+                              Colors.black.withValues(alpha: 0.2),
+                              Colors.transparent,
+                              Colors.black.withValues(alpha: 0.92),
+                            ],
+                            stops: const [0.0, 0.4, 1.0],
                           ),
                         ),
                       ),
@@ -507,20 +522,27 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
                             title,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12.5,
+                              shadows: [
+                                Shadow(color: Colors.black, blurRadius: 3),
+                              ],
+                            ),
                           ),
                           if (entry.lastReadChapter != null) ...[
                             const SizedBox(height: 4),
                             ClipRRect(
-                              borderRadius: BorderRadius.circular(2),
+                              borderRadius: BorderRadius.circular(3),
                               child: LinearProgressIndicator(
                                 value: _calculateProgress(entry),
-                                minHeight: 3,
-                                backgroundColor: const Color(0xFF353535),
+                                minHeight: 3.5,
+                                backgroundColor: const Color(0xFF333333),
                                 valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF8A897C)),
                               ),
                             ),
-                            const SizedBox(height: 2),
+                            const SizedBox(height: 3),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [

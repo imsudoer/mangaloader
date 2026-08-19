@@ -59,14 +59,14 @@ class MangaCard extends ConsumerWidget {
       child: Container(
         padding: const EdgeInsets.all(5),
         decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.75),
+          color: Colors.black.withValues(alpha: 0.8),
           shape: BoxShape.circle,
-          border: Border.all(color: color.withValues(alpha: 0.6), width: 1.2),
+          border: Border.all(color: color.withValues(alpha: 0.8), width: 1.2),
           boxShadow: const [
-            BoxShadow(color: Colors.black45, blurRadius: 4, offset: Offset(0, 2)),
+            BoxShadow(color: Colors.black54, blurRadius: 4, offset: Offset(0, 2)),
           ],
         ),
-        child: Icon(icon, size: 14, color: color),
+        child: Icon(icon, size: 13, color: color),
       ),
     );
   }
@@ -76,93 +76,129 @@ class MangaCard extends ConsumerWidget {
     final title = manga.rusName.isNotEmpty ? manga.rusName : manga.name;
     final colorScheme = Theme.of(context).colorScheme;
     final libBadge = _buildLibraryStatusBadge(context, ref);
+    final ratingNum = double.tryParse(manga.ratingAverage) ?? 0.0;
 
-    return Card(
-      elevation: 0,
-      color: colorScheme.surface,
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-        side: const BorderSide(color: Color(0xFF3E3E3E), width: 0.8),
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black26,
+            blurRadius: 6,
+            offset: Offset(0, 3),
+          ),
+        ],
       ),
-      child: InkWell(
-        onTap: onTap,
-        onLongPress: onLongPress,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            CachedNetworkImage(
-              imageUrl: manga.coverUrl,
-              httpHeaders: const {'Referer': 'https://mangalib.org/'},
-              fit: BoxFit.cover,
-              memCacheWidth: 320,
-              memCacheHeight: 480,
-              placeholder: (context, url) => Container(color: colorScheme.surfaceContainerHighest),
-              errorWidget: (context, url, error) => const Icon(Icons.error_rounded),
-            ),
-            Positioned.fill(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [Colors.transparent, Colors.black.withValues(alpha: 0.85)],
-                    stops: const [0.45, 1.0],
+      child: Card(
+        elevation: 0,
+        color: colorScheme.surface,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: Color(0xFF333333), width: 1),
+        ),
+        child: InkWell(
+          onTap: onTap,
+          onLongPress: onLongPress,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              CachedNetworkImage(
+                imageUrl: manga.coverUrl,
+                httpHeaders: const {'Referer': 'https://mangalib.org/'},
+                fit: BoxFit.cover,
+                memCacheWidth: 320,
+                memCacheHeight: 480,
+                placeholder: (context, url) => Container(color: const Color(0xFF262626)),
+                errorWidget: (context, url, error) => Container(
+                  color: const Color(0xFF262626),
+                  child: const Center(child: Icon(Icons.broken_image_rounded, color: Colors.white38)),
+                ),
+              ),
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.black.withValues(alpha: 0.15),
+                        Colors.transparent,
+                        Colors.black.withValues(alpha: 0.92),
+                      ],
+                      stops: const [0.0, 0.45, 1.0],
+                    ),
                   ),
                 ),
               ),
-            ),
-            Positioned(
-              bottom: 8,
-              left: 8,
-              right: 8,
-              child: Text(
-                title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
-              ),
-            ),
-            // Top Right: Library status icon badge
-            if (libBadge != null)
               Positioned(
-                top: 8,
+                bottom: 8,
+                left: 8,
                 right: 8,
-                child: libBadge,
-              ),
-            // Top Left: Manga Type
-            Positioned(
-              top: 8,
-              left: 8,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF353535).withValues(alpha: 0.85),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xFF8A897C).withValues(alpha: 0.6), width: 0.8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (ratingNum > 0) ...[
+                      Row(
+                        children: [
+                          const Icon(Icons.star_rounded, size: 13, color: Colors.amberAccent),
+                          const SizedBox(width: 3),
+                          Text(
+                            manga.ratingAverage,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                    ],
+                    Text(
+                      title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12.5,
+                        shadows: [
+                          Shadow(color: Colors.black87, blurRadius: 4, offset: Offset(0, 1)),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-                child: Text(
-                  manga.mangaType,
-                  style: const TextStyle(color: Color(0xFFD2D7DF), fontSize: 11, fontWeight: FontWeight.w600),
-                ),
               ),
-            ),
-            if (onLongPress != null)
-              Positioned(
-                bottom: 38,
-                right: 8,
-                child: IconButton.filled(
-                  onPressed: onLongPress,
-                  style: IconButton.styleFrom(
-                    backgroundColor: const Color(0xFF8A897C),
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size(36, 36),
-                    padding: const EdgeInsets.all(6),
+              // Top Right: Library status icon badge
+              if (libBadge != null)
+                Positioned(
+                  top: 7,
+                  right: 7,
+                  child: libBadge,
+                ),
+              // Top Left: Manga Type
+              if (manga.mangaType.isNotEmpty)
+                Positioned(
+                  top: 7,
+                  left: 7,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.75),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: const Color(0xFF8A897C).withValues(alpha: 0.6), width: 0.8),
+                    ),
+                    child: Text(
+                      manga.mangaType,
+                      style: const TextStyle(color: Color(0xFFD2D7DF), fontSize: 10.5, fontWeight: FontWeight.w600),
+                    ),
                   ),
-                  icon: const Icon(Icons.play_arrow_rounded, size: 22),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );

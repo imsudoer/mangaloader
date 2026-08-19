@@ -82,13 +82,13 @@ class ContinueReadingSection extends ConsumerWidget {
                   final progress = _calculateProgress(item);
 
                   return SizedBox(
-                    width: 140,
+                    width: 152,
                     child: Card(
                       elevation: 0,
                       clipBehavior: Clip.antiAlias,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        side: const BorderSide(color: Color(0xFF3E3E3E), width: 0.8),
+                        borderRadius: BorderRadius.circular(16),
+                        side: const BorderSide(color: Color(0xFF353535), width: 1),
                       ),
                       child: InkWell(
                         onTap: () async {
@@ -103,8 +103,8 @@ class ContinueReadingSection extends ConsumerWidget {
                               imageUrl: item.coverUrl,
                               httpHeaders: const {'Referer': 'https://mangalib.org/'},
                               fit: BoxFit.cover,
-                              placeholder: (_, __) => Container(color: const Color(0xFF2C2C2C)),
-                              errorWidget: (_, __, ___) => const Icon(Icons.error_rounded),
+                              placeholder: (_, __) => Container(color: const Color(0xFF242424)),
+                              errorWidget: (_, __, ___) => const Icon(Icons.broken_image_rounded, color: Colors.white38),
                             ),
                             // Gradient
                             Positioned.fill(
@@ -113,7 +113,10 @@ class ContinueReadingSection extends ConsumerWidget {
                                   gradient: LinearGradient(
                                     begin: Alignment.topCenter,
                                     end: Alignment.bottomCenter,
-                                    colors: [Colors.transparent, Colors.black.withValues(alpha: 0.88)],
+                                    colors: [
+                                      Colors.transparent,
+                                      Colors.black.withValues(alpha: 0.92),
+                                    ],
                                     stops: const [0.35, 1.0],
                                   ),
                                 ),
@@ -122,8 +125,8 @@ class ContinueReadingSection extends ConsumerWidget {
                             // New Chapters Badge (Top-Left)
                             if (item.hasNewChapters && item.newChaptersCount > 0)
                               Positioned(
-                                top: 6,
-                                left: 6,
+                                top: 8,
+                                left: 8,
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                                   decoration: BoxDecoration(
@@ -146,8 +149,8 @@ class ContinueReadingSection extends ConsumerWidget {
                               ),
                             // Quick Play Button (Center-Bottom)
                             Positioned(
-                              bottom: 40,
-                              right: 6,
+                              bottom: 44,
+                              right: 8,
                               child: IconButton.filled(
                                 onPressed: () async {
                                   await context.push('/read/${item.slugUrl}/${item.lastReadVolume}/${item.lastReadChapter}');
@@ -156,17 +159,18 @@ class ContinueReadingSection extends ConsumerWidget {
                                 style: IconButton.styleFrom(
                                   backgroundColor: const Color(0xFF8A897C),
                                   foregroundColor: Colors.white,
-                                  minimumSize: const Size(32, 32),
+                                  minimumSize: const Size(34, 34),
                                   padding: EdgeInsets.zero,
+                                  elevation: 2,
                                 ),
-                                icon: const Icon(Icons.play_arrow_rounded, size: 18),
+                                icon: const Icon(Icons.play_arrow_rounded, size: 20),
                               ),
                             ),
                             // Title & Progress Bar
                             Positioned(
-                              bottom: 6,
-                              left: 6,
-                              right: 6,
+                              bottom: 8,
+                              left: 8,
+                              right: 8,
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 mainAxisSize: MainAxisSize.min,
@@ -175,26 +179,33 @@ class ContinueReadingSection extends ConsumerWidget {
                                     title,
                                     maxLines: 2,
                                     overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                      shadows: [
+                                        Shadow(color: Colors.black, blurRadius: 3),
+                                      ],
+                                    ),
                                   ),
-                                  const SizedBox(height: 3),
+                                  const SizedBox(height: 4),
                                   ClipRRect(
-                                    borderRadius: BorderRadius.circular(2),
+                                    borderRadius: BorderRadius.circular(3),
                                     child: LinearProgressIndicator(
-                                      value: progress,
-                                      minHeight: 3,
-                                      backgroundColor: const Color(0xFF353535),
+                                      value: progress > 0 ? progress : 0.05,
+                                      minHeight: 3.5,
+                                      backgroundColor: const Color(0xFF333333),
                                       valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF8A897C)),
                                     ),
                                   ),
-                                  const SizedBox(height: 2),
+                                  const SizedBox(height: 3),
                                   Row(
                                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                     children: [
                                       Expanded(
                                         child: Text(
                                           'Т.${item.lastReadVolume} Гл.${item.lastReadChapter}',
-                                          style: const TextStyle(color: Color(0xFFD2D7DF), fontSize: 9.5, fontWeight: FontWeight.bold),
+                                          style: const TextStyle(color: Color(0xFFD2D7DF), fontSize: 10, fontWeight: FontWeight.bold),
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                         ),
@@ -202,7 +213,7 @@ class ContinueReadingSection extends ConsumerWidget {
                                       if (progress > 0)
                                         Text(
                                           '${(progress * 100).toInt()}%',
-                                          style: const TextStyle(color: Color(0xFF8A897C), fontSize: 9, fontWeight: FontWeight.bold),
+                                          style: const TextStyle(color: Color(0xFF8A897C), fontSize: 9.5, fontWeight: FontWeight.bold),
                                         ),
                                     ],
                                   ),

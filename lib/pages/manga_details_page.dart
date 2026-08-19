@@ -87,10 +87,18 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                   delegate: _SliverTabBarDelegate(
                     TabBar(
                       controller: _tabController,
-                      indicatorColor: const Color(0xFF8A897C),
-                      indicatorWeight: 3,
+                      indicatorSize: TabBarIndicatorSize.tab,
+                      indicator: BoxDecoration(
+                        color: const Color(0xFF8A897C).withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFF8A897C), width: 1),
+                      ),
+                      dividerColor: Colors.transparent,
                       labelColor: Colors.white,
                       unselectedLabelColor: const Color(0xFFBDBBB0),
+                      labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.normal, fontSize: 13),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                       tabs: [
                         Tab(text: isRu ? 'О тайтле' : 'About'),
                         Tab(text: isRu ? 'Главы' : 'Chapters'),
