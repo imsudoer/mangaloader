@@ -79,8 +79,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   
   // Memory cache for CBZ page bytes
   final Map<int, Uint8List> _pageCache = {};
-  // Track measured page heights for vertical webtoon mode
-  final Map<int, double> _pageHeights = {};
+  List<GlobalKey> _pageKeys = [];
   
   int _currentPageIndex = 0;
   PageController? _pageController;
@@ -109,41 +108,31 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     _loadChapter();
   }
 
-  double get _estimatedPageHeight {
-    final screenWidth = MediaQuery.of(context).size.width;
-    return (screenWidth * _zoomLevel) * 1.4;
-  }
-
-  int _findCurrentPageIndexFromOffset(double offset) {
+  int _findVisiblePageIndex() {
     if (_totalPages <= 1) return 0;
-    final viewportDimension = _scrollController.position.viewportDimension;
-    final viewportCenter = offset + (viewportDimension * 0.35); // 35% from top
-    
-    double accumulated = 0.0;
-    for (int i = 0; i < _totalPages; i++) {
-      final h = _pageHeights[i] ?? _estimatedPageHeight;
-      if (accumulated + h >= viewportCenter) {
-        return i;
-      }
-      accumulated += h;
-    }
-    return _totalPages - 1;
-  }
+    final screenH = MediaQuery.of(context).size.height;
+    final targetY = screenH * 0.35;
 
-  double _getOffsetForPageIndex(int targetIndex) {
-    if (targetIndex <= 0) return 0.0;
-    double offset = 0.0;
-    for (int i = 0; i < targetIndex && i < _totalPages; i++) {
-      offset += _pageHeights[i] ?? _estimatedPageHeight;
+    for (int i = 0; i < _totalPages && i < _pageKeys.length; i++) {
+      final ctx = _pageKeys[i].currentContext;
+      if (ctx != null) {
+        final box = ctx.findRenderObject() as RenderBox?;
+        if (box != null && box.hasSize) {
+          final pos = box.localToGlobal(Offset.zero);
+          if (pos.dy + box.size.height > targetY) {
+            return i;
+          }
+        }
+      }
     }
-    return offset;
+    return _currentPageIndex;
   }
 
   void _onVerticalScroll() {
     if (_readMode != ReadMode.vertical || !_scrollController.hasClients || _totalPages <= 1) return;
     if (_isJumping) return;
     
-    final currentVisible = _findCurrentPageIndexFromOffset(_scrollController.offset);
+    final currentVisible = _findVisiblePageIndex();
     
     if (currentVisible != _currentPageIndex) {
       _currentPageIndex = currentVisible;
@@ -288,6 +277,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       _currentPageIndex = 0;
     }
 
+    _pageKeys = List.generate(_totalPages, (i) => GlobalKey(debugLabel: 'page_$i'));
+
     // Create PageController with correct initial page for horizontal modes
     _pageController?.dispose();
     _pageController = PageController(initialPage: _currentPageIndex);
@@ -312,13 +303,26 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       if (_pageController != null && _pageController!.hasClients) {
         _pageController!.jumpToPage(targetIndex);
       }
-    } else if (_scrollController.hasClients) {
+    } else {
       _isJumping = true;
-      final targetOffset = _getOffsetForPageIndex(targetIndex);
-      final maxExtent = _scrollController.position.maxScrollExtent;
-      _scrollController.jumpTo(targetOffset.clamp(0.0, maxExtent));
+      if (targetIndex < _pageKeys.length) {
+        final ctx = _pageKeys[targetIndex].currentContext;
+        if (ctx != null) {
+          Scrollable.ensureVisible(
+            ctx, 
+            alignment: 0.0, 
+            duration: Duration.zero,
+          );
+        } else if (_scrollController.hasClients) {
+          final maxExtent = _scrollController.position.maxScrollExtent;
+          if (maxExtent > 0) {
+            final ratio = targetIndex / (_totalPages > 1 ? (_totalPages - 1) : 1);
+            _scrollController.jumpTo((maxExtent * ratio).clamp(0.0, maxExtent));
+          }
+        }
+      }
       
-      Future.delayed(const Duration(milliseconds: 50), () {
+      Future.delayed(const Duration(milliseconds: 120), () {
         if (mounted) _isJumping = false;
       });
     }
@@ -665,7 +669,6 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
   Future<void> _reloadCurrentChapter() async {
     _pageCache.clear();
-    _pageHeights.clear();
     for (final p in _onlinePages) {
       final url = _resolveImageUrl(p.url);
       try {
@@ -1009,33 +1012,30 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                 Scrollbar(
                   controller: _scrollController,
                   thumbVisibility: true,
-                  child: ListView.builder(
+                  child: SingleChildScrollView(
                     controller: _scrollController,
                     physics: const ClampingScrollPhysics(),
-                    itemCount: _totalPages + 1,
-                    itemBuilder: (context, index) {
-                      if (index == _totalPages) {
-                        return _buildNextChapterSwipeCard(isRu);
-                      }
-                      return _VerticalReaderPageItem(
-                        key: ValueKey('page_$index'),
-                        index: index,
-                        totalPages: _totalPages,
-                        isDownloaded: _isDownloaded,
-                        cbzPath: _cbzPath,
-                        onlinePages: _onlinePages,
-                        resolveImageUrl: _resolveImageUrl,
-                        getCbzPage: _getCbzPage,
-                        reloadImage: _reloadImage,
-                        zoomLevel: _zoomLevel,
-                        cropBorders: _cropBorders,
-                        cropPercent: _cropPercent,
-                        applyColorFilter: _applyColorFilter,
-                        onHeightMeasured: (idx, height) {
-                          _pageHeights[idx] = height;
-                        },
-                      );
-                    },
+                    child: Column(
+                      children: [
+                        for (int i = 0; i < _totalPages; i++)
+                          _VerticalReaderPageItem(
+                            key: i < _pageKeys.length ? _pageKeys[i] : ValueKey('page_$i'),
+                            index: i,
+                            totalPages: _totalPages,
+                            isDownloaded: _isDownloaded,
+                            cbzPath: _cbzPath,
+                            onlinePages: _onlinePages,
+                            resolveImageUrl: _resolveImageUrl,
+                            getCbzPage: _getCbzPage,
+                            reloadImage: _reloadImage,
+                            zoomLevel: _zoomLevel,
+                            cropBorders: _cropBorders,
+                            cropPercent: _cropPercent,
+                            applyColorFilter: _applyColorFilter,
+                          ),
+                        _buildNextChapterSwipeCard(isRu),
+                      ],
+                    ),
                   ),
                 )
               else
@@ -1571,7 +1571,6 @@ class _VerticalReaderPageItem extends StatefulWidget {
   final bool cropBorders;
   final double cropPercent;
   final Widget Function(Widget) applyColorFilter;
-  final void Function(int index, double height) onHeightMeasured;
 
   const _VerticalReaderPageItem({
     super.key,
@@ -1587,7 +1586,6 @@ class _VerticalReaderPageItem extends StatefulWidget {
     required this.cropBorders,
     required this.cropPercent,
     required this.applyColorFilter,
-    required this.onHeightMeasured,
   });
 
   @override
@@ -1632,20 +1630,9 @@ class _VerticalReaderPageItemState extends State<_VerticalReaderPageItem> with A
     }
   }
 
-  void _reportHeight(BuildContext context) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final size = context.size;
-      if (size != null && size.height > 0) {
-        widget.onHeightMeasured(widget.index, size.height);
-      }
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    _reportHeight(context);
 
     final screenWidth = MediaQuery.of(context).size.width;
     final itemWidth = screenWidth * widget.zoomLevel;
