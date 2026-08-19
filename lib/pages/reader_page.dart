@@ -81,9 +81,14 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   final Map<int, Uint8List> _pageCache = {};
   
   int _currentPageIndex = 0;
-  late PageController _pageController;
+  PageController? _pageController;
   final ScrollController _scrollController = ScrollController();
   final FocusNode _focusNode = FocusNode();
+  
+  // Vertical mode: track item positions via GlobalKeys
+  final Map<int, GlobalKey> _itemKeys = {};
+  // Guard against scroll listener updating page index while we're programmatically jumping
+  bool _isJumping = false;
   
   Timer? _saveTimer;
   int _mangaId = 0;
@@ -97,7 +102,6 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   @override
   void initState() {
     super.initState();
-    _pageController = PageController(initialPage: 0);
     _scrollController.addListener(_onVerticalScroll);
     _chapterTitle = widget.localCbzPath != null
         ? widget.localCbzPath!.split(Platform.pathSeparator).last
@@ -106,17 +110,56 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     _loadChapter();
   }
 
+  /// Get or create a GlobalKey for a vertical list item at [index].
+  GlobalKey _keyForIndex(int index) {
+    return _itemKeys.putIfAbsent(index, () => GlobalKey());
+  }
+
+  /// Determine which page item is most visible in the viewport center.
+  int _findCenterPageIndex() {
+    if (!_scrollController.hasClients || _totalPages <= 0) return 0;
+
+    final viewportHeight = _scrollController.position.viewportDimension;
+    final viewportCenter = _scrollController.offset + viewportHeight / 2;
+
+    int bestIndex = _currentPageIndex;
+    double bestDistance = double.infinity;
+
+    // Check all rendered items to find the one closest to viewport center
+    for (final entry in _itemKeys.entries) {
+      final key = entry.value;
+      final ctx = key.currentContext;
+      if (ctx == null) continue;
+      final renderBox = ctx.findRenderObject() as RenderBox?;
+      if (renderBox == null || !renderBox.hasSize) continue;
+
+      // Get the item's position relative to the scroll viewport
+      final scrollableState = Scrollable.maybeOf(ctx);
+      if (scrollableState == null) continue;
+      
+      final scrollRenderBox = scrollableState.context.findRenderObject() as RenderBox?;
+      if (scrollRenderBox == null) continue;
+
+      final itemOffset = renderBox.localToGlobal(Offset.zero, ancestor: scrollRenderBox);
+      final itemTop = _scrollController.offset + itemOffset.dy;
+      final itemBottom = itemTop + renderBox.size.height;
+      final itemCenter = (itemTop + itemBottom) / 2;
+
+      final distance = (itemCenter - viewportCenter).abs();
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestIndex = entry.key;
+      }
+    }
+
+    return bestIndex.clamp(0, _totalPages - 1);
+  }
+
   void _onVerticalScroll() {
     if (_readMode != ReadMode.vertical || !_scrollController.hasClients || _totalPages <= 1) return;
+    if (_isJumping) return;
     
-    final offset = _scrollController.offset;
-    final maxExtent = _scrollController.position.maxScrollExtent;
-
-    int currentVisible = 0;
-    if (maxExtent > 0) {
-      final progress = (offset / maxExtent).clamp(0.0, 1.0);
-      currentVisible = (progress * (_totalPages - 1)).round().clamp(0, _totalPages - 1);
-    }
+    final currentVisible = _findCenterPageIndex();
     
     if (currentVisible != _currentPageIndex) {
       _currentPageIndex = currentVisible;
@@ -126,6 +169,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
     // Smart Next Chapter Preload (trigger when near end of chapter)
     if (_nextChapter != null && !_isNextChapterPrefetched) {
+      final offset = _scrollController.offset;
+      final maxExtent = _scrollController.position.maxScrollExtent;
       if (maxExtent > 0 && (offset >= maxExtent * 0.75 || maxExtent - offset < 2500)) {
         _isNextChapterPrefetched = true;
         _prefetchNextChapter(_nextChapter!);
@@ -157,7 +202,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         ),
       );
     }
-    _pageController.dispose();
+    _pageController?.dispose();
     _scrollController.dispose();
     _focusNode.dispose();
     if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
@@ -258,13 +303,78 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       _currentPageIndex = 0;
     }
 
+    // Create PageController with correct initial page for horizontal modes
+    _pageController?.dispose();
+    _pageController = PageController(initialPage: _currentPageIndex);
+    _pageIndexNotifier.value = _currentPageIndex;
+
     setState(() => _isLoading = false);
     
-    if (_totalPages > 0 && _currentPageIndex > 0) {
+    // For vertical mode, scroll to saved position after first frame
+    if (_totalPages > 0 && _currentPageIndex > 0 && _readMode == ReadMode.vertical) {
+      // Schedule scroll after the ListView has built its items
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _jumpToPageIndex(_currentPageIndex);
+        _scrollToItemIndex(_currentPageIndex);
       });
     }
+  }
+
+  /// Scroll the vertical ListView so that item at [targetIndex] is visible at the top.
+  void _scrollToItemIndex(int targetIndex) {
+    if (targetIndex < 0 || targetIndex >= _totalPages) return;
+    final key = _itemKeys[targetIndex];
+    if (key == null || key.currentContext == null) {
+      // Item not yet rendered - try rough scroll first, then refine
+      _roughScrollToIndex(targetIndex);
+      return;
+    }
+    _isJumping = true;
+    Scrollable.ensureVisible(
+      key.currentContext!,
+      duration: Duration.zero,
+      alignment: 0.0, // align to top of viewport
+    ).then((_) {
+      _isJumping = false;
+      _currentPageIndex = targetIndex;
+      _pageIndexNotifier.value = targetIndex;
+      _scheduleSaveProgress();
+    });
+  }
+
+  /// Rough scroll for vertical mode when the target item isn't rendered yet.
+  /// We scroll proportionally, wait for build, then refine with ensureVisible.
+  void _roughScrollToIndex(int targetIndex) {
+    if (!_scrollController.hasClients) return;
+    _isJumping = true;
+    
+    final maxExtent = _scrollController.position.maxScrollExtent;
+    // Estimate: scroll proportionally by index
+    final estimated = _totalPages > 1
+        ? (maxExtent * targetIndex / (_totalPages - 1)).clamp(0.0, maxExtent)
+        : 0.0;
+    _scrollController.jumpTo(estimated);
+    
+    // After the jump, items near the target should be built.
+    // Wait for the frame, then try to use ensureVisible for precision.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final key = _itemKeys[targetIndex];
+      if (key != null && key.currentContext != null) {
+        Scrollable.ensureVisible(
+          key.currentContext!,
+          duration: Duration.zero,
+          alignment: 0.0,
+        ).then((_) {
+          _isJumping = false;
+          _currentPageIndex = targetIndex;
+          _pageIndexNotifier.value = targetIndex;
+        });
+      } else {
+        // Still not rendered, accept the rough position
+        _isJumping = false;
+        _currentPageIndex = targetIndex;
+        _pageIndexNotifier.value = targetIndex;
+      }
+    });
   }
 
   void _jumpToPageIndex(int targetIndex) {
@@ -272,15 +382,14 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     _currentPageIndex = targetIndex;
     _pageIndexNotifier.value = targetIndex;
     
-    if (_readMode != ReadMode.vertical && _pageController.hasClients) {
-      _pageController.jumpToPage(targetIndex);
-    } else if (_readMode == ReadMode.vertical && _scrollController.hasClients && _totalPages > 1) {
-      final maxExtent = _scrollController.position.maxScrollExtent;
-      final targetOffset = maxExtent > 0 ? (maxExtent / (_totalPages - 1)) * targetIndex : 0.0;
-      _scrollController.jumpTo(targetOffset.clamp(0.0, maxExtent));
+    if (_readMode != ReadMode.vertical) {
+      if (_pageController != null && _pageController!.hasClients) {
+        _pageController!.jumpToPage(targetIndex);
+      }
+    } else {
+      _scrollToItemIndex(targetIndex);
     }
     _scheduleSaveProgress();
-    if (mounted && _showControls) setState(() {});
   }
 
   Future<void> _findNextChapter() async {
@@ -445,7 +554,6 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       _isNextChapterPrefetched = true;
       _prefetchNextChapter(_nextChapter!);
     }
-    if (mounted && _showControls) setState(() {});
   }
 
   void _scheduleSaveProgress() {
@@ -506,11 +614,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     if (dx < width * 0.25) {
       if (_readMode != ReadMode.vertical) {
         if (isRtl) { _nextPageAction(); } 
-        else if (_currentPageIndex > 0) { _pageController.previousPage(duration: const Duration(milliseconds: 200), curve: Curves.easeOut); }
+        else if (_currentPageIndex > 0) { _pageController?.previousPage(duration: const Duration(milliseconds: 200), curve: Curves.easeOut); }
       }
     } else if (dx > width * 0.75) {
       if (_readMode != ReadMode.vertical) {
-        if (isRtl && _currentPageIndex > 0) { _pageController.previousPage(duration: const Duration(milliseconds: 200), curve: Curves.easeOut); }
+        if (isRtl && _currentPageIndex > 0) { _pageController?.previousPage(duration: const Duration(milliseconds: 200), curve: Curves.easeOut); }
         else if (!isRtl) { _nextPageAction(); }
       }
     } else {
@@ -520,8 +628,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
   void _nextPageAction() {
     if (_currentPageIndex < _totalPages - 1) {
-      if (_readMode != ReadMode.vertical && _pageController.hasClients) {
-        _pageController.nextPage(duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
+      if (_readMode != ReadMode.vertical && _pageController != null && _pageController!.hasClients) {
+        _pageController!.nextPage(duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
       } else {
         _jumpToPageIndex(_currentPageIndex + 1);
       }
@@ -647,8 +755,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     final isRtl = _readMode == ReadMode.rtl;
     if (event.logicalKey == LogicalKeyboardKey.arrowRight || event.logicalKey == LogicalKeyboardKey.pageDown || event.logicalKey == LogicalKeyboardKey.space) {
       if (isRtl && _currentPageIndex > 0) {
-        if (_readMode != ReadMode.vertical && _pageController.hasClients) {
-          _pageController.previousPage(duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
+        if (_readMode != ReadMode.vertical && _pageController != null && _pageController!.hasClients) {
+          _pageController!.previousPage(duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
         } else {
           _jumpToPageIndex(_currentPageIndex - 1);
         }
@@ -659,8 +767,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       if (isRtl) {
         _nextPageAction();
       } else if (_currentPageIndex > 0) {
-        if (_readMode != ReadMode.vertical && _pageController.hasClients) {
-          _pageController.previousPage(duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
+        if (_readMode != ReadMode.vertical && _pageController != null && _pageController!.hasClients) {
+          _pageController!.previousPage(duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
         } else {
           _jumpToPageIndex(_currentPageIndex - 1);
         }
@@ -926,6 +1034,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     }
 
     return Container(
+      key: _keyForIndex(index),
       padding: const EdgeInsets.only(bottom: 1),
       child: Center(
         child: SizedBox(
@@ -1170,7 +1279,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                   thumbVisibility: true,
                   child: ListView.builder(
                     controller: _scrollController,
-                    physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+                    physics: const ClampingScrollPhysics(),
                     itemCount: _totalPages + 1,
                     itemBuilder: (context, index) {
                       if (index == _totalPages) {
@@ -1182,11 +1291,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                 )
               else
                 PageView.builder(
-                  controller: _pageController,
+                  controller: _pageController!,
                   itemCount: _totalPages,
                   reverse: _readMode == ReadMode.rtl,
                   onPageChanged: _onPageChanged,
-                  physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+                  physics: const ClampingScrollPhysics(),
                   itemBuilder: (context, index) => _buildHorizontalImage(index),
                 ),
                 
@@ -1378,7 +1487,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                                   activeColor: const Color(0xFF8A897C),
                                   inactiveColor: const Color(0xFF353535),
                                   onChanged: (val) {
-                                    _jumpToPageIndex(val.toInt());
+                                    final target = val.round();
+                                    if (target != _currentPageIndex) {
+                                      _jumpToPageIndex(target);
+                                    }
                                   },
                                 ),
                               Row(
@@ -1444,8 +1556,20 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                       ],
                       selected: {_readMode},
                       onSelectionChanged: (val) {
-                        setState(() => _readMode = val.first);
+                        final newMode = val.first;
+                        // Recreate page controller when switching to horizontal mode
+                        if (newMode != ReadMode.vertical && _readMode == ReadMode.vertical) {
+                          _pageController?.dispose();
+                          _pageController = PageController(initialPage: _currentPageIndex);
+                        }
+                        setState(() => _readMode = newMode);
                         setModalState(() {});
+                        // If switching to vertical, scroll to current page after build
+                        if (newMode == ReadMode.vertical && _currentPageIndex > 0) {
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            _scrollToItemIndex(_currentPageIndex);
+                          });
+                        }
                       },
                     ),
                     const SizedBox(height: 16),
@@ -1755,4 +1879,3 @@ class _ReaderHudState extends State<_ReaderHud> {
     );
   }
 }
-
