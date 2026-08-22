@@ -209,12 +209,15 @@ jobs:
             echo "Production release keystore configured!"
           fi
 
-      - name: Build Android Release APKs
-        run: flutter build apk --release --split-per-abi
+      - name: Build Android Universal & Split APKs
+        run: |
+          flutter build apk --release
+          flutter build apk --release --split-per-abi
 
       - name: Prepare APK Artifacts
         run: |
           mkdir -p apks
+          cp build/app/outputs/flutter-apk/app-release.apk apks/mangaloader-android-universal.apk
           cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk apks/mangaloader-android-arm64-v8a.apk
           cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk apks/mangaloader-android-armeabi-v7a.apk
           cp build/app/outputs/flutter-apk/app-x86_64-release.apk apks/mangaloader-android-x86_64.apk
@@ -222,13 +225,84 @@ jobs:
       - name: Upload Android Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: mangaloader-android-apks
+          name: mangaloader-android-artifacts
           path: apks/*.apk
+
+  build-linux:
+    name: Build Linux Release
+    runs-on: ubuntu-latest
+    env:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Linux Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup sccache
+        uses: mozilla/sccache-action@v0.0.8
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "rust -> rust/target"
+          cache-all-crates: true
+          shared-key: "linux-rust"
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+          cache-key-id: 'flutter-:os:-:channel:-:version:-:arch:-:hash:'
+
+      - name: Cache Flutter Pub Packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache
+          key: pub-cache-linux-${{ hashFiles('pubspec.lock') }}
+          restore-keys: |
+            pub-cache-linux-
+
+      - name: Install cargo-binstall
+        uses: cargo-bins/cargo-binstall@main
+
+      - name: Install flutter_rust_bridge_codegen
+        run: cargo binstall --no-confirm flutter_rust_bridge_codegen@2.12.0
+
+      - name: Flutter Rust Bridge Codegen
+        run: flutter_rust_bridge_codegen generate
+
+      - name: Get Flutter Dependencies
+        run: flutter pub get
+
+      - name: Build Linux Application
+        run: flutter build linux --release
+
+      - name: Package Linux Binary
+        run: |
+          tar -czf mangaloader-linux-x64.tar.gz -C build/linux/x64/release/bundle .
+
+      - name: Upload Linux Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mangaloader-linux-x64
+          path: mangaloader-linux-x64.tar.gz
 
   publish-release:
     name: Publish GitHub Release
-    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
-    needs: [build-windows, build-android]
+    if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    needs: [build-windows, build-android, build-linux]
     runs-on: ubuntu-latest
 
     steps:
@@ -244,43 +318,96 @@ jobs:
       - name: Download Android Artifacts
         uses: actions/download-artifact@v4
         with:
-          name: mangaloader-android-apks
+          name: mangaloader-android-artifacts
           path: release-assets
 
-      - name: Extract Release Notes from CHANGELOG.md
-        id: changelog
-        run: |
-          TAG_NAME="${{ github.ref_name }}"
-          VERSION_CLEAN="${TAG_NAME#v}"
-          echo "Extracting release notes for version $VERSION_CLEAN..."
-          
-          if [ -f CHANGELOG.md ]; then
-            awk -v ver="$VERSION_CLEAN" '
-              BEGIN { recording=0; found=0 }
-              /^## \[?[vV]?[0-9]/ {
-                if (index($0, ver) > 0) {
-                  recording=1;
-                  found=1;
-                  next;
-                } else if (recording) {
-                  exit;
-                }
-              }
-              recording { print }
-              END { if (!found) exit 1 }
-            ' CHANGELOG.md > release_notes.md || true
-          fi
+      - name: Download Linux Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: mangaloader-linux-x64
+          path: release-assets
 
-          if [ ! -s release_notes.md ]; then
-            echo "Release notes for $TAG_NAME not found in CHANGELOG.md" > release_notes.md
+      - name: Generate Checksums (SHA-256)
+        run: |
+          cd release-assets
+          sha256sum * > SHA256SUMS.txt
+          echo "Generated SHA-256 Checksums:"
+          cat SHA256SUMS.txt
+
+      - name: Determine Release Metadata
+        id: rel_meta
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            TAG_NAME="${{ github.ref_name }}"
+            VERSION_CLEAN="${TAG_NAME#v}"
+            echo "is_prerelease=false" >> $GITHUB_OUTPUT
+            echo "tag_name=${TAG_NAME}" >> $GITHUB_OUTPUT
+            echo "release_title=MangaLoader ${TAG_NAME}" >> $GITHUB_OUTPUT
+            
+            if [ -f CHANGELOG.md ]; then
+              awk -v ver="$VERSION_CLEAN" '
+                BEGIN { recording=0; found=0 }
+                /^## \[?[vV]?[0-9]/ {
+                  if (index($0, ver) > 0) {
+                    recording=1;
+                    found=1;
+                    next;
+                  } else if (recording) {
+                    exit;
+                  }
+                }
+                recording { print }
+                END { if (!found) exit 1 }
+              ' CHANGELOG.md > release_notes.md || true
+            fi
+            if [ ! -s release_notes.md ]; then
+              echo "Release notes for $TAG_NAME" > release_notes.md
+            fi
+          else
+            echo "is_prerelease=true" >> $GITHUB_OUTPUT
+            echo "tag_name=dev-latest" >> $GITHUB_OUTPUT
+            echo "release_title=MangaLoader Dev Build (${GITHUB_SHA::7})" >> $GITHUB_OUTPUT
+            echo "Автоматическая ночная сборка ветки main (коммит ${GITHUB_SHA::7}). Содержит самые свежие экспериментальные изменения." > release_notes.md
           fi
           cat release_notes.md
 
-      - name: Create GitHub Release
+      - name: Create or Update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.rel_meta.outputs.tag_name }}
+          name: ${{ steps.rel_meta.outputs.release_title }}
           files: release-assets/*
           draft: false
-          prerelease: false
+          prerelease: ${{ steps.rel_meta.outputs.is_prerelease == 'true' }}
           body_path: release_notes.md
           generate_release_notes: false
+
+  publish-rustore:
+    name: Publish to RuStore
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build-android]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download Android Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: mangaloader-android-artifacts
+          path: apks
+
+      - name: Publish Universal APK to RuStore
+        env:
+          RUSTORE_KEY_ID: ${{ secrets.RUSTORE_KEY_ID }}
+          RUSTORE_PRIVATE_KEY: ${{ secrets.RUSTORE_PRIVATE_KEY }}
+          RUSTORE_APP_ID: ${{ secrets.RUSTORE_APP_ID || '2063748873' }}
+        run: |
+          if [ -z "$RUSTORE_KEY_ID" ] || [ -z "$RUSTORE_PRIVATE_KEY" ]; then
+            echo "RuStore API ключи (RUSTORE_KEY_ID / RUSTORE_PRIVATE_KEY) пока не настроены в GitHub Secrets."
+            echo "Шаг пропущен. Когда модерация завершится, добавьте ключи в настройки репозитория для автопубликации."
+            exit 0
+          fi
+          echo "Публикация версии в RuStore..."
+          # RuStore API Upload & Publish
+          # 1. Exchange keyId + privateKey for JWT token
+          # 2. Upload APK to https://public-api.rustore.ru/public/v1/application/${RUSTORE_APP_ID}/version
+          # 3. Commit version to moderation

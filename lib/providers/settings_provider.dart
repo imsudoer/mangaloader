@@ -45,6 +45,12 @@ Future<void> loadPersistentSettings(WidgetRef ref) async {
       ref.read(autoCheckUpdatesProvider.notifier).setAutoCheck(map['auto_check_updates'] == 'true', persist: false);
     }
 
+    // 4.1 Update channel
+    if (map.containsKey('update_channel')) {
+      final ch = map['update_channel'] == 'beta' ? UpdateChannel.beta : UpdateChannel.stable;
+      ref.read(updateChannelProvider.notifier).setChannel(ch, persist: false);
+    }
+
     // 5. Download Concurrency
     if (map.containsKey('download_concurrency_images')) {
       ref.read(downloadConcurrencyImagesProvider.notifier).setConcurrency(
@@ -185,6 +191,25 @@ class AutoCheckUpdatesNotifier extends StateNotifier<bool> {
     state = val;
     if (persist) {
       rust_storage.setSetting(key: 'auto_check_updates', value: val.toString());
+    }
+  }
+}
+
+// 4.1. Update channel provider (Stable / Beta/Dev)
+final updateChannelProvider = StateNotifierProvider<UpdateChannelNotifier, UpdateChannel>(
+  (ref) => UpdateChannelNotifier(),
+);
+
+class UpdateChannelNotifier extends StateNotifier<UpdateChannel> {
+  UpdateChannelNotifier() : super(UpdateChannel.stable);
+
+  void setChannel(UpdateChannel channel, {bool persist = true}) {
+    state = channel;
+    if (persist) {
+      rust_storage.setSetting(
+        key: 'update_channel',
+        value: channel == UpdateChannel.beta ? 'beta' : 'stable',
+      );
     }
   }
 }

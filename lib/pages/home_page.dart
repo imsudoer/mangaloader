@@ -48,7 +48,8 @@ class _HomePageState extends ConsumerState<HomePage> {
     if (currentUpdate != null) return;
 
     try {
-      final info = await UpdateChecker.checkForUpdates();
+      final channel = ref.read(updateChannelProvider);
+      final info = await UpdateChecker.checkForUpdates(channel: channel);
       if (info != null && info.hasUpdate && mounted) {
         ref.read(availableUpdateProvider.notifier).state = info;
         final isRu = Localizations.localeOf(context).languageCode == 'ru';

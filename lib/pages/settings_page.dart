@@ -97,7 +97,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   Future<void> _checkUpdates(bool isRu) async {
     setState(() => _isCheckingUpdates = true);
     try {
-      final updateInfo = await UpdateChecker.checkForUpdates();
+      final channel = ref.read(updateChannelProvider);
+      final updateInfo = await UpdateChecker.checkForUpdates(channel: channel);
       if (!mounted) return;
       setState(() => _isCheckingUpdates = false);
 
@@ -815,6 +816,44 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                               : const Icon(Icons.refresh_rounded, size: 18),
                             label: Text(isRu ? 'Проверить' : 'Check'),
                           );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1, indent: 16, endIndent: 16),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(isRu ? 'Канал обновлений' : 'Update Channel', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                            const SizedBox(height: 2),
+                            Text(
+                              isRu ? 'Стабильные релизы или Dev/Beta' : 'Stable releases or Dev/Beta',
+                              style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
+                            ),
+                          ],
+                        ),
+                      ),
+                      SegmentedButton<UpdateChannel>(
+                        segments: const [
+                          ButtonSegment(
+                            value: UpdateChannel.stable,
+                            label: Text('Stable'),
+                          ),
+                          ButtonSegment(
+                            value: UpdateChannel.beta,
+                            label: Text('Beta/Dev'),
+                          ),
+                        ],
+                        selected: {ref.watch(updateChannelProvider)},
+                        onSelectionChanged: (Set<UpdateChannel> newSelection) {
+                          ref.read(updateChannelProvider.notifier).setChannel(newSelection.first);
                         },
                       ),
                     ],

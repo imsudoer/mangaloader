@@ -120,6 +120,8 @@ class AppUpdateInfo {
   }
 }
 
+enum UpdateChannel { stable, beta }
+
 class UpdateChecker {
   static String? _cachedCurrentVersion;
   static const String defaultRepo = 'imsudoer/mangaloader';
@@ -131,19 +133,25 @@ class UpdateChecker {
       _cachedCurrentVersion = info.version;
       return info.version;
     } catch (_) {
-      return '1.7.0';
+      return '1.7.4';
     }
   }
 
-  static String get currentVersion => _cachedCurrentVersion ?? '1.7.0';
+  static String get currentVersion => _cachedCurrentVersion ?? '1.7.4';
 
-  static Future<AppUpdateInfo?> checkForUpdates({String repo = defaultRepo}) async {
+  static Future<AppUpdateInfo?> checkForUpdates({
+    String repo = defaultRepo,
+    UpdateChannel channel = UpdateChannel.stable,
+  }) async {
     try {
       final curVer = await getCurrentVersion();
       final client = HttpClient();
       client.connectionTimeout = const Duration(seconds: 10);
       
-      final uri = Uri.parse('https://api.github.com/repos/$repo/releases/latest');
+      final uri = channel == UpdateChannel.beta
+          ? Uri.parse('https://api.github.com/repos/$repo/releases?per_page=10')
+          : Uri.parse('https://api.github.com/repos/$repo/releases/latest');
+
       final request = await client.getUrl(uri);
       request.headers.set('User-Agent', 'MangaLoader-App');
       request.headers.set('Accept', 'application/vnd.github.v3+json');
@@ -154,18 +162,35 @@ class UpdateChecker {
       }
 
       final body = await response.transform(utf8.decoder).join();
-      final json = jsonDecode(body) as Map<String, dynamic>;
+      final dynamic decoded = jsonDecode(body);
+      
+      Map<String, dynamic> json;
+      if (decoded is List) {
+        if (decoded.isEmpty) return null;
+        json = decoded.first as Map<String, dynamic>;
+      } else if (decoded is Map<String, dynamic>) {
+        json = decoded;
+      } else {
+        return null;
+      }
 
       final rawTag = json['tag_name'] as String? ?? '';
+      final isPrerelease = json['prerelease'] as bool? ?? false;
       final cleanTag = rawTag.replaceAll(RegExp(r'^[vV]'), '').replaceAll('+', '.').trim();
-      final hasUpdate = _isNewerVersion(curVer, cleanTag);
+      
+      bool hasUpdate = false;
+      if (rawTag == 'dev-latest' || rawTag == 'nightly') {
+        hasUpdate = true;
+      } else {
+        hasUpdate = _isNewerVersion(curVer, cleanTag);
+      }
 
       final assetsJson = json['assets'] as List<dynamic>? ?? [];
       final assets = assetsJson.map((a) => ReleaseAsset.fromJson(a as Map<String, dynamic>)).toList();
 
       return AppUpdateInfo(
         tagName: rawTag,
-        title: json['name'] as String? ?? rawTag,
+        title: json['name'] as String? ?? (isPrerelease ? '$rawTag (Beta/Dev)' : rawTag),
         changelog: json['body'] as String? ?? '',
         releaseUrl: json['html_url'] as String? ?? '',
         publishedAt: json['published_at'] as String? ?? '',
