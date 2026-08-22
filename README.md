@@ -5,9 +5,7 @@
 <h1 align="center">MangaLoader</h1>
 
 <p align="center">
-  Кроссплатформенный клиент для комфортного онлайн-чтения и фонового скачивания манги с каталога MangaLib.
-  <br>
-  Fast, lightweight, and offline-capable manga reader built with Flutter and a native Rust backend.
+  A fast, lightweight, and offline-capable manga and comic reader built with Flutter and a native Rust core engine.
 </p>
 
 <p align="center">
@@ -19,89 +17,89 @@
 </p>
 
 <p align="center">
-  <a href="#скриншоты--screenshots">Скриншоты</a> •
-  <a href="#скачать--downloads">Скачать</a> •
-  <a href="#основные-возможности">Возможности</a> •
-  <a href="#горячие-клавиши-пк">Горячие клавиши</a> •
-  <a href="#архитектура">Архитектура</a> •
-  <a href="#сборка-из-исходников--building-from-source">Сборка</a>
+  <a href="#screenshots">Screenshots</a> •
+  <a href="#downloads">Downloads</a> •
+  <a href="#key-features">Key Features</a> •
+  <a href="#keyboard-shortcuts-pc">Keyboard Shortcuts</a> •
+  <a href="#architecture">Architecture</a> •
+  <a href="#building-from-source">Building from Source</a>
 </p>
 
 ---
 
-## Скриншоты / Screenshots
+## Screenshots
 
 <p align="center">
-  <img src="promo_screens/2_home_screen.jpg" width="31%" alt="Главный экран" />
-  <img src="promo_screens/3_catalog_search.jpg" width="31%" alt="Каталог и поиск" />
-  <img src="promo_screens/4_offline_download.jpg" width="31%" alt="Страница тайтла и загрузка" />
+  <img src="promo_screens/2_home_screen.jpg" width="31%" alt="Home Screen" />
+  <img src="promo_screens/3_catalog_search.jpg" width="31%" alt="Catalog & Search" />
+  <img src="promo_screens/4_offline_download.jpg" width="31%" alt="Manga Details & Downloads" />
 </p>
 
 ---
 
-## Скачать / Downloads
+## Downloads
 
-Готовые сборки под все поддерживаемые платформы доступны на странице [Releases](https://github.com/imsudoer/mangaloader/releases/latest):
+Compiled binaries for all supported platforms are available on the [Releases](https://github.com/imsudoer/mangaloader/releases/latest) page:
 
-| Платформа | Файл пакета | Описание |
+| Platform | Package | Description |
 | :--- | :--- | :--- |
-| **Android (Universal)** | [`mangaloader-android-universal.apk`](https://github.com/imsudoer/mangaloader/releases/latest) | Единый файл для всех устройств (ARM64, ARMv7, x86) |
-| **Android (ARM64)** | [`mangaloader-android-arm64-v8a.apk`](https://github.com/imsudoer/mangaloader/releases/latest) | Облегченный APK для большинства современных смартфонов |
-| **Android (ARMv7)** | [`mangaloader-android-armeabi-v7a.apk`](https://github.com/imsudoer/mangaloader/releases/latest) | APK для старых 32-битных смартфонов и планшетов |
-| **Windows** | [`mangaloader-windows-x64.zip`](https://github.com/imsudoer/mangaloader/releases/latest) | Портативный архив (распаковать и запустить `mangaloader.exe`) |
-| **Linux** | [`mangaloader-linux-x64.tar.gz`](https://github.com/imsudoer/mangaloader/releases/latest) | Тарбол со скомпилированным бандлом для Linux x64 |
+| **Android (Universal)** | [`mangaloader-android-universal.apk`](https://github.com/imsudoer/mangaloader/releases/latest) | Single package for all architectures (ARM64, ARMv7, x86) |
+| **Android (ARM64)** | [`mangaloader-android-arm64-v8a.apk`](https://github.com/imsudoer/mangaloader/releases/latest) | Smaller APK for modern 64-bit devices |
+| **Android (ARMv7)** | [`mangaloader-android-armeabi-v7a.apk`](https://github.com/imsudoer/mangaloader/releases/latest) | Legacy 32-bit Android phones and tablets |
+| **Windows** | [`mangaloader-windows-x64.zip`](https://github.com/imsudoer/mangaloader/releases/latest) | Portable archive (extract and run `mangaloader.exe`) |
+| **Linux** | [`mangaloader-linux-x64.tar.gz`](https://github.com/imsudoer/mangaloader/releases/latest) | Standalone release bundle for Linux x64 |
 
-В настройках приложения (*Настройки -> Обновления*) можно переключать канал обновлений между **Stable** (проверенные релизы) и **Beta/Dev** (свежие ночные сборки).
-
----
-
-## Основные возможности
-
-### Читалка
-- **Режимы отображения**:
-  - Вертикальная вебтун-лента с непрерывной подгрузкой для комфортного чтения манхвы и длинных полос.
-  - Постраничный режим (справа налево для японской манги, слева направо для западных комиксов).
-- **Автоматическая прокрутка (автоскролл)**: плавное движение страницы вниз с регулировкой скорости на лету.
-- **Обработка сканов**:
-  - Фильтры резкости (Subtle / High) для восстановления читаемости мелкого текста на сжатых сканах.
-  - Обрезка пустых белых полей по краям с регулировкой масштаба.
-  - Цветовые профили: темный, светлый и глубокий AMOLED-черный.
-- **Быстрая навигация**: всплывающее меню выбора глав и переход к следующей/предыдущей главе без выхода в каталог.
-
-### Фоновая загрузка и офлайн-режим
-- **Нативное ядро загрузки**: многопоточное скачивание глав через Rust (`tokio` + `reqwest`) с автоматическим перебором рабочих CDN-зеркал при сетевых сбоях.
-- **Стандартный формат CBZ**: скачанные главы упаковываются в архивы `.cbz`, которые можно читать прямо в приложении или открывать в сторонних читалках.
-- **Очистка памяти**: настраиваемое автоудаление прочитанных глав и очистка дискового кэша изображений.
-
-### Интеграция с MangaLib
-- **Авторизация**: вход в аккаунт через защищенный браузер с сохранением сессии.
-- **Синхронизация списков**: автоматический импорт и обновление закладок («Читаю», «В планах», «Прочитано», «Любимое», «Брошено»).
-- **Оптимизация под большие коллекции**: виртуализированные списки и ограниченный размер кэша текстур гарантируют плавность интерфейса даже при библиотеках на 1000+ тайтлов.
-
-### Статистика и итоги (Manga Recap)
-- Подробный подсчет прочитанных глав, страниц, времени чтения и любимых жанров.
-- Экспорт персональной графической карточки с итогами активности.
-
-### Фоновые уведомления
-- Периодическая фоновая проверка выхода новых глав для тайтлов из списков пользователя с push-уведомлениями.
+In the application settings (*Settings -> Updates*), you can choose between the **Stable** channel (regular verified releases) and the **Beta/Dev** channel (rolling nightly builds).
 
 ---
 
-## Горячие клавиши (ПК)
+## Key Features
 
-| Клавиша / Сочетание | Действие |
+### Reader Engine
+- **Multiple Reading Modes**:
+  - Vertical continuous Webtoon strip layout optimized for manhwa with seamless image concatenation.
+  - Standard paged modes (Right-to-Left for Japanese manga, Left-to-Right for western comics).
+- **Hands-Free Auto-Scroll**: Smooth automated viewport scrolling with on-the-fly speed controls.
+- **Image Post-Processing**:
+  - Edge sharpening filters (Subtle and High) to improve scan text definition.
+  - Dynamic white-border cropping with adjustable zoom margin.
+  - Color themes: Light, Dark, and deep AMOLED Black for OLED battery saving.
+- **Quick Navigation**: Floating chapter picker and seamless transition to the next chapter.
+
+### Background Downloader & Offline Storage
+- **Native Multi-Threaded Engine**: Asynchronous chapter fetching via Rust (`tokio` and `reqwest`) with automated CDN failover upon connection drops.
+- **Standard CBZ Format**: Downloaded chapters are packaged into standard `.cbz` archives, fully readable offline and compatible with external comic applications.
+- **Storage Management**: Optional automated deletion of read chapters and one-click image cache cleanup.
+
+### MangaLib Account Integration
+- **Secure Web Authentication**: In-app login with automatic session cookie detection.
+- **Bookmark Synchronization**: Synchronizes user reading lists (*Reading*, *Plan to Read*, *Completed*, *Favorites*, *Dropped*).
+- **Scale Optimized**: Virtualized list views and limited image cache sizes ensure fluid UI performance even on large libraries with 1,000+ titles.
+
+### Manga Recap & Statistics
+- Personal reading analytics: track chapters read, pages turned, total reading time, and top genres.
+- Exportable summary card for sharing reading achievements.
+
+### Background Notifications
+- Periodic background check for newly released chapters with native local push notifications.
+
+---
+
+## Keyboard Shortcuts (PC)
+
+| Key / Shortcut | Action |
 | :--- | :--- |
-| `Пробел` / `Стрелка вниз` / `J` | Прокрутка вниз / Следующая страница |
-| `Стрелка вверх` / `K` | Прокрутка вверх / Предыдущая страница |
-| `Стрелка влево` | Предыдущая страница (в режиме RTL) |
-| `Стрелка вправо` | Следующая страница (в режиме RTL) |
-| `F` / `F11` | Полноэкранный режим |
-| `Escape` | Выход из читалки / Назад |
-| `Двойной клик` | Переключение масштаба 2x |
+| `Space` / `Down Arrow` / `J` | Scroll down / Next page |
+| `Up Arrow` / `K` | Scroll up / Previous page |
+| `Left Arrow` | Previous page (in RTL mode) |
+| `Right Arrow` | Next page (in RTL mode) |
+| `F` / `F11` | Toggle Fullscreen |
+| `Escape` | Exit reader / Navigate back |
+| `Double Click` | Toggle 2x Zoom |
 
 ---
 
-## Архитектура
+## Architecture
 
 ```
 +-------------------------------------------------------------+
@@ -124,51 +122,51 @@
 
 ---
 
-## Сборка из исходников / Building from Source
+## Building from Source
 
-### Требования
+### Prerequisites
 - [Flutter SDK](https://flutter.dev) (3.29+)
 - [Rust Toolchain](https://rustup.rs) (stable)
-- Кодогенератор моста: `cargo install flutter_rust_bridge_codegen --version 2.12.0`
-- Для сборки Android: Android SDK, NDK (r26b+) и `cargo install cargo-ndk`
-- Для сборки Linux: `sudo apt install clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev`
+- Code generator: `cargo install flutter_rust_bridge_codegen --version 2.12.0`
+- For Android builds: Android SDK, NDK (r26b+), and `cargo install cargo-ndk`
+- For Linux builds: `sudo apt install clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev`
 
-### 1. Клонирование репозитория
+### 1. Clone the repository
 ```bash
 git clone https://github.com/imsudoer/mangaloader.git
 cd mangaloader
 ```
 
-### 2. Генерация моста и установка зависимостей
+### 2. Generate bridge bindings & fetch dependencies
 ```bash
 flutter_rust_bridge_codegen generate
 flutter pub get
 ```
 
-### 3. Сборка под Windows (x64)
+### 3. Build for Windows (x64)
 ```bash
 flutter build windows --release
 ```
-Скомпилированное приложение будет находиться в папке `build/windows/x64/runner/Release/`.
+The output binary will be located in `build/windows/x64/runner/Release/`.
 
-### 4. Сборка под Linux (x64)
+### 4. Build for Linux (x64)
 ```bash
 flutter build linux --release
 ```
-Бинарный бандл будет собран в `build/linux/x64/release/bundle/`.
+The application bundle will be created in `build/linux/x64/release/bundle/`.
 
-### 5. Сборка под Android
+### 5. Build for Android
 ```bash
-# Универсальный APK со всеми архитектурами
+# Universal APK (all architectures)
 flutter build apk --release
 
-# Либо раздельные сплит-APK
+# Split APKs (per-architecture)
 flutter build apk --release --split-per-abi
 ```
-Собранные APK будут доступны в папке `build/app/outputs/flutter-apk/`.
+Generated APK files will be located in `build/app/outputs/flutter-apk/`.
 
 ---
 
-## Лицензия / License
+## License
 
-Проект распространяется под свободной лицензией GNU General Public License v3.0. Подробности в файле [LICENSE](LICENSE).
+This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
