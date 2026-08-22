@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/icon.png" width="120" height="120" alt="MangaLoader Icon" />
+  <img src="assets/icon_monet.png" width="120" height="120" alt="MangaLoader Icon" />
 </p>
 
 <h1 align="center">MangaLoader</h1>
