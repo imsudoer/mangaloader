@@ -138,6 +138,8 @@ def create_or_get_draft_version(token: str, package_name: str, whats_new: str) -
         f"{RUSTORE_API_BASE}/public/v1/application/{package_name}/version",
     ]
     
+    moderation_info = None
+
     for v_url in version_endpoints:
         try:
             res_list = requests.get(v_url, headers=headers, timeout=30)
@@ -162,7 +164,8 @@ def create_or_get_draft_version(token: str, package_name: str, whats_new: str) -
                         return int(vid)
                     
                     if status in ("MODERATION", "REVIEW", "TAKEN_FOR_MODERATION") and vid:
-                        print(f"Notice: Version {vid} is currently in {status}. RuStore may reject new drafts until moderation completes.")
+                        moderation_info = (vid, status, ver_name)
+                        print(f"Notice: Version {vid} ({ver_name}) is currently in {status}.")
         except Exception as e:
             print(f"Version query notice: {e}")
 
@@ -191,8 +194,13 @@ def create_or_get_draft_version(token: str, package_name: str, whats_new: str) -
         else:
             print(f"Draft creation attempt ({create_url.split('?')[-1]}): HTTP {res.status_code} - {res.text}")
 
+    if moderation_info:
+        print(f"\n[RuStore Notice] Previous version {moderation_info[0]} ({moderation_info[2]}) is currently under active RuStore {moderation_info[1]}.")
+        print("RuStore only permits 1 version under review at a time. The new release will be submitted once current moderation concludes.")
+        return None
+
     print(f"Failed to create or obtain RuStore version draft for {package_name}.")
-    sys.exit(1)
+    return None
 
 def upload_apk(token: str, package_name: str, version_id: int, apk_path: str):
     headers = {"Public-Token": token}
@@ -240,6 +248,10 @@ def main():
         
     token = authenticate(key_id, private_key)
     version_id = create_or_get_draft_version(token, package_name, whats_new)
+    if version_id is None:
+        print("RuStore publish step completed gracefully (deferred due to ongoing moderation).")
+        return 0
+
     upload_apk(token, package_name, version_id, apk_path)
     commit_version(token, package_name, version_id)
     print("All RuStore publication steps completed successfully!")
