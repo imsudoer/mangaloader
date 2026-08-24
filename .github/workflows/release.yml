@@ -14,9 +14,6 @@ jobs:
   build-windows:
     name: Build Windows Release
     runs-on: windows-latest
-    env:
-      RUSTC_WRAPPER: sccache
-      SCCACHE_GHA_ENABLED: "true"
 
     steps:
       - name: Checkout Code
@@ -26,9 +23,6 @@ jobs:
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
-
-      - name: Setup sccache
-        uses: mozilla/sccache-action@v0.0.8
 
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
@@ -98,9 +92,6 @@ jobs:
   build-android:
     name: Build Android APKs
     runs-on: ubuntu-latest
-    env:
-      RUSTC_WRAPPER: sccache
-      SCCACHE_GHA_ENABLED: "true"
 
     steps:
       - name: Checkout Code
@@ -121,9 +112,6 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
-
-      - name: Setup sccache
-        uses: mozilla/sccache-action@v0.0.8
 
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
@@ -230,9 +218,6 @@ jobs:
   build-linux:
     name: Build Linux Release
     runs-on: ubuntu-latest
-    env:
-      RUSTC_WRAPPER: sccache
-      SCCACHE_GHA_ENABLED: "true"
 
     steps:
       - name: Checkout Code
@@ -247,9 +232,6 @@ jobs:
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
-
-      - name: Setup sccache
-        uses: mozilla/sccache-action@v0.0.8
 
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
