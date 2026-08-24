@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mangaloader/providers/search_provider.dart';
 import 'package:mangaloader/providers/manga_provider.dart';
 import 'package:mangaloader/widgets/manga_card.dart';
+import 'package:mangaloader/widgets/collection_card.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mangaloader/src/rust/api/mangalib_client.dart' as rust_api;
 import 'package:mangaloader/src/rust/api/models.dart';
@@ -17,6 +18,10 @@ class SearchPage extends ConsumerStatefulWidget {
 
 class _SearchPageState extends ConsumerState<SearchPage> {
   final TextEditingController _searchController = TextEditingController();
+  int _selectedTab = 0; // 0: Catalog, 1: Collections
+  final List<MangaCollectionItem> _collections = [];
+  bool _isLoadingCollections = false;
+  String? _collectionsError;
 
   final List<Map<String, dynamic>> _sortOptions = [
     {'id': 'views', 'labelRu': 'Популярность', 'labelEn': 'Popularity'},
@@ -51,6 +56,32 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     super.dispose();
   }
 
+  Future<void> _loadCollections({bool refresh = false}) async {
+    if (_collections.isNotEmpty && !_isLoadingCollections && !refresh) return;
+    setState(() {
+      _isLoadingCollections = true;
+      _collectionsError = null;
+    });
+
+    try {
+      final items = await rust_api.getCollections(page: 1, sortBy: 'popularity');
+      if (mounted) {
+        setState(() {
+          if (refresh) _collections.clear();
+          _collections.addAll(items);
+          _isLoadingCollections = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _collectionsError = e.toString();
+          _isLoadingCollections = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final searchState = ref.watch(searchProvider);
@@ -71,43 +102,76 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       ),
       body: Column(
         children: [
-          // Search Input Bar with Filter Button
+          // Section Switcher (Catalog / Collections)
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _searchController,
-                    decoration: InputDecoration(
-                      hintText: isRu ? 'Поиск по названию или автору...' : 'Search by title or author...',
-                      prefixIcon: const Icon(Icons.search_rounded),
-                      suffixIcon: _searchController.text.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(Icons.clear_rounded),
-                            onPressed: () {
-                              _searchController.clear();
-                              ref.read(searchProvider.notifier).search('');
-                              setState(() {});
-                            },
-                          )
-                        : null,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      filled: true,
-                      fillColor: const Color(0xFF2C2C2C),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                    ),
-                    onSubmitted: (val) {
-                      if (val.trim().isNotEmpty) {
-                        ref.read(searchHistoryProvider.notifier).addQuery(val);
-                      }
-                    },
-                    onChanged: (val) {
-                      setState(() {});
-                      ref.read(searchProvider.notifier).search(val);
-                    },
-                  ),
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+            child: SegmentedButton<int>(
+              style: SegmentedButton.styleFrom(
+                selectedBackgroundColor: const Color(0xFF8A897C),
+                selectedForegroundColor: Colors.white,
+                visualDensity: VisualDensity.compact,
+                textStyle: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold),
+              ),
+              segments: [
+                ButtonSegment(
+                  value: 0,
+                  label: Text(isRu ? 'Каталог' : 'Catalog'),
+                  icon: const Icon(Icons.grid_view_rounded, size: 16),
                 ),
+                ButtonSegment(
+                  value: 1,
+                  label: Text(isRu ? 'Коллекции' : 'Collections'),
+                  icon: const Icon(Icons.collections_bookmark_rounded, size: 16),
+                ),
+              ],
+              selected: {_selectedTab},
+              onSelectionChanged: (val) {
+                setState(() => _selectedTab = val.first);
+                if (val.first == 1) {
+                  _loadCollections();
+                }
+              },
+            ),
+          ),
+
+          if (_selectedTab == 0) ...[
+            // Search Input Bar with Filter Button
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _searchController,
+                      decoration: InputDecoration(
+                        hintText: isRu ? 'Поиск по названию или автору...' : 'Search by title or author...',
+                        prefixIcon: const Icon(Icons.search_rounded),
+                        suffixIcon: _searchController.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear_rounded),
+                              onPressed: () {
+                                _searchController.clear();
+                                ref.read(searchProvider.notifier).search('');
+                                setState(() {});
+                              },
+                            )
+                          : null,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        filled: true,
+                        fillColor: const Color(0xFF2C2C2C),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      ),
+                      onSubmitted: (val) {
+                        if (val.trim().isNotEmpty) {
+                          ref.read(searchHistoryProvider.notifier).addQuery(val);
+                        }
+                      },
+                      onChanged: (val) {
+                        setState(() {});
+                        ref.read(searchProvider.notifier).search(val);
+                      },
+                    ),
+                  ),
                 const SizedBox(width: 8),
                 // Filter Modal Opener Button
                 Badge(
@@ -412,6 +476,61 @@ class _SearchPageState extends ConsumerState<SearchPage> {
               ),
             ),
           ),
+        ] else ...[
+            // Collections Tab View
+            Expanded(
+              child: _isLoadingCollections
+                ? const Center(child: CircularProgressIndicator())
+                : _collectionsError != null
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.error_outline_rounded, size: 48, color: Colors.grey),
+                            const SizedBox(height: 12),
+                            Text(isRu ? 'Ошибка загрузки коллекций: $_collectionsError' : 'Error loading collections: $_collectionsError', textAlign: TextAlign.center),
+                            const SizedBox(height: 16),
+                            ElevatedButton.icon(
+                              onPressed: () => _loadCollections(refresh: true),
+                              icon: const Icon(Icons.refresh_rounded),
+                              label: Text(isRu ? 'Повторить' : 'Retry'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  : _collections.isEmpty
+                    ? Center(
+                        child: Text(
+                          isRu ? 'Коллекции не найдены' : 'No collections found',
+                          style: const TextStyle(color: Color(0xFF888888)),
+                        ),
+                      )
+                    : RefreshIndicator(
+                        onRefresh: () => _loadCollections(refresh: true),
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            final crossAxisCount = constraints.maxWidth > 700 ? 3 : (constraints.maxWidth > 400 ? 2 : 1);
+                            return GridView.builder(
+                              padding: const EdgeInsets.all(12),
+                              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: crossAxisCount,
+                                childAspectRatio: 1.35,
+                                crossAxisSpacing: 10,
+                                mainAxisSpacing: 10,
+                              ),
+                              itemCount: _collections.length,
+                              itemBuilder: (context, index) {
+                                return CollectionCard(collection: _collections[index]);
+                              },
+                            );
+                          },
+                        ),
+                      ),
+            ),
+          ],
         ],
       ),
     );

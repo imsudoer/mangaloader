@@ -66,6 +66,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   CommentItem dco_decode_comment_item(dynamic raw);
 
   @protected
+  CommentVoteResult dco_decode_comment_vote_result(dynamic raw);
+
+  @protected
   CommentsData dco_decode_comments_data(dynamic raw);
 
   @protected
@@ -159,6 +162,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<LibraryEntry> dco_decode_list_library_entry(dynamic raw);
 
   @protected
+  List<MangaCollectionItem> dco_decode_list_manga_collection_item(dynamic raw);
+
+  @protected
   List<MangaRelationItem> dco_decode_list_manga_relation_item(dynamic raw);
 
   @protected
@@ -196,6 +202,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   MalImportResult dco_decode_mal_import_result(dynamic raw);
+
+  @protected
+  MangaCollectionDetails dco_decode_manga_collection_details(dynamic raw);
+
+  @protected
+  MangaCollectionItem dco_decode_manga_collection_item(dynamic raw);
 
   @protected
   MangaConstants dco_decode_manga_constants(dynamic raw);
@@ -325,6 +337,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   CommentItem sse_decode_comment_item(SseDeserializer deserializer);
 
   @protected
+  CommentVoteResult sse_decode_comment_vote_result(
+      SseDeserializer deserializer);
+
+  @protected
   CommentsData sse_decode_comments_data(SseDeserializer deserializer);
 
   @protected
@@ -427,6 +443,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       SseDeserializer deserializer);
 
   @protected
+  List<MangaCollectionItem> sse_decode_list_manga_collection_item(
+      SseDeserializer deserializer);
+
+  @protected
   List<MangaRelationItem> sse_decode_list_manga_relation_item(
       SseDeserializer deserializer);
 
@@ -470,6 +490,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   MalImportResult sse_decode_mal_import_result(SseDeserializer deserializer);
+
+  @protected
+  MangaCollectionDetails sse_decode_manga_collection_details(
+      SseDeserializer deserializer);
+
+  @protected
+  MangaCollectionItem sse_decode_manga_collection_item(
+      SseDeserializer deserializer);
 
   @protected
   MangaConstants sse_decode_manga_constants(SseDeserializer deserializer);
@@ -615,6 +643,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_comment_item(CommentItem self, SseSerializer serializer);
 
   @protected
+  void sse_encode_comment_vote_result(
+      CommentVoteResult self, SseSerializer serializer);
+
+  @protected
   void sse_encode_comments_data(CommentsData self, SseSerializer serializer);
 
   @protected
@@ -722,6 +754,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       List<LibraryEntry> self, SseSerializer serializer);
 
   @protected
+  void sse_encode_list_manga_collection_item(
+      List<MangaCollectionItem> self, SseSerializer serializer);
+
+  @protected
   void sse_encode_list_manga_relation_item(
       List<MangaRelationItem> self, SseSerializer serializer);
 
@@ -769,6 +805,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_mal_import_result(
       MalImportResult self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_manga_collection_details(
+      MangaCollectionDetails self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_manga_collection_item(
+      MangaCollectionItem self, SseSerializer serializer);
 
   @protected
   void sse_encode_manga_constants(

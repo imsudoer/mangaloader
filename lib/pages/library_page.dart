@@ -6,8 +6,10 @@ import 'package:mangaloader/providers/library_provider.dart';
 import 'package:mangaloader/providers/continue_reading_provider.dart';
 import 'package:mangaloader/providers/streak_provider.dart';
 import 'package:mangaloader/providers/custom_lists_provider.dart';
+import 'package:mangaloader/providers/settings_provider.dart';
 import 'package:mangaloader/src/rust/api/models.dart';
 import 'package:mangaloader/src/rust/api/storage.dart' as rust_storage;
+import 'package:mangaloader/src/rust/api/mangalib_client.dart' as rust_api;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:go_router/go_router.dart';
 import 'package:path_provider/path_provider.dart';
@@ -28,6 +30,63 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
   bool _isSearchOpen = false;
   bool _isGridView = true;
   LibrarySortMode _sortMode = LibrarySortMode.recent;
+  bool _isSyncingWithMangaLib = false;
+
+  Future<void> _syncWithMangaLib(BuildContext context, bool isRu) async {
+    final profile = ref.read(currentUserProfileProvider);
+    if (profile == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(isRu ? 'Войдите в аккаунт MangaLib для синхронизации' : 'Sign in to MangaLib to sync'),
+          action: SnackBarAction(
+            label: isRu ? 'Войти' : 'Sign In',
+            onPressed: () => context.push('/login'),
+          ),
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isSyncingWithMangaLib = true);
+    try {
+      int imported = 0;
+      final statusMap = {
+        1: 'reading',
+        2: 'plan_to_read',
+        3: 'dropped',
+        4: 'completed',
+        5: 'favorites',
+        6: 'on_hold',
+      };
+
+      for (final entry in statusMap.entries) {
+        final bookmarks = await rust_api.getUserBookmarks(userId: profile.id, status: entry.key);
+        if (bookmarks.isNotEmpty) {
+          final count = await rust_storage.bulkImportBookmarks(items: bookmarks, listType: entry.value);
+          imported += count.toInt();
+        }
+      }
+
+      await ref.read(libraryProvider.notifier).loadAll();
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(isRu ? 'Синхронизировано $imported тайтлов из MangaLib' : 'Synced $imported titles from MangaLib'),
+            backgroundColor: Colors.green.shade800,
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Ошибка синхронизации: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSyncingWithMangaLib = false);
+    }
+  }
 
   final List<Map<String, dynamic>> _categoryTabs = [
     {'type': null, 'labelRu': 'Все', 'labelEn': 'All', 'icon': Icons.grid_view_rounded},
@@ -256,6 +315,13 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
             )
           : Text(isRu ? 'Моя библиотека' : 'My Library'),
         actions: [
+          IconButton(
+            icon: _isSyncingWithMangaLib
+              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              : const Icon(Icons.sync_rounded),
+            tooltip: isRu ? 'Синхронизировать с MangaLib' : 'Sync with MangaLib',
+            onPressed: _isSyncingWithMangaLib ? null : () => _syncWithMangaLib(context, isRu),
+          ),
           IconButton(
             icon: Icon(_isSearchOpen ? Icons.close_rounded : Icons.search_rounded),
             tooltip: isRu ? 'Поиск' : 'Search',

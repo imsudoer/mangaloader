@@ -7,7 +7,7 @@ import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ContentFilterItem`, `LibraryUpdateItem`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 
 class AppSettingItem {
   final String key;
@@ -166,41 +166,50 @@ class ChapterPage {
 
 class CommentItem {
   final PlatformInt64 id;
+  final PlatformInt64 userId;
   final PlatformInt64? rootId;
   final PlatformInt64? parentComment;
   final PlatformInt64 commentLevel;
+  final PlatformInt64? postPage;
   final String text;
   final String createdAt;
   final String username;
   final String userAvatar;
   final PlatformInt64 votesUp;
   final PlatformInt64 votesDown;
+  final PlatformInt64? userVote;
 
   const CommentItem({
     required this.id,
+    required this.userId,
     this.rootId,
     this.parentComment,
     required this.commentLevel,
+    this.postPage,
     required this.text,
     required this.createdAt,
     required this.username,
     required this.userAvatar,
     required this.votesUp,
     required this.votesDown,
+    this.userVote,
   });
 
   @override
   int get hashCode =>
       id.hashCode ^
+      userId.hashCode ^
       rootId.hashCode ^
       parentComment.hashCode ^
       commentLevel.hashCode ^
+      postPage.hashCode ^
       text.hashCode ^
       createdAt.hashCode ^
       username.hashCode ^
       userAvatar.hashCode ^
       votesUp.hashCode ^
-      votesDown.hashCode;
+      votesDown.hashCode ^
+      userVote.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -208,15 +217,49 @@ class CommentItem {
       other is CommentItem &&
           runtimeType == other.runtimeType &&
           id == other.id &&
+          userId == other.userId &&
           rootId == other.rootId &&
           parentComment == other.parentComment &&
           commentLevel == other.commentLevel &&
+          postPage == other.postPage &&
           text == other.text &&
           createdAt == other.createdAt &&
           username == other.username &&
           userAvatar == other.userAvatar &&
           votesUp == other.votesUp &&
-          votesDown == other.votesDown;
+          votesDown == other.votesDown &&
+          userVote == other.userVote;
+}
+
+class CommentVoteResult {
+  final bool success;
+  final PlatformInt64 votesUp;
+  final PlatformInt64 votesDown;
+  final PlatformInt64? userVote;
+
+  const CommentVoteResult({
+    required this.success,
+    required this.votesUp,
+    required this.votesDown,
+    this.userVote,
+  });
+
+  @override
+  int get hashCode =>
+      success.hashCode ^
+      votesUp.hashCode ^
+      votesDown.hashCode ^
+      userVote.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CommentVoteResult &&
+          runtimeType == other.runtimeType &&
+          success == other.success &&
+          votesUp == other.votesUp &&
+          votesDown == other.votesDown &&
+          userVote == other.userVote;
 }
 
 class CommentsData {
@@ -708,6 +751,144 @@ class MalImportResult {
           importedCount == other.importedCount &&
           updatedCount == other.updatedCount &&
           failedCount == other.failedCount;
+}
+
+class MangaCollectionDetails {
+  final PlatformInt64 id;
+  final String name;
+  final String description;
+  final PlatformInt64 views;
+  final PlatformInt64 favoritesCount;
+  final PlatformInt64 itemsCount;
+  final PlatformInt64 commentsCount;
+  final PlatformInt64 userId;
+  final String username;
+  final String userAvatar;
+  final String createdAt;
+  final List<MangaSearchResult> items;
+
+  const MangaCollectionDetails({
+    required this.id,
+    required this.name,
+    required this.description,
+    required this.views,
+    required this.favoritesCount,
+    required this.itemsCount,
+    required this.commentsCount,
+    required this.userId,
+    required this.username,
+    required this.userAvatar,
+    required this.createdAt,
+    required this.items,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      name.hashCode ^
+      description.hashCode ^
+      views.hashCode ^
+      favoritesCount.hashCode ^
+      itemsCount.hashCode ^
+      commentsCount.hashCode ^
+      userId.hashCode ^
+      username.hashCode ^
+      userAvatar.hashCode ^
+      createdAt.hashCode ^
+      items.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MangaCollectionDetails &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          name == other.name &&
+          description == other.description &&
+          views == other.views &&
+          favoritesCount == other.favoritesCount &&
+          itemsCount == other.itemsCount &&
+          commentsCount == other.commentsCount &&
+          userId == other.userId &&
+          username == other.username &&
+          userAvatar == other.userAvatar &&
+          createdAt == other.createdAt &&
+          items == other.items;
+}
+
+class MangaCollectionItem {
+  final PlatformInt64 id;
+  final String name;
+  final String description;
+  final String typeName;
+  final PlatformInt64 views;
+  final PlatformInt64 favoritesCount;
+  final PlatformInt64 itemsCount;
+  final PlatformInt64 commentsCount;
+  final PlatformInt64 votesUp;
+  final PlatformInt64 votesDown;
+  final String? coverUrl;
+  final PlatformInt64 userId;
+  final String username;
+  final String userAvatar;
+  final String createdAt;
+
+  const MangaCollectionItem({
+    required this.id,
+    required this.name,
+    required this.description,
+    required this.typeName,
+    required this.views,
+    required this.favoritesCount,
+    required this.itemsCount,
+    required this.commentsCount,
+    required this.votesUp,
+    required this.votesDown,
+    this.coverUrl,
+    required this.userId,
+    required this.username,
+    required this.userAvatar,
+    required this.createdAt,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      name.hashCode ^
+      description.hashCode ^
+      typeName.hashCode ^
+      views.hashCode ^
+      favoritesCount.hashCode ^
+      itemsCount.hashCode ^
+      commentsCount.hashCode ^
+      votesUp.hashCode ^
+      votesDown.hashCode ^
+      coverUrl.hashCode ^
+      userId.hashCode ^
+      username.hashCode ^
+      userAvatar.hashCode ^
+      createdAt.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MangaCollectionItem &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          name == other.name &&
+          description == other.description &&
+          typeName == other.typeName &&
+          views == other.views &&
+          favoritesCount == other.favoritesCount &&
+          itemsCount == other.itemsCount &&
+          commentsCount == other.commentsCount &&
+          votesUp == other.votesUp &&
+          votesDown == other.votesDown &&
+          coverUrl == other.coverUrl &&
+          userId == other.userId &&
+          username == other.username &&
+          userAvatar == other.userAvatar &&
+          createdAt == other.createdAt;
 }
 
 class MangaConstants {

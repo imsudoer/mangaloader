@@ -81,10 +81,47 @@ Future<Uint8List> downloadImage({required String url}) =>
 String? parseMangaUrl({required String url}) =>
     RustLib.instance.api.crateApiMangalibClientParseMangaUrl(url: url);
 
+Future<CommentsData> getComments(
+        {required String relationType,
+        required PlatformInt64 relationId,
+        required PlatformInt64 page,
+        required String sort}) =>
+    RustLib.instance.api.crateApiMangalibClientGetComments(
+        relationType: relationType,
+        relationId: relationId,
+        page: page,
+        sort: sort);
+
 Future<CommentsData> getMangaComments(
         {required PlatformInt64 mangaId, required PlatformInt64 page}) =>
     RustLib.instance.api
         .crateApiMangalibClientGetMangaComments(mangaId: mangaId, page: page);
+
+Future<CommentVoteResult> voteComment(
+        {required PlatformInt64 commentId, required PlatformInt64 vote}) =>
+    RustLib.instance.api
+        .crateApiMangalibClientVoteComment(commentId: commentId, vote: vote);
+
+Future<CommentItem> addComment(
+        {required String relationType,
+        required PlatformInt64 relationId,
+        required String comment,
+        PlatformInt64? parentId}) =>
+    RustLib.instance.api.crateApiMangalibClientAddComment(
+        relationType: relationType,
+        relationId: relationId,
+        comment: comment,
+        parentId: parentId);
+
+Future<List<MangaCollectionItem>> getCollections(
+        {required PlatformInt64 page, required String sortBy}) =>
+    RustLib.instance.api
+        .crateApiMangalibClientGetCollections(page: page, sortBy: sortBy);
+
+Future<MangaCollectionDetails> getCollectionDetails(
+        {required PlatformInt64 collectionId}) =>
+    RustLib.instance.api
+        .crateApiMangalibClientGetCollectionDetails(collectionId: collectionId);
 
 Future<List<MangaRelationItem>> getMangaRelations({required String slugUrl}) =>
     RustLib.instance.api

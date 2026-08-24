@@ -5,7 +5,8 @@ use reqwest::{Client, ClientBuilder};
 use serde_json::Value;
 use std::sync::Mutex;
 use crate::api::models::{
-    Chapter, ChapterPage, CommentItem, CommentsData, ConstantItem, Genre, HomePageData, MangaConstants, MangaDetails,
+    Chapter, ChapterPage, CommentItem, CommentsData, CommentVoteResult, ConstantItem, Genre, HomePageData, MangaConstants, MangaDetails,
+    MangaCollectionItem, MangaCollectionDetails,
     MangaRelationItem, MangaSearchResult, MangaSimilarItem, Person, Tag, UserProfile, UserDetailedProfile,
     UserPrivacySettings, NotificationCountInfo
 };
@@ -256,6 +257,8 @@ pub async fn get_latest_updates(page: i64) -> Result<Vec<MangaSearchResult>> {
     Ok(results)
 }
 
+static CACHED_CONSTANTS: Lazy<tokio::sync::RwLock<Option<MangaConstants>>> = Lazy::new(|| tokio::sync::RwLock::new(None));
+
 pub async fn get_catalog(
     page: i64,
     sort_by: String,
@@ -286,33 +289,49 @@ pub async fn get_catalog(
     );
 
     for tid in type_ids {
-        url.push_str(&format!("&types[]={}", tid));
+        if tid > 0 {
+            url.push_str(&format!("&types[]={}", tid));
+        }
     }
     for sid in status_ids {
-        url.push_str(&format!("&status[]={}", sid));
+        if sid > 0 {
+            url.push_str(&format!("&status[]={}", sid));
+        }
     }
     for gid in genre_ids {
-        url.push_str(&format!("&genres[]={}", gid));
+        if gid > 0 {
+            url.push_str(&format!("&genres[]={}", gid));
+        }
     }
     for egid in excluded_genre_ids {
-        url.push_str(&format!("&exclude_genres[]={}", egid));
-        url.push_str(&format!("&genres_exclude[]={}", egid));
+        if egid > 0 {
+            url.push_str(&format!("&genres_exclude[]={}", egid));
+        }
     }
     for tag_id in tag_ids {
-        url.push_str(&format!("&tags[]={}", tag_id));
+        if tag_id > 0 {
+            url.push_str(&format!("&tags[]={}", tag_id));
+        }
     }
     for etid in excluded_tag_ids {
-        url.push_str(&format!("&exclude_tags[]={}", etid));
-        url.push_str(&format!("&tags_exclude[]={}", etid));
+        if etid > 0 {
+            url.push_str(&format!("&tags_exclude[]={}", etid));
+        }
     }
     for age_id in age_ids {
-        url.push_str(&format!("&age_restriction[]={}", age_id));
+        if age_id > 0 {
+            url.push_str(&format!("&age_restriction[]={}", age_id));
+        }
     }
     for format_id in format_ids {
-        url.push_str(&format!("&format[]={}", format_id));
+        if format_id > 0 {
+            url.push_str(&format!("&format[]={}", format_id));
+        }
     }
     for scanlate_id in scanlate_ids {
-        url.push_str(&format!("&scanlate_status[]={}", scanlate_id));
+        if scanlate_id > 0 {
+            url.push_str(&format!("&scanlate_status[]={}", scanlate_id));
+        }
     }
 
     let res = HTTP_CLIENT.get(&url).headers(get_api_headers()).send().await?.json::<Value>().await?;
@@ -327,6 +346,13 @@ pub async fn get_catalog(
 }
 
 pub async fn get_constants() -> Result<MangaConstants> {
+    {
+        let cached = CACHED_CONSTANTS.read().await;
+        if let Some(c) = cached.as_ref() {
+            return Ok(c.clone());
+        }
+    }
+
     let url = "https://api.cdnlibs.org/api/constants?fields[]=genres&fields[]=tags&fields[]=types&fields[]=scanlateStatus&fields[]=status&fields[]=format&fields[]=ageRestriction";
     let res = HTTP_CLIENT.get(url).headers(get_api_headers()).send().await?.json::<Value>().await?;
     let data = res.get("data").context("Missing data in constants")?;
@@ -340,7 +366,7 @@ pub async fn get_constants() -> Result<MangaConstants> {
                     .and_then(|v| v.as_str())
                     .unwrap_or("")
                     .to_string();
-                if !name.is_empty() {
+                if !name.is_empty() && id > 0 {
                     Some(ConstantItem { id, name })
                 } else {
                     None
@@ -349,7 +375,7 @@ pub async fn get_constants() -> Result<MangaConstants> {
         }).unwrap_or_default()
     };
 
-    Ok(MangaConstants {
+    let constants = MangaConstants {
         types: parse_items("types"),
         statuses: parse_items("status"),
         scanlate_statuses: parse_items("scanlateStatus"),
@@ -357,7 +383,12 @@ pub async fn get_constants() -> Result<MangaConstants> {
         formats: parse_items("format"),
         genres: parse_items("genres"),
         tags: parse_items("tags"),
-    })
+    };
+
+    let mut lock = CACHED_CONSTANTS.write().await;
+    *lock = Some(constants.clone());
+
+    Ok(constants)
 }
 
 fn extract_text_from_tiptap(content: &Value) -> String {
@@ -620,10 +651,12 @@ pub fn parse_manga_url(url: String) -> Option<String> {
     None
 }
 
-pub async fn get_manga_comments(manga_id: i64, page: i64) -> Result<CommentsData> {
+pub async fn get_comments(relation_type: String, relation_id: i64, page: i64, sort: String) -> Result<CommentsData> {
+    let p = if page < 1 { 1 } else { page };
+    let normalized_sort = if sort == "new" { "new" } else { "votes" };
     let url = format!(
-        "https://api.cdnlibs.org/api/comments?page={}&post_id={}&post_type=manga&sort_by=id&sort_type=desc",
-        page, manga_id
+        "https://api.cdnlibs.org/api/comments?relation_type={}&relation_id={}&sort={}&page={}",
+        relation_type, relation_id, normalized_sort, p
     );
     let res = HTTP_CLIENT
         .get(&url)
@@ -654,29 +687,35 @@ pub async fn get_manga_comments(manga_id: i64, page: i64) -> Result<CommentsData
             .to_string();
 
         let user = &c["user"];
+        let user_id = user["id"].as_i64().unwrap_or(0);
         let username = user["username"].as_str().unwrap_or("Аноним").to_string();
         let user_avatar = user["avatar"]["url"].as_str().unwrap_or("").to_string();
 
         let votes = &c["votes"];
         let votes_up = votes["up"].as_i64().unwrap_or(0);
         let votes_down = votes["down"].as_i64().unwrap_or(0);
+        let user_vote = votes["user"].as_i64();
 
         let created_at = c["created_at"].as_str().unwrap_or("").to_string();
         let root_id = c["root_id"].as_i64();
         let parent_comment = c["parent_comment"].as_i64();
         let comment_level = c["comment_level"].as_i64().unwrap_or(0);
+        let post_page = c["post_page"].as_i64();
 
         Some(CommentItem {
             id,
+            user_id,
             root_id,
             parent_comment,
             comment_level,
+            post_page,
             text: clean_text,
             created_at,
             username,
             user_avatar,
             votes_up,
             votes_down,
+            user_vote,
         })
     };
 
@@ -699,14 +738,210 @@ pub async fn get_manga_comments(manga_id: i64, page: i64) -> Result<CommentsData
         }
     }
 
-    let has_next_page = json["meta"]["has_next_page"].as_bool().unwrap_or(false);
-    let current_page = json["meta"]["page"].as_i64().unwrap_or(page);
+    let has_next_page = json["links"]["next"].as_str().is_some() || json["meta"]["has_next_page"].as_bool().unwrap_or(false);
+    let current_page = json["meta"]["current_page"].as_i64().or_else(|| json["meta"]["page"].as_i64()).unwrap_or(p);
 
     Ok(CommentsData {
         root: root_comments,
         replies: reply_comments,
         has_next_page,
         page: current_page,
+    })
+}
+
+pub async fn get_manga_comments(manga_id: i64, page: i64) -> Result<CommentsData> {
+    get_comments("media".to_string(), manga_id, page, "votes".to_string()).await
+}
+
+pub async fn vote_comment(comment_id: i64, vote: i64) -> Result<CommentVoteResult> {
+    let url = format!("https://api.cdnlibs.org/api/comments/{}/vote", comment_id);
+    let payload = serde_json::json!({
+        "vote": vote
+    });
+
+    let res = HTTP_CLIENT
+        .post(&url)
+        .headers(get_api_headers())
+        .json(&payload)
+        .send()
+        .await
+        .context("Failed to vote comment")?;
+
+    if res.status().is_success() {
+        let json: Value = res.json().await.unwrap_or(serde_json::json!({}));
+        let votes_up = json["data"]["votes"]["up"].as_i64().unwrap_or(0);
+        let votes_down = json["data"]["votes"]["down"].as_i64().unwrap_or(0);
+        let user_vote = json["data"]["votes"]["user"].as_i64().or(Some(vote));
+        Ok(CommentVoteResult {
+            success: true,
+            votes_up,
+            votes_down,
+            user_vote,
+        })
+    } else {
+        Ok(CommentVoteResult {
+            success: false,
+            votes_up: 0,
+            votes_down: 0,
+            user_vote: None,
+        })
+    }
+}
+
+pub async fn add_comment(relation_type: String, relation_id: i64, comment: String, parent_id: Option<i64>) -> Result<CommentItem> {
+    let url = "https://api.cdnlibs.org/api/comments";
+    let mut payload = serde_json::json!({
+        "relation_type": relation_type,
+        "relation_id": relation_id,
+        "comment": comment
+    });
+    if let Some(pid) = parent_id {
+        payload["parent_id"] = serde_json::json!(pid);
+    }
+
+    let res = HTTP_CLIENT
+        .post(url)
+        .headers(get_api_headers())
+        .json(&payload)
+        .send()
+        .await
+        .context("Failed to add comment")?;
+
+    if !res.status().is_success() {
+        let err_text = res.text().await.unwrap_or_default();
+        anyhow::bail!("Failed to post comment: {}", err_text);
+    }
+
+    let json: Value = res.json().await.context("Failed to parse response")?;
+    let data = &json["data"];
+    let id = data["id"].as_i64().context("Missing comment ID")?;
+    let clean_text = data["comment"].as_str().unwrap_or(&comment).to_string();
+    let user_id = data["user"]["id"].as_i64().unwrap_or(0);
+    let username = data["user"]["username"].as_str().unwrap_or("Вы").to_string();
+    let user_avatar = data["user"]["avatar"]["url"].as_str().unwrap_or("").to_string();
+    let created_at = data["created_at"].as_str().unwrap_or("Только что").to_string();
+
+    Ok(CommentItem {
+        id,
+        user_id,
+        root_id: data["root_id"].as_i64(),
+        parent_comment: parent_id,
+        comment_level: data["comment_level"].as_i64().unwrap_or(0),
+        post_page: data["post_page"].as_i64(),
+        text: clean_text,
+        created_at,
+        username,
+        user_avatar,
+        votes_up: 0,
+        votes_down: 0,
+        user_vote: None,
+    })
+}
+
+pub async fn get_collections(page: i64, _sort_by: String) -> Result<Vec<MangaCollectionItem>> {
+    let p = if page < 1 { 1 } else { page };
+    let url = format!("https://api.cdnlibs.org/api/collections?site_id[]=1&page={}", p);
+    let res = HTTP_CLIENT.get(&url).headers(get_api_headers()).send().await?.json::<Value>().await?;
+    let mut results = Vec::new();
+    if let Some(arr) = res.get("data").and_then(|d| d.as_array()) {
+        for c in arr {
+            let id = c.get("id").and_then(|v| v.as_i64()).unwrap_or(0);
+            if id == 0 { continue; }
+            let name = c.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let description = c.get("description")
+                .map(|d| {
+                    if let Some(content) = d.get("content") {
+                        extract_text_from_tiptap(content)
+                    } else if let Some(s) = d.as_str() {
+                        s.to_string()
+                    } else {
+                        String::new()
+                    }
+                })
+                .unwrap_or_default();
+            let type_name = c.get("type").and_then(|v| v.as_str()).unwrap_or("titles").to_string();
+            let views = c.get("views").and_then(|v| v.as_i64()).unwrap_or(0);
+            let favorites_count = c.get("favorites_count").and_then(|v| v.as_i64()).unwrap_or(0);
+            let items_count = c.get("items_count").and_then(|v| v.as_i64()).unwrap_or(0);
+            let comments_count = c.get("comments_count").and_then(|v| v.as_i64()).unwrap_or(0);
+            let votes_up = c.get("votes").and_then(|v| v.get("up")).and_then(|v| v.as_i64()).unwrap_or(0);
+            let votes_down = c.get("votes").and_then(|v| v.get("down")).and_then(|v| v.as_i64()).unwrap_or(0);
+            let cover_url = c.get("cover").and_then(|v| v.get("default")).or_else(|| c.get("cover_url")).and_then(|v| v.as_str()).map(|s| s.to_string());
+            let user_id = c.get("user_id").and_then(|v| v.as_i64()).unwrap_or(0);
+            let username = c.get("user").and_then(|v| v.get("username")).and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let user_avatar = c.get("user").and_then(|v| v.get("avatar")).and_then(|v| v.get("url")).and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let created_at = c.get("created_at").and_then(|v| v.as_str()).unwrap_or("").to_string();
+
+            results.push(MangaCollectionItem {
+                id,
+                name,
+                description,
+                type_name,
+                views,
+                favorites_count,
+                items_count,
+                comments_count,
+                votes_up,
+                votes_down,
+                cover_url,
+                user_id,
+                username,
+                user_avatar,
+                created_at,
+            });
+        }
+    }
+    Ok(results)
+}
+
+pub async fn get_collection_details(collection_id: i64) -> Result<MangaCollectionDetails> {
+    let url = format!("https://api.cdnlibs.org/api/collections/{}", collection_id);
+    let res = HTTP_CLIENT.get(&url).headers(get_api_headers()).send().await?.json::<Value>().await?;
+    let data = res.get("data").context("Missing data in collection response")?;
+
+    let id = data.get("id").and_then(|v| v.as_i64()).unwrap_or(collection_id);
+    let name = data.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string();
+    let description = data.get("description")
+        .map(|d| {
+            if let Some(content) = d.get("content") {
+                extract_text_from_tiptap(content)
+            } else if let Some(s) = d.as_str() {
+                s.to_string()
+            } else {
+                String::new()
+            }
+        })
+        .unwrap_or_default();
+    let views = data.get("views").and_then(|v| v.as_i64()).unwrap_or(0);
+    let favorites_count = data.get("favorites_count").and_then(|v| v.as_i64()).unwrap_or(0);
+    let items_count = data.get("items_count").and_then(|v| v.as_i64()).unwrap_or(0);
+    let comments_count = data.get("comments_count").and_then(|v| v.as_i64()).unwrap_or(0);
+    let user_id = data.get("user_id").and_then(|v| v.as_i64()).unwrap_or(0);
+    let username = data.get("user").and_then(|v| v.get("username")).and_then(|v| v.as_str()).unwrap_or("").to_string();
+    let user_avatar = data.get("user").and_then(|v| v.get("avatar")).and_then(|v| v.get("url")).and_then(|v| v.as_str()).unwrap_or("").to_string();
+    let created_at = data.get("created_at").and_then(|v| v.as_str()).unwrap_or("").to_string();
+
+    let mut items = Vec::new();
+    if let Some(arr) = data.get("items").or_else(|| data.get("manga")).and_then(|v| v.as_array()) {
+        for m in arr {
+            let media = m.get("media").or(Some(m)).unwrap();
+            items.push(parse_manga_item(media));
+        }
+    }
+
+    Ok(MangaCollectionDetails {
+        id,
+        name,
+        description,
+        views,
+        favorites_count,
+        items_count,
+        comments_count,
+        user_id,
+        username,
+        user_avatar,
+        created_at,
+        items,
     })
 }
 

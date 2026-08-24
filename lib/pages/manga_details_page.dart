@@ -12,8 +12,8 @@ import 'package:mangaloader/providers/settings_provider.dart';
 import 'package:mangaloader/providers/streak_provider.dart';
 import 'package:mangaloader/providers/continue_reading_provider.dart';
 import 'package:mangaloader/widgets/download_button.dart';
-import 'package:mangaloader/widgets/manga_custom_lists_modal.dart';
 import 'package:mangaloader/widgets/manga_share_modal.dart';
+import 'package:mangaloader/widgets/manga_comments_modal.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mangaloader/src/rust/api/storage.dart' as rust_storage;
 import 'package:mangaloader/src/rust/api/download_engine.dart' as rust_download;
@@ -492,13 +492,15 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
                         padding: const EdgeInsets.all(10),
                       ),
-                      icon: const Icon(Icons.label_outline_rounded, size: 18, color: Color(0xFF8A897C)),
-                      tooltip: isRu ? 'Списки и теги' : 'Lists & Tags',
-                      onPressed: () async {
-                        await rust_storage.saveManga(manga: manga);
-                        if (context.mounted) {
-                          MangaCustomListsModal.show(context, manga.id, isRu);
-                        }
+                      icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18, color: Color(0xFFD2D7DF)),
+                      tooltip: isRu ? 'Комментарии' : 'Comments',
+                      onPressed: () {
+                        MangaCommentsModal.show(
+                          context,
+                          relationType: 'media',
+                          relationId: manga.id,
+                          title: manga.rusName.isNotEmpty ? manga.rusName : manga.name,
+                        );
                       },
                     ),
                   ],

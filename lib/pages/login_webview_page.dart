@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -76,13 +77,52 @@ class _LoginWebviewPageState extends ConsumerState<LoginWebviewPage> {
     try {
       ref.read(cookiesProvider.notifier).setCookies(cookieString);
 
-      // Try searching current user profile
-      try {
-        final users = await rust_api.searchUsers(query: 'xiro');
-        if (users.isNotEmpty) {
-          ref.read(currentUserProfileProvider.notifier).setProfile(users.first);
-        }
-      } catch (_) {}
+      // Extract user info from webview if available
+      int? extractedUserId;
+      String? extractedUsername;
+
+      if (_webViewController != null) {
+        try {
+          final jsResult = await _webViewController!.runJavaScriptReturningResult('''
+            (function() {
+              try {
+                var auth = JSON.parse(localStorage.getItem("auth") || "{}");
+                var user = auth.user || (window.__NUXT__ && window.__NUXT__.data && window.__NUXT__.data[0] && window.__NUXT__.data[0].user) || null;
+                if (user) {
+                  return JSON.stringify({ id: user.id, username: user.username });
+                }
+              } catch(e) {}
+              return "";
+            })()
+          ''') as String;
+
+          final cleanStr = jsResult.replaceAll(r'\"', '"').replaceAll(r'\', '');
+          if (cleanStr.isNotEmpty && cleanStr != '""') {
+            final unquoted = cleanStr.startsWith('"') && cleanStr.endsWith('"')
+                ? cleanStr.substring(1, cleanStr.length - 1)
+                : cleanStr;
+            final data = jsonDecode(unquoted);
+            if (data is Map) {
+              extractedUserId = data['id'] as int?;
+              extractedUsername = data['username'] as String?;
+            }
+          }
+        } catch (_) {}
+      }
+
+      if (extractedUserId != null && extractedUserId > 0) {
+        try {
+          final profile = await rust_api.getUserProfile(userId: extractedUserId);
+          ref.read(currentUserProfileProvider.notifier).setProfile(profile);
+        } catch (_) {}
+      } else if (extractedUsername != null && extractedUsername.isNotEmpty) {
+        try {
+          final users = await rust_api.searchUsers(query: extractedUsername);
+          if (users.isNotEmpty) {
+            ref.read(currentUserProfileProvider.notifier).setProfile(users.first);
+          }
+        } catch (_) {}
+      }
 
       if (mounted) {
         final isRu = Localizations.localeOf(context).languageCode == 'ru';

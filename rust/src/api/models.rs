@@ -85,15 +85,18 @@ pub struct MangaConstants {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CommentItem {
     pub id: i64,
+    pub user_id: i64,
     pub root_id: Option<i64>,
     pub parent_comment: Option<i64>,
     pub comment_level: i64,
+    pub post_page: Option<i64>,
     pub text: String,
     pub created_at: String,
     pub username: String,
     pub user_avatar: String,
     pub votes_up: i64,
     pub votes_down: i64,
+    pub user_vote: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -102,6 +105,49 @@ pub struct CommentsData {
     pub replies: Vec<CommentItem>,
     pub has_next_page: bool,
     pub page: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CommentVoteResult {
+    pub success: bool,
+    pub votes_up: i64,
+    pub votes_down: i64,
+    pub user_vote: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MangaCollectionItem {
+    pub id: i64,
+    pub name: String,
+    pub description: String,
+    pub type_name: String,
+    pub views: i64,
+    pub favorites_count: i64,
+    pub items_count: i64,
+    pub comments_count: i64,
+    pub votes_up: i64,
+    pub votes_down: i64,
+    pub cover_url: Option<String>,
+    pub user_id: i64,
+    pub username: String,
+    pub user_avatar: String,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MangaCollectionDetails {
+    pub id: i64,
+    pub name: String,
+    pub description: String,
+    pub views: i64,
+    pub favorites_count: i64,
+    pub items_count: i64,
+    pub comments_count: i64,
+    pub user_id: i64,
+    pub username: String,
+    pub user_avatar: String,
+    pub created_at: String,
+    pub items: Vec<MangaSearchResult>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

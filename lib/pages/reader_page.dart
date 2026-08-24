@@ -16,6 +16,7 @@ import 'package:mangaloader/src/rust/api/mangalib_client.dart' as rust_api;
 import 'package:mangaloader/src/rust/api/cbz_export.dart' as rust_cbz;
 import 'package:mangaloader/src/rust/api/models.dart';
 import 'package:mangaloader/services/streak_notification_service.dart';
+import 'package:mangaloader/widgets/manga_comments_modal.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -1282,6 +1283,30 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                           icon: const Icon(Icons.refresh_rounded),
                           tooltip: isRu ? 'Сбросить кэш и перезагрузить главу' : 'Reload chapter',
                           onPressed: _reloadCurrentChapter,
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.chat_bubble_outline_rounded),
+                          tooltip: isRu ? 'Комментарии к главе' : 'Chapter comments',
+                          onPressed: () {
+                            final currentChap = _allChapters.firstWhere(
+                              (c) => c.volume == widget.volume && c.number == widget.number,
+                              orElse: () => Chapter(
+                                id: _mangaId,
+                                volume: widget.volume,
+                                number: widget.number,
+                                name: null,
+                                branchId: widget.branchId,
+                                branchesCount: 1,
+                                isPaid: false,
+                              ),
+                            );
+                            MangaCommentsModal.show(
+                              context,
+                              relationType: currentChap.id > 0 ? 'chapter' : 'media',
+                              relationId: currentChap.id > 0 ? currentChap.id : _mangaId,
+                              title: '${widget.slugUrl} - ${isRu ? "Том" : "Vol."} ${widget.volume} ${isRu ? "Гл." : "Ch."} ${widget.number}',
+                            );
+                          },
                         ),
                         IconButton(icon: const Icon(Icons.tune_rounded), tooltip: isRu ? 'Настройки' : 'Settings', onPressed: _showSettingsSheet),
                       ],
