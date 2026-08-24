@@ -4,6 +4,7 @@
 
 list(APPEND FLUTTER_PLUGIN_LIST
   battery_plus
+  dynamic_color
   screen_retriever_windows
   share_plus
   url_launcher_windows

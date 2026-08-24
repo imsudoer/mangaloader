@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:window_manager/window_manager.dart';
+import 'package:dynamic_color/dynamic_color.dart' show DynamicColorBuilder;
 import 'package:mangaloader/src/rust/api/storage.dart' as rust_storage;
 import 'package:mangaloader/src/rust/frb_generated.dart';
 import 'theme/app_theme.dart';
@@ -20,6 +21,7 @@ import 'pages/reader_page.dart';
 import 'pages/login_webview_page.dart';
 import 'pages/achievements_page.dart';
 import 'pages/statistics_page.dart';
+import 'pages/history_page.dart';
 import 'widgets/offline_banner.dart';
 import 'providers/settings_provider.dart';
 
@@ -92,24 +94,42 @@ class _MangaLoaderAppState extends ConsumerState<MangaLoaderApp> {
     final isAmoled = ref.watch(amoledModeProvider);
     final locale = ref.watch(localeProvider);
 
-    return MaterialApp.router(
-      title: 'Manga Loader',
-      theme: AppTheme.lightTheme,
-      darkTheme: isAmoled ? AppTheme.amoledTheme : AppTheme.darkTheme,
-      themeMode: themeMode,
-      locale: locale,
-      localizationsDelegates: const [
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      supportedLocales: const [
-        Locale('ru'),
-        Locale('en'),
-      ],
-      scrollBehavior: AppScrollBehavior(),
-      debugShowCheckedModeBanner: false,
-      routerConfig: _router,
+    return DynamicColorBuilder(
+      builder: (ColorScheme? lightDynamic, ColorScheme? darkDynamic) {
+        final ColorScheme lightColorScheme = lightDynamic ?? AppTheme.lightTheme.colorScheme;
+        final ColorScheme darkColorScheme = isAmoled
+            ? AppTheme.amoledTheme.colorScheme
+            : (darkDynamic ?? AppTheme.darkTheme.colorScheme);
+
+        final ThemeData darkThemeToUse = (isAmoled ? AppTheme.amoledTheme : AppTheme.darkTheme).copyWith(
+          colorScheme: darkColorScheme,
+        );
+
+        final ThemeData lightThemeToUse = AppTheme.lightTheme.copyWith(
+          colorScheme: lightColorScheme,
+        );
+
+        final Widget app = MaterialApp.router(
+          title: 'Manga Loader',
+          theme: lightThemeToUse,
+          darkTheme: darkThemeToUse,
+          themeMode: themeMode,
+          locale: locale,
+          localizationsDelegates: const [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: const [
+            Locale('ru'),
+            Locale('en'),
+          ],
+          scrollBehavior: AppScrollBehavior(),
+          debugShowCheckedModeBanner: false,
+          routerConfig: _router,
+        );
+        return app;
+      },
     );
   }
 }
@@ -187,6 +207,21 @@ final _router = GoRouter(
       ),
     ),
     GoRoute(
+      path: '/history',
+      pageBuilder: (context, state) => CustomTransitionPage(
+        key: state.pageKey,
+        child: const HistoryPage(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return SlideTransition(
+            position: Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero)
+                .chain(CurveTween(curve: Curves.easeOutCubic))
+                .animate(animation),
+            child: child,
+          );
+        },
+      ),
+    ),
+    GoRoute(
       path: '/statistics',
       pageBuilder: (context, state) => CustomTransitionPage(
         key: state.pageKey,
@@ -218,6 +253,14 @@ final _router = GoRouter(
           },
         );
       },
+    ),
+    GoRoute(
+      path: '/ru/manga/:slugUrl',
+      redirect: (context, state) => '/manga/${state.pathParameters['slugUrl']}',
+    ),
+    GoRoute(
+      path: '/ru/:slugUrl',
+      redirect: (context, state) => '/manga/${state.pathParameters['slugUrl']}',
     ),
     GoRoute(
       path: '/read-local',

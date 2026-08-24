@@ -103,16 +103,19 @@ class MangaCard extends ConsumerWidget {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              CachedNetworkImage(
-                imageUrl: manga.coverUrl,
-                httpHeaders: const {'Referer': 'https://mangalib.org/'},
-                fit: BoxFit.cover,
-                memCacheWidth: 320,
-                memCacheHeight: 480,
-                placeholder: (context, url) => Container(color: const Color(0xFF262626)),
-                errorWidget: (context, url, error) => Container(
-                  color: const Color(0xFF262626),
-                  child: const Center(child: Icon(Icons.broken_image_rounded, color: Colors.white38)),
+              Hero(
+                tag: 'cover_${manga.slugUrl}',
+                child: CachedNetworkImage(
+                  imageUrl: manga.coverUrl,
+                  httpHeaders: const {'Referer': 'https://mangalib.org/'},
+                  fit: BoxFit.cover,
+                  memCacheWidth: 320,
+                  memCacheHeight: 480,
+                  placeholder: (context, url) => Container(color: const Color(0xFF262626)),
+                  errorWidget: (context, url, error) => Container(
+                    color: const Color(0xFF262626),
+                    child: const Center(child: Icon(Icons.broken_image_rounded, color: Colors.white38)),
+                  ),
                 ),
               ),
               Positioned.fill(

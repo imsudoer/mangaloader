@@ -24,6 +24,8 @@ enum ReadBgColor { black, darkGrey, white }
 enum ReadBoxFit { contain, cover, fitWidth }
 enum ReadColorFilter { none, invert, sepia }
 enum ReadSharpenMode { off, subtle, high }
+enum DualPageMode { auto, single, dual }
+enum TapZoneLayout { standard, inverted, horizontal, edgesOnly }
 
 class ReaderPage extends ConsumerStatefulWidget {
   final String slugUrl;
@@ -52,6 +54,13 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   final ReadBoxFit _boxFit = ReadBoxFit.fitWidth;
   ReadColorFilter _filterMode = ReadColorFilter.none;
   ReadSharpenMode _sharpenMode = ReadSharpenMode.off;
+  DualPageMode _dualPageMode = DualPageMode.auto;
+  TapZoneLayout _tapZoneLayout = TapZoneLayout.standard;
+  
+  // Reading Time & Break Tracking
+  DateTime _sessionStartTime = DateTime.now();
+  int _continuousReadingMinutes = 0;
+  Timer? _sessionTimer;
   
   // Crop borders
   bool _cropBorders = false;
@@ -103,6 +112,45 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   @override
   void initState() {
     super.initState();
+    _sessionStartTime = DateTime.now();
+    _sessionTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
+      _continuousReadingMinutes++;
+      final now = DateTime.now();
+      final elapsed = now.difference(_sessionStartTime).inSeconds;
+      if (elapsed >= 30 && _mangaId > 0) {
+        rust_storage.recordReadingSession(mangaId: _mangaId, seconds: elapsed);
+        _sessionStartTime = now;
+      }
+      if (_continuousReadingMinutes == 120 && mounted) {
+        final isRu = Localizations.localeOf(context).languageCode == 'ru';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: const Color(0xFF2C2C2C),
+            content: Row(
+              children: [
+                const Icon(Icons.timer_outlined, color: Colors.orangeAccent),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    isRu ? 'Вы читаете уже 2 часа. Сделайте перерыв для отдыха глаз.' : 'You have been reading for 2 hours. Take a break to rest your eyes.',
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+            action: SnackBarAction(
+              label: isRu ? 'Отложить' : 'Snooze',
+              textColor: const Color(0xFF8A897C),
+              onPressed: () {
+                _continuousReadingMinutes = 90;
+              },
+            ),
+            duration: const Duration(seconds: 8),
+          ),
+        );
+      }
+    });
+
     _scrollController.addListener(_onVerticalScroll);
     _chapterTitle = widget.localCbzPath != null
         ? widget.localCbzPath!.split(Platform.pathSeparator).last
@@ -162,6 +210,12 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
   @override
   void dispose() {
+    _sessionTimer?.cancel();
+    final now = DateTime.now();
+    final elapsed = now.difference(_sessionStartTime).inSeconds;
+    if (elapsed > 0 && _mangaId > 0) {
+      rust_storage.recordReadingSession(mangaId: _mangaId, seconds: elapsed);
+    }
     _scrollController.removeListener(_onVerticalScroll);
     _stopAutoScroll();
     _saveTimer?.cancel();
@@ -640,20 +694,67 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     });
   }
 
+  bool _isDualPageActive(BuildContext context) {
+    if (_readMode == ReadMode.vertical) return false;
+    if (_dualPageMode == DualPageMode.single) return false;
+    if (_dualPageMode == DualPageMode.dual) return true;
+    final size = MediaQuery.of(context).size;
+    return size.width >= 850 && size.width > size.height;
+  }
+
   void _handleTap(TapUpDetails details) {
     final width = MediaQuery.of(context).size.width;
+    final height = MediaQuery.of(context).size.height;
     final dx = details.globalPosition.dx;
+    final dy = details.globalPosition.dy;
     final isRtl = _readMode == ReadMode.rtl;
 
-    if (dx < width * 0.25) {
-      if (_readMode != ReadMode.vertical) {
-        if (isRtl) { _nextPageAction(); } 
-        else if (_currentPageIndex > 0) { _pageController?.previousPage(duration: const Duration(milliseconds: 200), curve: Curves.easeOut); }
+    if (_tapZoneLayout == TapZoneLayout.horizontal) {
+      if (dy < height * 0.25) {
+        if (_readMode != ReadMode.vertical && _currentPageIndex > 0) {
+          _pageController?.previousPage(duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
+        }
+      } else if (dy > height * 0.75) {
+        _nextPageAction();
+      } else {
+        _showControlsNotifier.value = !_showControlsNotifier.value;
       }
-    } else if (dx > width * 0.75) {
+      return;
+    }
+
+    final edgeFraction = _tapZoneLayout == TapZoneLayout.edgesOnly ? 0.15 : 0.25;
+
+    if (dx < width * edgeFraction) {
       if (_readMode != ReadMode.vertical) {
-        if (isRtl && _currentPageIndex > 0) { _pageController?.previousPage(duration: const Duration(milliseconds: 200), curve: Curves.easeOut); }
-        else if (!isRtl) { _nextPageAction(); }
+        if (_tapZoneLayout == TapZoneLayout.inverted) {
+          if (!isRtl && _currentPageIndex > 0) {
+            _pageController?.previousPage(duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
+          } else if (isRtl) {
+            _nextPageAction();
+          }
+        } else {
+          if (isRtl) {
+            _nextPageAction();
+          } else if (_currentPageIndex > 0) {
+            _pageController?.previousPage(duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
+          }
+        }
+      }
+    } else if (dx > width * (1.0 - edgeFraction)) {
+      if (_readMode != ReadMode.vertical) {
+        if (_tapZoneLayout == TapZoneLayout.inverted) {
+          if (isRtl && _currentPageIndex > 0) {
+            _pageController?.previousPage(duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
+          } else if (!isRtl) {
+            _nextPageAction();
+          }
+        } else {
+          if (isRtl && _currentPageIndex > 0) {
+            _pageController?.previousPage(duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
+          } else if (!isRtl) {
+            _nextPageAction();
+          }
+        }
       }
     } else {
       _showControlsNotifier.value = !_showControlsNotifier.value;
@@ -1448,14 +1549,21 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         ),
       );
     } else {
+      final isDual = _isDualPageActive(context);
+      final dualSlidesCount = isDual ? ((_totalPages) / 2).ceil() : _totalPages;
+      final totalItemsCount = dualSlidesCount + 1;
+
       return PageView.builder(
         controller: _pageController!,
-        itemCount: _totalPages + 1,
+        itemCount: totalItemsCount,
         reverse: _readMode == ReadMode.rtl,
-        onPageChanged: _onPageChanged,
+        onPageChanged: (slideIdx) {
+          final targetPage = isDual ? (slideIdx * 2).clamp(0, _totalPages > 0 ? _totalPages - 1 : 0) : slideIdx;
+          _onPageChanged(targetPage);
+        },
         physics: const ClampingScrollPhysics(),
         itemBuilder: (context, index) {
-          if (index == _totalPages) {
+          if (index == dualSlidesCount) {
             return Center(
               child: SingleChildScrollView(
                 child: Padding(
@@ -1465,9 +1573,31 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
               ),
             );
           }
-          return _HorizontalReaderPageItem(
-            key: ValueKey('h_page_$index'),
-            index: index,
+
+          if (!isDual) {
+            return _HorizontalReaderPageItem(
+              key: ValueKey('h_page_$index'),
+              index: index,
+              isDownloaded: _isDownloaded,
+              onlinePages: _onlinePages,
+              resolveImageUrl: _resolveImageUrl,
+              getCbzPage: _getCbzPage,
+              reloadImage: _reloadImage,
+              zoomLevel: _zoomLevel,
+              cropBorders: _cropBorders,
+              cropPercent: _cropPercent,
+              boxFit: _resolvedBoxFit,
+              applyColorFilter: _applyColorFilter,
+            );
+          }
+
+          final page1 = index * 2;
+          final page2 = page1 + 1;
+          final isRtl = _readMode == ReadMode.rtl;
+
+          final item1 = _HorizontalReaderPageItem(
+            key: ValueKey('h_page_$page1'),
+            index: page1,
             isDownloaded: _isDownloaded,
             onlinePages: _onlinePages,
             resolveImageUrl: _resolveImageUrl,
@@ -1476,8 +1606,33 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
             zoomLevel: _zoomLevel,
             cropBorders: _cropBorders,
             cropPercent: _cropPercent,
-            boxFit: _resolvedBoxFit,
+            boxFit: BoxFit.contain,
             applyColorFilter: _applyColorFilter,
+          );
+
+          final item2 = page2 < _totalPages
+              ? _HorizontalReaderPageItem(
+                  key: ValueKey('h_page_$page2'),
+                  index: page2,
+                  isDownloaded: _isDownloaded,
+                  onlinePages: _onlinePages,
+                  resolveImageUrl: _resolveImageUrl,
+                  getCbzPage: _getCbzPage,
+                  reloadImage: _reloadImage,
+                  zoomLevel: _zoomLevel,
+                  cropBorders: _cropBorders,
+                  cropPercent: _cropPercent,
+                  boxFit: BoxFit.contain,
+                  applyColorFilter: _applyColorFilter,
+                )
+              : const SizedBox.expand();
+
+          return Row(
+            children: [
+              Expanded(child: isRtl ? item2 : item1),
+              Container(width: 1, color: Colors.black26),
+              Expanded(child: isRtl ? item1 : item2),
+            ],
           );
         },
       );
@@ -1671,6 +1826,40 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                             _jumpToPageIndex(_currentPageIndex);
                           });
                         }
+                      },
+                    ),
+                    const SizedBox(height: 16),
+
+                    if (_readMode != ReadMode.vertical) ...[
+                      Text(isRu ? 'Отображение страниц' : 'Page Layout', style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 8),
+                      SegmentedButton<DualPageMode>(
+                        segments: [
+                          ButtonSegment(value: DualPageMode.auto, label: Text(isRu ? 'Авто' : 'Auto')),
+                          ButtonSegment(value: DualPageMode.single, label: Text(isRu ? '1 страница' : '1 Page')),
+                          ButtonSegment(value: DualPageMode.dual, label: Text(isRu ? '2 страницы' : '2 Pages')),
+                        ],
+                        selected: {_dualPageMode},
+                        onSelectionChanged: (val) {
+                          setState(() => _dualPageMode = val.first);
+                          setModalState(() {});
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+
+                    Text(isRu ? 'Зоны нажатия (тапы)' : 'Tap Zones', style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 8),
+                    SegmentedButton<TapZoneLayout>(
+                      segments: [
+                        ButtonSegment(value: TapZoneLayout.standard, label: Text(isRu ? 'Стандарт' : 'Standard')),
+                        ButtonSegment(value: TapZoneLayout.inverted, label: Text(isRu ? 'Инверсия' : 'Inverted')),
+                        ButtonSegment(value: TapZoneLayout.edgesOnly, label: Text(isRu ? 'По краям' : 'Edges')),
+                      ],
+                      selected: {_tapZoneLayout},
+                      onSelectionChanged: (val) {
+                        setState(() => _tapZoneLayout = val.first);
+                        setModalState(() {});
                       },
                     ),
                     const SizedBox(height: 16),

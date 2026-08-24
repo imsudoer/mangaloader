@@ -13,7 +13,7 @@ import 'package:go_router/go_router.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
-enum LibrarySortMode { recent, title, rating }
+enum LibrarySortMode { recent, title, rating, progress, chapters }
 
 class LibraryPage extends ConsumerStatefulWidget {
   const LibraryPage({super.key});
@@ -27,7 +27,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
   final TextEditingController _searchController = TextEditingController();
   bool _isSearchOpen = false;
   bool _isGridView = true;
-  final LibrarySortMode _sortMode = LibrarySortMode.recent;
+  LibrarySortMode _sortMode = LibrarySortMode.recent;
 
   final List<Map<String, dynamic>> _categoryTabs = [
     {'type': null, 'labelRu': 'Все', 'labelEn': 'All', 'icon': Icons.grid_view_rounded},
@@ -78,6 +78,16 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
           final rB = double.tryParse(b.ratingAverage) ?? 0.0;
           return rB.compareTo(rA);
         });
+        break;
+      case LibrarySortMode.progress:
+        list.sort((a, b) {
+          final pA = a.totalChapters > 0 ? a.readChapters / a.totalChapters : 0.0;
+          final pB = b.totalChapters > 0 ? b.readChapters / b.totalChapters : 0.0;
+          return pB.compareTo(pA);
+        });
+        break;
+      case LibrarySortMode.chapters:
+        list.sort((a, b) => b.totalChapters.compareTo(a.totalChapters));
         break;
     }
     return list;
@@ -260,6 +270,85 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
             icon: Icon(_isGridView ? Icons.view_list_rounded : Icons.grid_view_rounded),
             tooltip: isRu ? (_isGridView ? 'Список' : 'Сетка') : (_isGridView ? 'List' : 'Grid'),
             onPressed: () => setState(() => _isGridView = !_isGridView),
+          ),
+          PopupMenuButton<LibrarySortMode>(
+            icon: const Icon(Icons.sort_rounded),
+            tooltip: isRu ? 'Сортировка' : 'Sort',
+            color: const Color(0xFF2C2C2C),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            onSelected: (mode) => setState(() => _sortMode = mode),
+            itemBuilder: (ctx) => [
+              PopupMenuItem(
+                value: LibrarySortMode.recent,
+                child: Row(
+                  children: [
+                    Icon(
+                      _sortMode == LibrarySortMode.recent ? Icons.check_rounded : Icons.access_time_rounded,
+                      size: 18,
+                      color: _sortMode == LibrarySortMode.recent ? const Color(0xFF8A897C) : Colors.white70,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(isRu ? 'По дате добавления' : 'Date added'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: LibrarySortMode.title,
+                child: Row(
+                  children: [
+                    Icon(
+                      _sortMode == LibrarySortMode.title ? Icons.check_rounded : Icons.sort_by_alpha_rounded,
+                      size: 18,
+                      color: _sortMode == LibrarySortMode.title ? const Color(0xFF8A897C) : Colors.white70,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(isRu ? 'По названию (А-Я)' : 'Title (A-Z)'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: LibrarySortMode.rating,
+                child: Row(
+                  children: [
+                    Icon(
+                      _sortMode == LibrarySortMode.rating ? Icons.check_rounded : Icons.star_rounded,
+                      size: 18,
+                      color: _sortMode == LibrarySortMode.rating ? const Color(0xFF8A897C) : Colors.white70,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(isRu ? 'По рейтингу' : 'Rating'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: LibrarySortMode.progress,
+                child: Row(
+                  children: [
+                    Icon(
+                      _sortMode == LibrarySortMode.progress ? Icons.check_rounded : Icons.percent_rounded,
+                      size: 18,
+                      color: _sortMode == LibrarySortMode.progress ? const Color(0xFF8A897C) : Colors.white70,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(isRu ? 'По прогрессу чтения' : 'Reading progress'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: LibrarySortMode.chapters,
+                child: Row(
+                  children: [
+                    Icon(
+                      _sortMode == LibrarySortMode.chapters ? Icons.check_rounded : Icons.numbers_rounded,
+                      size: 18,
+                      color: _sortMode == LibrarySortMode.chapters ? const Color(0xFF8A897C) : Colors.white70,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(isRu ? 'По количеству глав' : 'Total chapters'),
+                  ],
+                ),
+              ),
+            ],
           ),
           IconButton(
             icon: const Icon(Icons.bar_chart_rounded),

@@ -423,4 +423,40 @@ pub struct NotificationCountInfo {
     pub unread_cards: i64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReadingHistoryItem {
+    pub manga_id: i64,
+    pub slug_url: String,
+    pub name: String,
+    pub rus_name: String,
+    pub cover_url: String,
+    pub volume: String,
+    pub number: String,
+    pub is_completed: bool,
+    pub last_read_at: String,
+    pub total_pages: i64,
+    pub page_index: i64,
+}
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReadingSessionInfo {
+    pub total_reading_seconds: i64,
+    pub total_sessions: i64,
+    pub avg_session_seconds: i64,
+    pub today_reading_seconds: i64,
+    pub week_reading_seconds: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RecommendedManga {
+    pub manga_id: i64,
+    pub slug_url: String,
+    pub name: String,
+    pub rus_name: String,
+    pub cover_url: String,
+    pub cover_thumb_url: String,
+    pub manga_type: String,
+    pub rating_average: String,
+    pub score: f64,
+    pub reason: String,
+}

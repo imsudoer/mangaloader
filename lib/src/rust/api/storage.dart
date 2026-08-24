@@ -206,3 +206,30 @@ Future<List<AppSettingItem>> getAllSettings() =>
 
 Future<MangaRecapData> getMangaRecap() =>
     RustLib.instance.api.crateApiStorageGetMangaRecap();
+
+Future<void> recordReadingSession(
+        {required PlatformInt64 mangaId, required PlatformInt64 seconds}) =>
+    RustLib.instance.api.crateApiStorageRecordReadingSession(
+        mangaId: mangaId, seconds: seconds);
+
+Future<ReadingSessionInfo> getReadingSessionStats() =>
+    RustLib.instance.api.crateApiStorageGetReadingSessionStats();
+
+Future<List<ReadingHistoryItem>> getReadingHistory(
+        {required PlatformInt64 limit, required PlatformInt64 offset}) =>
+    RustLib.instance.api
+        .crateApiStorageGetReadingHistory(limit: limit, offset: offset);
+
+Future<void> deleteReadingHistoryItem(
+        {required PlatformInt64 mangaId,
+        required String volume,
+        required String number}) =>
+    RustLib.instance.api.crateApiStorageDeleteReadingHistoryItem(
+        mangaId: mangaId, volume: volume, number: number);
+
+Future<void> clearReadingHistory() =>
+    RustLib.instance.api.crateApiStorageClearReadingHistory();
+
+Future<List<RecommendedManga>> getRecommendations(
+        {required PlatformInt64 limit}) =>
+    RustLib.instance.api.crateApiStorageGetRecommendations(limit: limit);

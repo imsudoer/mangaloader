@@ -1,7 +1,7 @@
 use crate::api::models::{
     DownloadedChapterInfo, DownloadedMangaGroup, LibraryEntry, ListType, MangaDetails, ReadingPosition, Genre, Tag, Person, ChapterHistory,
     Chapter, ReadingStreakInfo, ContinueReadingItem, CustomUserList, ReadingStatistics, GenreCount, TimeOfDayDistribution, MalImportResult,
-    AppSettingItem, MangaRecapData, RecapMangaItem, MangaSearchResult
+    AppSettingItem, MangaRecapData, RecapMangaItem, MangaSearchResult, ReadingHistoryItem, ReadingSessionInfo, RecommendedManga
 };
 use anyhow::{Context, Result};
 use once_cell::sync::Lazy;
@@ -138,6 +138,14 @@ pub async fn init_database(app_dir: String) -> Result<()> {
             FOREIGN KEY(manga_id) REFERENCES manga(id)
         );
 
+        CREATE TABLE IF NOT EXISTS reading_sessions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            manga_id INTEGER NOT NULL,
+            session_seconds INTEGER NOT NULL,
+            started_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY(manga_id) REFERENCES manga(id)
+        );
+
         CREATE TABLE IF NOT EXISTS app_settings (
             key TEXT PRIMARY KEY,
             value TEXT NOT NULL
@@ -159,6 +167,7 @@ pub async fn init_database(app_dir: String) -> Result<()> {
         "ALTER TABLE manga ADD COLUMN artists_json TEXT DEFAULT '[]'",
         "ALTER TABLE cached_chapters ADD COLUMN id INTEGER DEFAULT 0",
         "ALTER TABLE cached_chapters ADD COLUMN branches_count INTEGER DEFAULT 0",
+        "ALTER TABLE cached_chapters ADD COLUMN page_count INTEGER DEFAULT 0",
     ];
     for sql in migrations {
         let _ = conn.execute(sql, []);
@@ -1876,7 +1885,17 @@ pub async fn get_manga_recap() -> Result<MangaRecapData> {
         }
     }
 
-    let estimated_reading_hours = (total_chapters_read as f64 * 3.5) / 60.0;
+    let total_session_seconds: i64 = conn.query_row(
+        "SELECT COALESCE(SUM(session_seconds), 0) FROM reading_sessions",
+        [],
+        |row| row.get(0),
+    ).unwrap_or(0);
+
+    let estimated_reading_hours = if total_session_seconds > 0 {
+        total_session_seconds as f64 / 3600.0
+    } else {
+        (total_chapters_read as f64 * 3.5) / 60.0
+    };
 
     Ok(MangaRecapData {
         total_chapters_read,
@@ -1895,5 +1914,236 @@ pub async fn get_manga_recap() -> Result<MangaRecapData> {
         },
     })
 }
+
+pub async fn record_reading_session(manga_id: i64, seconds: i64) -> Result<()> {
+    if seconds <= 0 {
+        return Ok(());
+    }
+    let guard = get_conn()?;
+    let conn = guard.as_ref().unwrap();
+    conn.execute(
+        "INSERT INTO reading_sessions (manga_id, session_seconds, started_at) VALUES (?1, ?2, datetime('now'))",
+        params![manga_id, seconds],
+    )?;
+    Ok(())
+}
+
+pub async fn get_reading_session_stats() -> Result<ReadingSessionInfo> {
+    let guard = get_conn()?;
+    let conn = guard.as_ref().unwrap();
+
+    let total_seconds: i64 = conn.query_row(
+        "SELECT COALESCE(SUM(session_seconds), 0) FROM reading_sessions",
+        [],
+        |row| row.get(0),
+    ).unwrap_or(0);
+
+    let total_sessions: i64 = conn.query_row(
+        "SELECT COUNT(1) FROM reading_sessions",
+        [],
+        |row| row.get(0),
+    ).unwrap_or(0);
+
+    let today_seconds: i64 = conn.query_row(
+        "SELECT COALESCE(SUM(session_seconds), 0) FROM reading_sessions WHERE date(started_at) = date('now')",
+        [],
+        |row| row.get(0),
+    ).unwrap_or(0);
+
+    let week_seconds: i64 = conn.query_row(
+        "SELECT COALESCE(SUM(session_seconds), 0) FROM reading_sessions WHERE started_at >= datetime('now', '-7 days')",
+        [],
+        |row| row.get(0),
+    ).unwrap_or(0);
+
+    let avg = if total_sessions > 0 {
+        total_seconds / total_sessions
+    } else {
+        0
+    };
+
+    Ok(ReadingSessionInfo {
+        total_reading_seconds: total_seconds,
+        total_sessions,
+        avg_session_seconds: avg,
+        today_reading_seconds: today_seconds,
+        week_reading_seconds: week_seconds,
+    })
+}
+
+pub async fn get_reading_history(limit: i64, offset: i64) -> Result<Vec<ReadingHistoryItem>> {
+    let guard = get_conn()?;
+    let conn = guard.as_ref().unwrap();
+
+    let mut stmt = conn.prepare(
+        "SELECT ch.manga_id, m.slug_url, m.name, m.rus_name, m.cover_url,
+                ch.volume, ch.number, ch.is_completed, ch.last_read_at,
+                ch.total_pages, ch.page_index
+         FROM chapter_history ch
+         JOIN manga m ON m.id = ch.manga_id
+         ORDER BY ch.last_read_at DESC
+         LIMIT ?1 OFFSET ?2"
+    )?;
+
+    let iter = stmt.query_map(params![limit, offset], |row| {
+        Ok(ReadingHistoryItem {
+            manga_id: row.get("manga_id")?,
+            slug_url: row.get("slug_url")?,
+            name: row.get("name")?,
+            rus_name: row.get("rus_name")?,
+            cover_url: row.get("cover_url")?,
+            volume: row.get("volume")?,
+            number: row.get("number")?,
+            is_completed: row.get("is_completed")?,
+            last_read_at: row.get("last_read_at")?,
+            total_pages: row.get("total_pages")?,
+            page_index: row.get("page_index")?,
+        })
+    })?;
+
+    let mut list = Vec::new();
+    for item in iter {
+        if let Ok(i) = item {
+            list.push(i);
+        }
+    }
+    Ok(list)
+}
+
+pub async fn delete_reading_history_item(manga_id: i64, volume: String, number: String) -> Result<()> {
+    let guard = get_conn()?;
+    let conn = guard.as_ref().unwrap();
+    conn.execute(
+        "DELETE FROM chapter_history WHERE manga_id = ?1 AND volume = ?2 AND number = ?3",
+        params![manga_id, volume, number],
+    )?;
+    Ok(())
+}
+
+pub async fn clear_reading_history() -> Result<()> {
+    let guard = get_conn()?;
+    let conn = guard.as_ref().unwrap();
+    conn.execute("DELETE FROM chapter_history", [])?;
+    Ok(())
+}
+
+pub async fn get_recommendations(limit: i64) -> Result<Vec<RecommendedManga>> {
+    let guard = get_conn()?;
+    let conn = guard.as_ref().unwrap();
+
+    let mut stmt = conn.prepare(
+        "SELECT m.genres_json FROM manga m
+         JOIN user_lists ul ON ul.manga_id = m.id
+         WHERE ul.list_type IN ('reading', 'completed', 'favorites')"
+    )?;
+
+    let mut genre_weights: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
+    let rows = stmt.query_map([], |row| {
+        let json_str: String = row.get(0)?;
+        Ok(json_str)
+    })?;
+
+    for r in rows.flatten() {
+        if let Ok(genres) = serde_json::from_str::<Vec<Genre>>(&r) {
+            for g in genres {
+                *genre_weights.entry(g.name).or_insert(0) += 1;
+            }
+        }
+    }
+
+    if genre_weights.is_empty() {
+        let mut pop_stmt = conn.prepare(
+            "SELECT m.id, m.slug_url, m.name, m.rus_name, m.cover_url, m.cover_thumb_url, m.manga_type, m.rating_average
+             FROM manga m
+             ORDER BY CAST(m.rating_votes AS INTEGER) DESC
+             LIMIT ?1"
+        )?;
+        let pop_rows = pop_stmt.query_map(params![limit], |row| {
+            Ok(RecommendedManga {
+                manga_id: row.get("id")?,
+                slug_url: row.get("slug_url")?,
+                name: row.get("name")?,
+                rus_name: row.get("rus_name")?,
+                cover_url: row.get("cover_url")?,
+                cover_thumb_url: row.get("cover_thumb_url")?,
+                manga_type: row.get("manga_type")?,
+                rating_average: row.get("rating_average")?,
+                score: 10.0,
+                reason: "Популярно среди читателей".to_string(),
+            })
+        })?;
+        return Ok(pop_rows.flatten().collect());
+    }
+
+    let mut cand_stmt = conn.prepare(
+        "SELECT m.id, m.slug_url, m.name, m.rus_name, m.cover_url, m.cover_thumb_url, m.manga_type, m.rating_average, m.genres_json
+         FROM manga m
+         WHERE m.id NOT IN (
+             SELECT manga_id FROM user_lists WHERE list_type IN ('reading', 'completed', 'dropped')
+         )"
+    )?;
+
+    let mut scored_list: Vec<RecommendedManga> = Vec::new();
+    let cand_rows = cand_stmt.query_map([], |row| {
+        let genres_json: String = row.get("genres_json")?;
+        let rating_str: String = row.get("rating_average")?;
+        let rating: f64 = rating_str.parse().unwrap_or(0.0);
+        let id: i64 = row.get("id")?;
+        let slug_url: String = row.get("slug_url")?;
+        let name: String = row.get("name")?;
+        let rus_name: String = row.get("rus_name")?;
+        let cover_url: String = row.get("cover_url")?;
+        let cover_thumb_url: String = row.get("cover_thumb_url")?;
+        let manga_type: String = row.get("manga_type")?;
+
+        Ok((id, slug_url, name, rus_name, cover_url, cover_thumb_url, manga_type, rating_str, rating, genres_json))
+    })?;
+
+    for item in cand_rows.flatten() {
+        let (id, slug_url, name, rus_name, cover_url, cover_thumb_url, manga_type, rating_str, rating, genres_json) = item;
+        let mut score = rating * 0.5;
+        let mut top_matching_genre = String::new();
+        let mut max_g_weight = 0;
+
+        if let Ok(genres) = serde_json::from_str::<Vec<Genre>>(&genres_json) {
+            for g in genres {
+                if let Some(&w) = genre_weights.get(&g.name) {
+                    score += (w as f64) * 2.0;
+                    if w > max_g_weight {
+                        max_g_weight = w;
+                        top_matching_genre = g.name;
+                    }
+                }
+            }
+        }
+
+        if score > 0.0 {
+            let reason = if !top_matching_genre.is_empty() {
+                format!("Похоже на ваши любимые тайтлы ({})", top_matching_genre)
+            } else {
+                "Высокий рейтинг".to_string()
+            };
+
+            scored_list.push(RecommendedManga {
+                manga_id: id,
+                slug_url,
+                name,
+                rus_name,
+                cover_url,
+                cover_thumb_url,
+                manga_type,
+                rating_average: rating_str,
+                score,
+                reason,
+            });
+        }
+    }
+
+    scored_list.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+    scored_list.truncate(limit as usize);
+
+    Ok(scored_list)
+}
+
 
 

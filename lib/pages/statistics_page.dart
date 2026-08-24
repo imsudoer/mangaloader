@@ -17,12 +17,19 @@ class StatisticsPage extends ConsumerWidget {
       ),
       body: statsAsync.when(
         data: (stats) => RefreshIndicator(
-          onRefresh: () async => ref.invalidate(statisticsProvider),
+          onRefresh: () async {
+            ref.invalidate(statisticsProvider);
+            ref.invalidate(readingSessionStatsProvider);
+          },
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
               // Summary 2x3 Grid
               _buildSummarySection(stats, isRu),
+              const SizedBox(height: 20),
+
+              // Real Reading Time Section
+              _buildReadingTimeSection(ref, isRu),
               const SizedBox(height: 20),
 
               // Genres Section
@@ -296,6 +303,79 @@ class StatisticsPage extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildReadingTimeSection(WidgetRef ref, bool isRu) {
+    final sessionAsync = ref.watch(readingSessionStatsProvider);
+
+    return sessionAsync.when(
+      data: (sessions) {
+        String formatSecs(int secs) {
+          if (secs <= 0) return '0м';
+          final h = secs ~/ 3600;
+          final m = (secs % 3600) ~/ 60;
+          if (h > 0) {
+            return isRu ? '$h ч $m м' : '${h}h ${m}m';
+          }
+          return isRu ? '$m м' : '${m}m';
+        }
+
+        return Card(
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: const BorderSide(color: Color(0xFF353535), width: 0.8),
+          ),
+          color: const Color(0xFF1E1E1E),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.timer_outlined, size: 20, color: Color(0xFF64B5F6)),
+                    const SizedBox(width: 8),
+                    Text(
+                      isRu ? 'Время за чтением' : 'Reading Time Tracker',
+                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    Column(
+                      children: [
+                        Text(formatSecs(sessions.todayReadingSeconds), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
+                        Text(isRu ? 'Сегодня' : 'Today', style: const TextStyle(fontSize: 11, color: Color(0xFFBDBBB0))),
+                      ],
+                    ),
+                    Container(width: 1, height: 28, color: const Color(0xFF353535)),
+                    Column(
+                      children: [
+                        Text(formatSecs(sessions.weekReadingSeconds), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF81C784))),
+                        Text(isRu ? 'За 7 дней' : 'Last 7 Days', style: const TextStyle(fontSize: 11, color: Color(0xFFBDBBB0))),
+                      ],
+                    ),
+                    Container(width: 1, height: 28, color: const Color(0xFF353535)),
+                    Column(
+                      children: [
+                        Text(formatSecs(sessions.totalReadingSeconds), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFFFFB74D))),
+                        Text(isRu ? 'Всего' : 'All Time', style: const TextStyle(fontSize: 11, color: Color(0xFFBDBBB0))),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
     );
   }
 }

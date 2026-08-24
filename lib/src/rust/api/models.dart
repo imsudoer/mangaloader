@@ -7,7 +7,7 @@ import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ContentFilterItem`, `LibraryUpdateItem`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 
 class AppSettingItem {
   final String key;
@@ -1096,6 +1096,65 @@ class Person {
           slug == other.slug;
 }
 
+class ReadingHistoryItem {
+  final PlatformInt64 mangaId;
+  final String slugUrl;
+  final String name;
+  final String rusName;
+  final String coverUrl;
+  final String volume;
+  final String number;
+  final bool isCompleted;
+  final String lastReadAt;
+  final PlatformInt64 totalPages;
+  final PlatformInt64 pageIndex;
+
+  const ReadingHistoryItem({
+    required this.mangaId,
+    required this.slugUrl,
+    required this.name,
+    required this.rusName,
+    required this.coverUrl,
+    required this.volume,
+    required this.number,
+    required this.isCompleted,
+    required this.lastReadAt,
+    required this.totalPages,
+    required this.pageIndex,
+  });
+
+  @override
+  int get hashCode =>
+      mangaId.hashCode ^
+      slugUrl.hashCode ^
+      name.hashCode ^
+      rusName.hashCode ^
+      coverUrl.hashCode ^
+      volume.hashCode ^
+      number.hashCode ^
+      isCompleted.hashCode ^
+      lastReadAt.hashCode ^
+      totalPages.hashCode ^
+      pageIndex.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ReadingHistoryItem &&
+          runtimeType == other.runtimeType &&
+          mangaId == other.mangaId &&
+          slugUrl == other.slugUrl &&
+          name == other.name &&
+          rusName == other.rusName &&
+          coverUrl == other.coverUrl &&
+          volume == other.volume &&
+          number == other.number &&
+          isCompleted == other.isCompleted &&
+          lastReadAt == other.lastReadAt &&
+          totalPages == other.totalPages &&
+          pageIndex == other.pageIndex;
+}
+
 class ReadingPosition {
   final PlatformInt64 mangaId;
   final String chapterVolume;
@@ -1133,6 +1192,41 @@ class ReadingPosition {
           pageIndex == other.pageIndex &&
           scrollPosition == other.scrollPosition &&
           lastReadAt == other.lastReadAt;
+}
+
+class ReadingSessionInfo {
+  final PlatformInt64 totalReadingSeconds;
+  final PlatformInt64 totalSessions;
+  final PlatformInt64 avgSessionSeconds;
+  final PlatformInt64 todayReadingSeconds;
+  final PlatformInt64 weekReadingSeconds;
+
+  const ReadingSessionInfo({
+    required this.totalReadingSeconds,
+    required this.totalSessions,
+    required this.avgSessionSeconds,
+    required this.todayReadingSeconds,
+    required this.weekReadingSeconds,
+  });
+
+  @override
+  int get hashCode =>
+      totalReadingSeconds.hashCode ^
+      totalSessions.hashCode ^
+      avgSessionSeconds.hashCode ^
+      todayReadingSeconds.hashCode ^
+      weekReadingSeconds.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ReadingSessionInfo &&
+          runtimeType == other.runtimeType &&
+          totalReadingSeconds == other.totalReadingSeconds &&
+          totalSessions == other.totalSessions &&
+          avgSessionSeconds == other.avgSessionSeconds &&
+          todayReadingSeconds == other.todayReadingSeconds &&
+          weekReadingSeconds == other.weekReadingSeconds;
 }
 
 class ReadingStatistics {
@@ -1274,6 +1368,61 @@ class RecapMangaItem {
           rusName == other.rusName &&
           coverUrl == other.coverUrl &&
           chaptersRead == other.chaptersRead;
+}
+
+class RecommendedManga {
+  final PlatformInt64 mangaId;
+  final String slugUrl;
+  final String name;
+  final String rusName;
+  final String coverUrl;
+  final String coverThumbUrl;
+  final String mangaType;
+  final String ratingAverage;
+  final double score;
+  final String reason;
+
+  const RecommendedManga({
+    required this.mangaId,
+    required this.slugUrl,
+    required this.name,
+    required this.rusName,
+    required this.coverUrl,
+    required this.coverThumbUrl,
+    required this.mangaType,
+    required this.ratingAverage,
+    required this.score,
+    required this.reason,
+  });
+
+  @override
+  int get hashCode =>
+      mangaId.hashCode ^
+      slugUrl.hashCode ^
+      name.hashCode ^
+      rusName.hashCode ^
+      coverUrl.hashCode ^
+      coverThumbUrl.hashCode ^
+      mangaType.hashCode ^
+      ratingAverage.hashCode ^
+      score.hashCode ^
+      reason.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is RecommendedManga &&
+          runtimeType == other.runtimeType &&
+          mangaId == other.mangaId &&
+          slugUrl == other.slugUrl &&
+          name == other.name &&
+          rusName == other.rusName &&
+          coverUrl == other.coverUrl &&
+          coverThumbUrl == other.coverThumbUrl &&
+          mangaType == other.mangaType &&
+          ratingAverage == other.ratingAverage &&
+          score == other.score &&
+          reason == other.reason;
 }
 
 class Tag {

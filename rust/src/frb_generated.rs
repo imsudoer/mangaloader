@@ -38,7 +38,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.12.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 666644794;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -364540959;
 
 // Section: executor
 
@@ -270,6 +270,41 @@ fn wire__crate__api__download_engine__cancel_downloads_impl(
         },
     )
 }
+fn wire__crate__api__storage__clear_reading_history_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "clear_reading_history",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || async move {
+                        let output_ok = crate::api::storage::clear_reading_history().await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__storage__create_custom_list_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -455,6 +490,49 @@ fn wire__crate__api__mangalib_client__delete_manga_bookmark_impl(
                         let output_ok =
                             crate::api::mangalib_client::delete_manga_bookmark(api_bookmark_id)
                                 .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__storage__delete_reading_history_item_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "delete_reading_history_item",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_manga_id = <i64>::sse_decode(&mut deserializer);
+            let api_volume = <String>::sse_decode(&mut deserializer);
+            let api_number = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || async move {
+                        let output_ok = crate::api::storage::delete_reading_history_item(
+                            api_manga_id,
+                            api_volume,
+                            api_number,
+                        )
+                        .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -1845,6 +1923,44 @@ fn wire__crate__api__mangalib_client__get_notification_count_impl(
         },
     )
 }
+fn wire__crate__api__storage__get_reading_history_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "get_reading_history",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_limit = <i64>::sse_decode(&mut deserializer);
+            let api_offset = <i64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::storage::get_reading_history(api_limit, api_offset).await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__storage__get_reading_progress_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -1874,6 +1990,41 @@ fn wire__crate__api__storage__get_reading_progress_impl(
                     (move || async move {
                         let output_ok =
                             crate::api::storage::get_reading_progress(api_manga_id).await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__storage__get_reading_session_stats_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "get_reading_session_stats",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || async move {
+                        let output_ok = crate::api::storage::get_reading_session_stats().await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -1944,6 +2095,42 @@ fn wire__crate__api__storage__get_reading_streak_impl(
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || async move {
                         let output_ok = crate::api::storage::get_reading_streak().await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__storage__get_recommendations_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "get_recommendations",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_limit = <i64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || async move {
+                        let output_ok = crate::api::storage::get_recommendations(api_limit).await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -2666,6 +2853,45 @@ fn wire__crate__api__storage__record_chapter_read_for_streak_impl(
                     (move || async move {
                         let output_ok =
                             crate::api::storage::record_chapter_read_for_streak().await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__storage__record_reading_session_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "record_reading_session",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_manga_id = <i64>::sse_decode(&mut deserializer);
+            let api_seconds = <i64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::storage::record_reading_session(api_manga_id, api_seconds)
+                                .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -3998,6 +4224,20 @@ impl SseDecode for Vec<u8> {
     }
 }
 
+impl SseDecode for Vec<crate::api::models::ReadingHistoryItem> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::models::ReadingHistoryItem>::sse_decode(
+                deserializer,
+            ));
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for Vec<crate::api::models::RecapMangaItem> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -4005,6 +4245,20 @@ impl SseDecode for Vec<crate::api::models::RecapMangaItem> {
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
             ans_.push(<crate::api::models::RecapMangaItem>::sse_decode(
+                deserializer,
+            ));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::models::RecommendedManga> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::models::RecommendedManga>::sse_decode(
                 deserializer,
             ));
         }
@@ -4328,6 +4582,36 @@ impl SseDecode for crate::api::models::Person {
     }
 }
 
+impl SseDecode for crate::api::models::ReadingHistoryItem {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_mangaId = <i64>::sse_decode(deserializer);
+        let mut var_slugUrl = <String>::sse_decode(deserializer);
+        let mut var_name = <String>::sse_decode(deserializer);
+        let mut var_rusName = <String>::sse_decode(deserializer);
+        let mut var_coverUrl = <String>::sse_decode(deserializer);
+        let mut var_volume = <String>::sse_decode(deserializer);
+        let mut var_number = <String>::sse_decode(deserializer);
+        let mut var_isCompleted = <bool>::sse_decode(deserializer);
+        let mut var_lastReadAt = <String>::sse_decode(deserializer);
+        let mut var_totalPages = <i64>::sse_decode(deserializer);
+        let mut var_pageIndex = <i64>::sse_decode(deserializer);
+        return crate::api::models::ReadingHistoryItem {
+            manga_id: var_mangaId,
+            slug_url: var_slugUrl,
+            name: var_name,
+            rus_name: var_rusName,
+            cover_url: var_coverUrl,
+            volume: var_volume,
+            number: var_number,
+            is_completed: var_isCompleted,
+            last_read_at: var_lastReadAt,
+            total_pages: var_totalPages,
+            page_index: var_pageIndex,
+        };
+    }
+}
+
 impl SseDecode for crate::api::models::ReadingPosition {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -4344,6 +4628,24 @@ impl SseDecode for crate::api::models::ReadingPosition {
             page_index: var_pageIndex,
             scroll_position: var_scrollPosition,
             last_read_at: var_lastReadAt,
+        };
+    }
+}
+
+impl SseDecode for crate::api::models::ReadingSessionInfo {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_totalReadingSeconds = <i64>::sse_decode(deserializer);
+        let mut var_totalSessions = <i64>::sse_decode(deserializer);
+        let mut var_avgSessionSeconds = <i64>::sse_decode(deserializer);
+        let mut var_todayReadingSeconds = <i64>::sse_decode(deserializer);
+        let mut var_weekReadingSeconds = <i64>::sse_decode(deserializer);
+        return crate::api::models::ReadingSessionInfo {
+            total_reading_seconds: var_totalReadingSeconds,
+            total_sessions: var_totalSessions,
+            avg_session_seconds: var_avgSessionSeconds,
+            today_reading_seconds: var_todayReadingSeconds,
+            week_reading_seconds: var_weekReadingSeconds,
         };
     }
 }
@@ -4417,6 +4719,34 @@ impl SseDecode for crate::api::models::RecapMangaItem {
             rus_name: var_rusName,
             cover_url: var_coverUrl,
             chapters_read: var_chaptersRead,
+        };
+    }
+}
+
+impl SseDecode for crate::api::models::RecommendedManga {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_mangaId = <i64>::sse_decode(deserializer);
+        let mut var_slugUrl = <String>::sse_decode(deserializer);
+        let mut var_name = <String>::sse_decode(deserializer);
+        let mut var_rusName = <String>::sse_decode(deserializer);
+        let mut var_coverUrl = <String>::sse_decode(deserializer);
+        let mut var_coverThumbUrl = <String>::sse_decode(deserializer);
+        let mut var_mangaType = <String>::sse_decode(deserializer);
+        let mut var_ratingAverage = <String>::sse_decode(deserializer);
+        let mut var_score = <f64>::sse_decode(deserializer);
+        let mut var_reason = <String>::sse_decode(deserializer);
+        return crate::api::models::RecommendedManga {
+            manga_id: var_mangaId,
+            slug_url: var_slugUrl,
+            name: var_name,
+            rus_name: var_rusName,
+            cover_url: var_coverUrl,
+            cover_thumb_url: var_coverThumbUrl,
+            manga_type: var_mangaType,
+            rating_average: var_ratingAverage,
+            score: var_score,
+            reason: var_reason,
         };
     }
 }
@@ -4543,285 +4873,312 @@ fn pde_ffi_dispatcher_primary_impl(
             wire__crate__api__storage__bulk_import_bookmarks_impl(port, ptr, rust_vec_len, data_len)
         }
         5 => wire__crate__api__storage__cache_chapters_impl(port, ptr, rust_vec_len, data_len),
-        7 => wire__crate__api__storage__create_custom_list_impl(port, ptr, rust_vec_len, data_len),
-        8 => wire__crate__api__storage__delete_custom_list_impl(port, ptr, rust_vec_len, data_len),
-        9 => wire__crate__api__storage__delete_downloaded_chapter_impl(
-            port,
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        10 => wire__crate__api__storage__delete_downloaded_manga_impl(
-            port,
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        11 => wire__crate__api__mangalib_client__delete_manga_bookmark_impl(
-            port,
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        12 => wire__crate__api__mangalib_client__download_image_impl(
-            port,
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        13 => wire__crate__api__storage__export_backup_json_impl(port, ptr, rust_vec_len, data_len),
-        14 => wire__crate__api__cbz_export__export_chapter_as_cbz_impl(
-            port,
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        15 => wire__crate__api__storage__export_mal_xml_impl(port, ptr, rust_vec_len, data_len),
-        16 => wire__crate__api__cbz_export__export_manga_as_cbz_impl(
-            port,
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        17 => wire__crate__api__mangalib_client__find_working_cdn_impl(
-            port,
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        18 => {
-            wire__crate__api__storage__get_all_custom_tags_impl(port, ptr, rust_vec_len, data_len)
+        7 => {
+            wire__crate__api__storage__clear_reading_history_impl(port, ptr, rust_vec_len, data_len)
         }
-        19 => wire__crate__api__storage__get_all_downloaded_chapters_impl(
+        8 => wire__crate__api__storage__create_custom_list_impl(port, ptr, rust_vec_len, data_len),
+        9 => wire__crate__api__storage__delete_custom_list_impl(port, ptr, rust_vec_len, data_len),
+        10 => wire__crate__api__storage__delete_downloaded_chapter_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        11 => wire__crate__api__storage__delete_downloaded_manga_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        12 => wire__crate__api__mangalib_client__delete_manga_bookmark_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        13 => wire__crate__api__storage__delete_reading_history_item_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        14 => wire__crate__api__mangalib_client__download_image_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        15 => wire__crate__api__storage__export_backup_json_impl(port, ptr, rust_vec_len, data_len),
+        16 => wire__crate__api__cbz_export__export_chapter_as_cbz_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        17 => wire__crate__api__storage__export_mal_xml_impl(port, ptr, rust_vec_len, data_len),
+        18 => wire__crate__api__cbz_export__export_manga_as_cbz_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        19 => wire__crate__api__mangalib_client__find_working_cdn_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
         20 => {
+            wire__crate__api__storage__get_all_custom_tags_impl(port, ptr, rust_vec_len, data_len)
+        }
+        21 => wire__crate__api__storage__get_all_downloaded_chapters_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        22 => {
             wire__crate__api__storage__get_all_library_manga_impl(port, ptr, rust_vec_len, data_len)
         }
-        21 => wire__crate__api__storage__get_all_settings_impl(port, ptr, rust_vec_len, data_len),
-        23 => {
+        23 => wire__crate__api__storage__get_all_settings_impl(port, ptr, rust_vec_len, data_len),
+        25 => {
             wire__crate__api__storage__get_cached_chapters_impl(port, ptr, rust_vec_len, data_len)
         }
-        24 => wire__crate__api__storage__get_cached_manga_impl(port, ptr, rust_vec_len, data_len),
-        25 => {
+        26 => wire__crate__api__storage__get_cached_manga_impl(port, ptr, rust_vec_len, data_len),
+        27 => {
             wire__crate__api__mangalib_client__get_catalog_impl(port, ptr, rust_vec_len, data_len)
         }
-        26 => {
+        28 => {
             wire__crate__api__cbz_export__get_cbz_page_count_impl(port, ptr, rust_vec_len, data_len)
         }
-        27 => {
+        29 => {
             wire__crate__api__storage__get_chapter_history_impl(port, ptr, rust_vec_len, data_len)
         }
-        28 => wire__crate__api__mangalib_client__get_chapter_pages_impl(
+        30 => wire__crate__api__mangalib_client__get_chapter_pages_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        29 => {
+        31 => {
             wire__crate__api__mangalib_client__get_chapters_impl(port, ptr, rust_vec_len, data_len)
         }
-        30 => {
+        32 => {
             wire__crate__api__mangalib_client__get_constants_impl(port, ptr, rust_vec_len, data_len)
         }
-        31 => wire__crate__api__storage__get_continue_reading_manga_impl(
+        33 => wire__crate__api__storage__get_continue_reading_manga_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        32 => wire__crate__api__storage__get_custom_list_entries_impl(
+        34 => wire__crate__api__storage__get_custom_list_entries_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        33 => wire__crate__api__storage__get_custom_lists_impl(port, ptr, rust_vec_len, data_len),
-        34 => wire__crate__api__storage__get_custom_tags_impl(port, ptr, rust_vec_len, data_len),
-        35 => wire__crate__api__storage__get_downloaded_chapters_impl(
+        35 => wire__crate__api__storage__get_custom_lists_impl(port, ptr, rust_vec_len, data_len),
+        36 => wire__crate__api__storage__get_custom_tags_impl(port, ptr, rust_vec_len, data_len),
+        37 => wire__crate__api__storage__get_downloaded_chapters_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        36 => wire__crate__api__storage__get_downloaded_manga_groups_impl(
+        38 => wire__crate__api__storage__get_downloaded_manga_groups_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        37 => {
+        39 => {
             wire__crate__api__mangalib_client__get_homepage_impl(port, ptr, rust_vec_len, data_len)
         }
-        38 => wire__crate__api__mangalib_client__get_latest_site_updates_impl(
+        40 => wire__crate__api__mangalib_client__get_latest_site_updates_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        39 => wire__crate__api__mangalib_client__get_latest_updates_impl(
+        41 => wire__crate__api__mangalib_client__get_latest_updates_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        40 => wire__crate__api__storage__get_list_impl(port, ptr, rust_vec_len, data_len),
-        41 => wire__crate__api__mangalib_client__get_manga_comments_impl(
+        42 => wire__crate__api__storage__get_list_impl(port, ptr, rust_vec_len, data_len),
+        43 => wire__crate__api__mangalib_client__get_manga_comments_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        42 => wire__crate__api__storage__get_manga_custom_lists_impl(
+        44 => wire__crate__api__storage__get_manga_custom_lists_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        43 => wire__crate__api__mangalib_client__get_manga_details_impl(
+        45 => wire__crate__api__mangalib_client__get_manga_details_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        44 => {
+        46 => {
             wire__crate__api__storage__get_manga_list_type_impl(port, ptr, rust_vec_len, data_len)
         }
-        45 => wire__crate__api__storage__get_manga_recap_impl(port, ptr, rust_vec_len, data_len),
-        46 => wire__crate__api__mangalib_client__get_manga_relations_impl(
+        47 => wire__crate__api__storage__get_manga_recap_impl(port, ptr, rust_vec_len, data_len),
+        48 => wire__crate__api__mangalib_client__get_manga_relations_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        47 => wire__crate__api__mangalib_client__get_manga_similar_impl(
+        49 => wire__crate__api__mangalib_client__get_manga_similar_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        48 => wire__crate__api__mangalib_client__get_notification_count_impl(
+        50 => wire__crate__api__mangalib_client__get_notification_count_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        49 => {
+        51 => {
+            wire__crate__api__storage__get_reading_history_impl(port, ptr, rust_vec_len, data_len)
+        }
+        52 => {
             wire__crate__api__storage__get_reading_progress_impl(port, ptr, rust_vec_len, data_len)
         }
-        50 => wire__crate__api__storage__get_reading_statistics_impl(
+        53 => wire__crate__api__storage__get_reading_session_stats_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        51 => wire__crate__api__storage__get_reading_streak_impl(port, ptr, rust_vec_len, data_len),
-        52 => wire__crate__api__storage__get_setting_impl(port, ptr, rust_vec_len, data_len),
-        53 => {
+        54 => wire__crate__api__storage__get_reading_statistics_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        55 => wire__crate__api__storage__get_reading_streak_impl(port, ptr, rust_vec_len, data_len),
+        56 => {
+            wire__crate__api__storage__get_recommendations_impl(port, ptr, rust_vec_len, data_len)
+        }
+        57 => wire__crate__api__storage__get_setting_impl(port, ptr, rust_vec_len, data_len),
+        58 => {
             wire__crate__api__mangalib_client__get_top_views_impl(port, ptr, rust_vec_len, data_len)
         }
-        54 => wire__crate__api__mangalib_client__get_user_bookmarks_impl(
+        59 => wire__crate__api__mangalib_client__get_user_bookmarks_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        55 => wire__crate__api__mangalib_client__get_user_bookmarks_page_impl(
+        60 => wire__crate__api__mangalib_client__get_user_bookmarks_page_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        56 => wire__crate__api__mangalib_client__get_user_detailed_profile_impl(
+        61 => wire__crate__api__mangalib_client__get_user_detailed_profile_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        57 => wire__crate__api__mangalib_client__get_user_privacy_impl(
+        62 => wire__crate__api__mangalib_client__get_user_privacy_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        58 => wire__crate__api__mangalib_client__get_user_profile_impl(
+        63 => wire__crate__api__mangalib_client__get_user_profile_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        59 => wire__crate__api__storage__import_backup_json_impl(port, ptr, rust_vec_len, data_len),
-        60 => wire__crate__api__storage__import_mal_xml_impl(port, ptr, rust_vec_len, data_len),
-        61 => wire__crate__api__storage__init_database_impl(port, ptr, rust_vec_len, data_len),
-        62 => {
+        64 => wire__crate__api__storage__import_backup_json_impl(port, ptr, rust_vec_len, data_len),
+        65 => wire__crate__api__storage__import_mal_xml_impl(port, ptr, rust_vec_len, data_len),
+        66 => wire__crate__api__storage__init_database_impl(port, ptr, rust_vec_len, data_len),
+        67 => {
             wire__crate__api__storage__is_chapter_downloaded_impl(port, ptr, rust_vec_len, data_len)
         }
-        63 => wire__crate__api__models__list_type_as_str_impl(port, ptr, rust_vec_len, data_len),
-        64 => wire__crate__api__models__list_type_from_str_impl(port, ptr, rust_vec_len, data_len),
-        65 => wire__crate__api__storage__mark_chapter_downloaded_impl(
+        68 => wire__crate__api__models__list_type_as_str_impl(port, ptr, rust_vec_len, data_len),
+        69 => wire__crate__api__models__list_type_from_str_impl(port, ptr, rust_vec_len, data_len),
+        70 => wire__crate__api__storage__mark_chapter_downloaded_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        66 => wire__crate__api__storage__mark_chapter_read_impl(port, ptr, rust_vec_len, data_len),
-        69 => wire__crate__api__cbz_export__read_cbz_page_impl(port, ptr, rust_vec_len, data_len),
-        70 => wire__crate__api__storage__record_chapter_read_for_streak_impl(
+        71 => wire__crate__api__storage__mark_chapter_read_impl(port, ptr, rust_vec_len, data_len),
+        74 => wire__crate__api__cbz_export__read_cbz_page_impl(port, ptr, rust_vec_len, data_len),
+        75 => wire__crate__api__storage__record_chapter_read_for_streak_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        71 => wire__crate__api__storage__remove_custom_tag_impl(port, ptr, rust_vec_len, data_len),
-        72 => wire__crate__api__storage__remove_from_custom_list_impl(
+        76 => wire__crate__api__storage__record_reading_session_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        73 => wire__crate__api__storage__remove_from_list_impl(port, ptr, rust_vec_len, data_len),
-        75 => wire__crate__api__storage__save_manga_impl(port, ptr, rust_vec_len, data_len),
-        76 => {
+        77 => wire__crate__api__storage__remove_custom_tag_impl(port, ptr, rust_vec_len, data_len),
+        78 => wire__crate__api__storage__remove_from_custom_list_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        79 => wire__crate__api__storage__remove_from_list_impl(port, ptr, rust_vec_len, data_len),
+        81 => wire__crate__api__storage__save_manga_impl(port, ptr, rust_vec_len, data_len),
+        82 => {
             wire__crate__api__storage__save_reading_progress_impl(port, ptr, rust_vec_len, data_len)
         }
-        77 => {
+        83 => {
             wire__crate__api__mangalib_client__search_manga_impl(port, ptr, rust_vec_len, data_len)
         }
-        78 => {
+        84 => {
             wire__crate__api__mangalib_client__search_users_impl(port, ptr, rust_vec_len, data_len)
         }
-        80 => wire__crate__api__mangalib_client__set_manga_bookmark_impl(
+        86 => wire__crate__api__mangalib_client__set_manga_bookmark_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        81 => wire__crate__api__storage__set_setting_impl(port, ptr, rust_vec_len, data_len),
-        82 => wire__crate__api__download_engine__start_chapter_download_impl(
+        87 => wire__crate__api__storage__set_setting_impl(port, ptr, rust_vec_len, data_len),
+        88 => wire__crate__api__download_engine__start_chapter_download_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        83 => {
+        89 => {
             wire__crate__api__storage__sync_reading_streak_impl(port, ptr, rust_vec_len, data_len)
         }
-        84 => wire__crate__api__storage__update_manga_chapters_count_impl(
+        90 => wire__crate__api__storage__update_manga_chapters_count_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        85 => wire__crate__api__mangalib_client__update_user_privacy_impl(
+        91 => wire__crate__api__mangalib_client__update_user_privacy_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        86 => wire__crate__api__mangalib_client__update_user_profile_impl(
+        92 => wire__crate__api__mangalib_client__update_user_profile_impl(
             port,
             ptr,
             rust_vec_len,
@@ -4840,15 +5197,15 @@ fn pde_ffi_dispatcher_sync_impl(
     // Codec=Pde (Serialization + dispatch), see doc to use other codecs
     match func_id {
         6 => wire__crate__api__download_engine__cancel_downloads_impl(ptr, rust_vec_len, data_len),
-        22 => wire__crate__api__mangalib_client__get_app_architecture_impl(
+        24 => wire__crate__api__mangalib_client__get_app_architecture_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        67 => wire__crate__api__mangalib_client__parse_manga_url_impl(ptr, rust_vec_len, data_len),
-        68 => wire__crate__api__download_engine__pause_downloads_impl(ptr, rust_vec_len, data_len),
-        74 => wire__crate__api__download_engine__resume_downloads_impl(ptr, rust_vec_len, data_len),
-        79 => wire__crate__api__mangalib_client__set_cookies_impl(ptr, rust_vec_len, data_len),
+        72 => wire__crate__api__mangalib_client__parse_manga_url_impl(ptr, rust_vec_len, data_len),
+        73 => wire__crate__api__download_engine__pause_downloads_impl(ptr, rust_vec_len, data_len),
+        80 => wire__crate__api__download_engine__resume_downloads_impl(ptr, rust_vec_len, data_len),
+        85 => wire__crate__api__mangalib_client__set_cookies_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -5559,6 +5916,36 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::models::Person> for crate::ap
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::models::ReadingHistoryItem {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.manga_id.into_into_dart().into_dart(),
+            self.slug_url.into_into_dart().into_dart(),
+            self.name.into_into_dart().into_dart(),
+            self.rus_name.into_into_dart().into_dart(),
+            self.cover_url.into_into_dart().into_dart(),
+            self.volume.into_into_dart().into_dart(),
+            self.number.into_into_dart().into_dart(),
+            self.is_completed.into_into_dart().into_dart(),
+            self.last_read_at.into_into_dart().into_dart(),
+            self.total_pages.into_into_dart().into_dart(),
+            self.page_index.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::models::ReadingHistoryItem
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::models::ReadingHistoryItem>
+    for crate::api::models::ReadingHistoryItem
+{
+    fn into_into_dart(self) -> crate::api::models::ReadingHistoryItem {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::models::ReadingPosition {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -5580,6 +5967,30 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::models::ReadingPosition>
     for crate::api::models::ReadingPosition
 {
     fn into_into_dart(self) -> crate::api::models::ReadingPosition {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::models::ReadingSessionInfo {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.total_reading_seconds.into_into_dart().into_dart(),
+            self.total_sessions.into_into_dart().into_dart(),
+            self.avg_session_seconds.into_into_dart().into_dart(),
+            self.today_reading_seconds.into_into_dart().into_dart(),
+            self.week_reading_seconds.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::models::ReadingSessionInfo
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::models::ReadingSessionInfo>
+    for crate::api::models::ReadingSessionInfo
+{
+    fn into_into_dart(self) -> crate::api::models::ReadingSessionInfo {
         self
     }
 }
@@ -5661,6 +6072,35 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::models::RecapMangaItem>
     for crate::api::models::RecapMangaItem
 {
     fn into_into_dart(self) -> crate::api::models::RecapMangaItem {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::models::RecommendedManga {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.manga_id.into_into_dart().into_dart(),
+            self.slug_url.into_into_dart().into_dart(),
+            self.name.into_into_dart().into_dart(),
+            self.rus_name.into_into_dart().into_dart(),
+            self.cover_url.into_into_dart().into_dart(),
+            self.cover_thumb_url.into_into_dart().into_dart(),
+            self.manga_type.into_into_dart().into_dart(),
+            self.rating_average.into_into_dart().into_dart(),
+            self.score.into_into_dart().into_dart(),
+            self.reason.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::models::RecommendedManga
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::models::RecommendedManga>
+    for crate::api::models::RecommendedManga
+{
+    fn into_into_dart(self) -> crate::api::models::RecommendedManga {
         self
     }
 }
@@ -6273,12 +6713,32 @@ impl SseEncode for Vec<u8> {
     }
 }
 
+impl SseEncode for Vec<crate::api::models::ReadingHistoryItem> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::models::ReadingHistoryItem>::sse_encode(item, serializer);
+        }
+    }
+}
+
 impl SseEncode for Vec<crate::api::models::RecapMangaItem> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
             <crate::api::models::RecapMangaItem>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::models::RecommendedManga> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::models::RecommendedManga>::sse_encode(item, serializer);
         }
     }
 }
@@ -6499,6 +6959,23 @@ impl SseEncode for crate::api::models::Person {
     }
 }
 
+impl SseEncode for crate::api::models::ReadingHistoryItem {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i64>::sse_encode(self.manga_id, serializer);
+        <String>::sse_encode(self.slug_url, serializer);
+        <String>::sse_encode(self.name, serializer);
+        <String>::sse_encode(self.rus_name, serializer);
+        <String>::sse_encode(self.cover_url, serializer);
+        <String>::sse_encode(self.volume, serializer);
+        <String>::sse_encode(self.number, serializer);
+        <bool>::sse_encode(self.is_completed, serializer);
+        <String>::sse_encode(self.last_read_at, serializer);
+        <i64>::sse_encode(self.total_pages, serializer);
+        <i64>::sse_encode(self.page_index, serializer);
+    }
+}
+
 impl SseEncode for crate::api::models::ReadingPosition {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -6508,6 +6985,17 @@ impl SseEncode for crate::api::models::ReadingPosition {
         <i64>::sse_encode(self.page_index, serializer);
         <f64>::sse_encode(self.scroll_position, serializer);
         <String>::sse_encode(self.last_read_at, serializer);
+    }
+}
+
+impl SseEncode for crate::api::models::ReadingSessionInfo {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i64>::sse_encode(self.total_reading_seconds, serializer);
+        <i64>::sse_encode(self.total_sessions, serializer);
+        <i64>::sse_encode(self.avg_session_seconds, serializer);
+        <i64>::sse_encode(self.today_reading_seconds, serializer);
+        <i64>::sse_encode(self.week_reading_seconds, serializer);
     }
 }
 
@@ -6550,6 +7038,22 @@ impl SseEncode for crate::api::models::RecapMangaItem {
         <String>::sse_encode(self.rus_name, serializer);
         <String>::sse_encode(self.cover_url, serializer);
         <i64>::sse_encode(self.chapters_read, serializer);
+    }
+}
+
+impl SseEncode for crate::api::models::RecommendedManga {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i64>::sse_encode(self.manga_id, serializer);
+        <String>::sse_encode(self.slug_url, serializer);
+        <String>::sse_encode(self.name, serializer);
+        <String>::sse_encode(self.rus_name, serializer);
+        <String>::sse_encode(self.cover_url, serializer);
+        <String>::sse_encode(self.cover_thumb_url, serializer);
+        <String>::sse_encode(self.manga_type, serializer);
+        <String>::sse_encode(self.rating_average, serializer);
+        <f64>::sse_encode(self.score, serializer);
+        <String>::sse_encode(self.reason, serializer);
     }
 }
 

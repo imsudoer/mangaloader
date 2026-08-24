@@ -179,7 +179,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
 
   @protected
+  List<ReadingHistoryItem> dco_decode_list_reading_history_item(dynamic raw);
+
+  @protected
   List<RecapMangaItem> dco_decode_list_recap_manga_item(dynamic raw);
+
+  @protected
+  List<RecommendedManga> dco_decode_list_recommended_manga(dynamic raw);
 
   @protected
   List<Tag> dco_decode_list_tag(dynamic raw);
@@ -233,7 +239,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Person dco_decode_person(dynamic raw);
 
   @protected
+  ReadingHistoryItem dco_decode_reading_history_item(dynamic raw);
+
+  @protected
   ReadingPosition dco_decode_reading_position(dynamic raw);
+
+  @protected
+  ReadingSessionInfo dco_decode_reading_session_info(dynamic raw);
 
   @protected
   ReadingStatistics dco_decode_reading_statistics(dynamic raw);
@@ -243,6 +255,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   RecapMangaItem dco_decode_recap_manga_item(dynamic raw);
+
+  @protected
+  RecommendedManga dco_decode_recommended_manga(dynamic raw);
 
   @protected
   Tag dco_decode_tag(dynamic raw);
@@ -435,7 +450,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
 
   @protected
+  List<ReadingHistoryItem> sse_decode_list_reading_history_item(
+      SseDeserializer deserializer);
+
+  @protected
   List<RecapMangaItem> sse_decode_list_recap_manga_item(
+      SseDeserializer deserializer);
+
+  @protected
+  List<RecommendedManga> sse_decode_list_recommended_manga(
       SseDeserializer deserializer);
 
   @protected
@@ -495,7 +518,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Person sse_decode_person(SseDeserializer deserializer);
 
   @protected
+  ReadingHistoryItem sse_decode_reading_history_item(
+      SseDeserializer deserializer);
+
+  @protected
   ReadingPosition sse_decode_reading_position(SseDeserializer deserializer);
+
+  @protected
+  ReadingSessionInfo sse_decode_reading_session_info(
+      SseDeserializer deserializer);
 
   @protected
   ReadingStatistics sse_decode_reading_statistics(SseDeserializer deserializer);
@@ -506,6 +537,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   RecapMangaItem sse_decode_recap_manga_item(SseDeserializer deserializer);
+
+  @protected
+  RecommendedManga sse_decode_recommended_manga(SseDeserializer deserializer);
 
   @protected
   Tag sse_decode_tag(SseDeserializer deserializer);
@@ -713,8 +747,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       Uint8List self, SseSerializer serializer);
 
   @protected
+  void sse_encode_list_reading_history_item(
+      List<ReadingHistoryItem> self, SseSerializer serializer);
+
+  @protected
   void sse_encode_list_recap_manga_item(
       List<RecapMangaItem> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_recommended_manga(
+      List<RecommendedManga> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_tag(List<Tag> self, SseSerializer serializer);
@@ -780,8 +822,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_person(Person self, SseSerializer serializer);
 
   @protected
+  void sse_encode_reading_history_item(
+      ReadingHistoryItem self, SseSerializer serializer);
+
+  @protected
   void sse_encode_reading_position(
       ReadingPosition self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_reading_session_info(
+      ReadingSessionInfo self, SseSerializer serializer);
 
   @protected
   void sse_encode_reading_statistics(
@@ -794,6 +844,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_recap_manga_item(
       RecapMangaItem self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_recommended_manga(
+      RecommendedManga self, SseSerializer serializer);
 
   @protected
   void sse_encode_tag(Tag self, SseSerializer serializer);

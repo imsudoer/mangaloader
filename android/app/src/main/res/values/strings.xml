@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MangaLoader</string>
+    <string name="widget_streak_name">Стрик чтения</string>
+    <string name="widget_streak_description">Показывает текущий стрик чтения и быстрый переход в MangaLoader</string>
+</resources>

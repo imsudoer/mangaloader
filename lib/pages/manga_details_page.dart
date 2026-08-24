@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart' hide DownloadProgress;
 import 'package:window_manager/window_manager.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:mangaloader/providers/manga_provider.dart';
@@ -14,6 +13,7 @@ import 'package:mangaloader/providers/streak_provider.dart';
 import 'package:mangaloader/providers/continue_reading_provider.dart';
 import 'package:mangaloader/widgets/download_button.dart';
 import 'package:mangaloader/widgets/manga_custom_lists_modal.dart';
+import 'package:mangaloader/widgets/manga_share_modal.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mangaloader/src/rust/api/storage.dart' as rust_storage;
 import 'package:mangaloader/src/rust/api/download_engine.dart' as rust_download;
@@ -216,14 +216,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                     IconButton(
                       icon: const Icon(Icons.share_rounded, color: Color(0xFFD2D7DF), size: 20),
                       tooltip: isRu ? 'Поделиться' : 'Share',
-                      onPressed: () {
-                        SharePlus.instance.share(
-                          ShareParams(
-                            text: 'https://mangalib.org/ru/manga/${manga.slugUrl}',
-                            subject: manga.rusName.isNotEmpty ? manga.rusName : manga.name,
-                          ),
-                        );
-                      },
+                      onPressed: () => MangaShareModal.show(context, manga, dynamicAccent),
                     ),
                     IconButton(
                       icon: const Icon(Icons.open_in_browser_rounded, color: Color(0xFFD2D7DF), size: 20),
@@ -256,13 +249,16 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                             BoxShadow(color: Colors.black45, blurRadius: 6, offset: Offset(0, 2)),
                           ],
                         ),
-                        child: CachedNetworkImage(
-                          imageUrl: manga.coverUrl,
-                          httpHeaders: const {'Referer': 'https://mangalib.org/'},
-                          width: 76,
-                          height: 108,
-                          fit: BoxFit.cover,
-                          placeholder: (_, __) => Container(width: 76, height: 108, color: const Color(0xFF353535)),
+                        child: Hero(
+                          tag: 'cover_${manga.slugUrl}',
+                          child: CachedNetworkImage(
+                            imageUrl: manga.coverUrl,
+                            httpHeaders: const {'Referer': 'https://mangalib.org/'},
+                            width: 76,
+                            height: 108,
+                            fit: BoxFit.cover,
+                            placeholder: (_, __) => Container(width: 76, height: 108, color: const Color(0xFF353535)),
+                          ),
                         ),
                       ),
                     ),
@@ -895,6 +891,21 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                           color: isRead ? const Color(0xFFBDBBB0) : Colors.white,
                         ),
                       ),
+                      if (localChapter != null && localChapter.pageCount > 0) ...[
+                        const SizedBox(width: 6),
+                        Text(
+                          isRu ? '• ${localChapter.pageCount} стр.' : '• ${localChapter.pageCount} p.',
+                          style: const TextStyle(fontSize: 11, color: Color(0xFFBDBBB0)),
+                        ),
+                      ] else if (history.any((h) => h.volume == ch.volume && h.number == ch.number && h.totalPages > 0)) ...[
+                        const SizedBox(width: 6),
+                        Text(
+                          isRu
+                              ? '• ${history.firstWhere((h) => h.volume == ch.volume && h.number == ch.number).totalPages} стр.'
+                              : '• ${history.firstWhere((h) => h.volume == ch.volume && h.number == ch.number).totalPages} p.',
+                          style: const TextStyle(fontSize: 11, color: Color(0xFFBDBBB0)),
+                        ),
+                      ],
                       if (isDownloadedLocally) ...[
                         const SizedBox(width: 8),
                         Container(

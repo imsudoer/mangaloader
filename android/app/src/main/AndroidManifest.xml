@@ -33,6 +33,16 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- Deep linking for MangaLib URLs -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="mangalib.me" android:pathPrefix="/ru" />
+                <data android:scheme="https" android:host="mangalib.me" android:pathPrefix="/manga" />
+                <data android:scheme="https" android:host="mangalib.org" android:pathPrefix="/ru" />
+                <data android:scheme="https" android:host="mangalib.org" android:pathPrefix="/manga" />
+            </intent-filter>
         </activity>
 
         <provider
@@ -54,6 +64,17 @@
                 <action android:name="android.intent.action.QUICKBOOT_POWERON" />
                 <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
             </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name=".StreakWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/streak_widget_info" />
         </receiver>
 
         <!-- Don't delete the meta-data below.

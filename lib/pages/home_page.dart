@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mangaloader/src/rust/api/mangalib_client.dart' as rust_api;
+import 'package:mangaloader/src/rust/api/storage.dart' as rust_storage;
 import 'package:mangaloader/src/rust/api/models.dart';
 import 'package:mangaloader/widgets/manga_card.dart';
 import 'package:mangaloader/services/update_checker.dart';
@@ -21,6 +22,10 @@ final topViewsPeriodProvider = StateProvider<String>((ref) => 'day');
 
 final topViewsCustomProvider = FutureProvider.autoDispose.family<List<MangaSearchResult>, String>((ref, time) async {
   return await rust_api.getTopViews(time: time);
+});
+
+final recommendationsProvider = FutureProvider.autoDispose<List<RecommendedManga>>((ref) async {
+  return await rust_storage.getRecommendations(limit: 10);
 });
 
 class HomePage extends ConsumerStatefulWidget {
@@ -83,7 +88,12 @@ class _HomePageState extends ConsumerState<HomePage> {
         ),
         actions: [
           const ReadingStreakButton(),
-          const SizedBox(width: 6),
+          const SizedBox(width: 4),
+          IconButton(
+            icon: const Icon(Icons.history_rounded),
+            tooltip: isRu ? 'История чтения' : 'Reading History',
+            onPressed: () => context.push('/history'),
+          ),
           IconButton(
             icon: const Icon(Icons.search_rounded),
             tooltip: isRu ? 'Каталог и поиск' : 'Catalog & Search',
@@ -116,6 +126,10 @@ class _HomePageState extends ConsumerState<HomePage> {
               // Continue Reading (Always at the top)
               ContinueReadingSection(isRu: isRu),
               const SizedBox(height: 16),
+
+              // Recommendations Section
+              _buildRecommendationsSection(isRu),
+              const SizedBox(height: 20),
 
               // Popular Section
               if (data.popular.isNotEmpty) ...[
@@ -480,6 +494,71 @@ class _HomePageState extends ConsumerState<HomePage> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildRecommendationsSection(bool isRu) {
+    final recAsync = ref.watch(recommendationsProvider);
+
+    return recAsync.when(
+      data: (items) {
+        if (items.isEmpty) return const SizedBox.shrink();
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildSectionHeader(
+              icon: Icons.recommend_rounded,
+              iconColor: const Color(0xFF81C784),
+              title: isRu ? 'Рекомендации для вас' : 'Recommended For You',
+              subtitle: isRu ? 'На основе ваших вкусов' : 'Based on your reading preferences',
+              onSeeAll: () => context.go('/search'),
+              isRu: isRu,
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 230,
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                scrollDirection: Axis.horizontal,
+                itemCount: items.length,
+                itemBuilder: (context, index) {
+                  final rec = items[index];
+                  final mangaSearch = MangaSearchResult(
+                    id: rec.mangaId,
+                    name: rec.name,
+                    rusName: rec.rusName,
+                    engName: '',
+                    slug: '',
+                    slugUrl: rec.slugUrl,
+                    coverUrl: rec.coverUrl,
+                    coverThumbUrl: rec.coverThumbUrl,
+                    mangaType: rec.mangaType,
+                    typeId: 0,
+                    status: '',
+                    statusId: 0,
+                    ageRestriction: '',
+                    ratingAverage: rec.ratingAverage,
+                    ratingVotes: '0',
+                    releaseDate: null,
+                  );
+
+                  return Container(
+                    width: 140,
+                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                    child: MangaCard(
+                      manga: mangaSearch,
+                      onTap: () => context.push('/manga/${rec.slugUrl}'),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        );
+      },
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
     );
   }
 }

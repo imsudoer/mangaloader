@@ -711,21 +711,21 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             ),
             child: InkWell(
               borderRadius: BorderRadius.circular(14),
-              onTap: () => context.push('/achievements'),
+              onTap: () => context.push('/history'),
               child: Padding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
                 child: Column(
                   children: [
-                    const Icon(Icons.emoji_events_rounded, color: Color(0xFFFFD700), size: 28),
-                    const SizedBox(height: 8),
+                    const Icon(Icons.history_rounded, color: Color(0xFF81C784), size: 26),
+                    const SizedBox(height: 6),
                     Text(
-                      isRu ? 'Достижения' : 'Achievements',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      isRu ? 'История' : 'History',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      isRu ? 'Награды и уровни' : 'Rewards & levels',
-                      style: const TextStyle(fontSize: 11, color: Color(0xFFD2D7DF)),
+                      isRu ? 'Прочитанное' : 'Recent reads',
+                      style: const TextStyle(fontSize: 10, color: Color(0xFFD2D7DF)),
                     ),
                   ],
                 ),
@@ -733,7 +733,38 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             ),
           ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Card(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+              side: const BorderSide(color: Color(0xFF353535)),
+            ),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: () => context.push('/achievements'),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+                child: Column(
+                  children: [
+                    const Icon(Icons.emoji_events_rounded, color: Color(0xFFFFD700), size: 26),
+                    const SizedBox(height: 6),
+                    Text(
+                      isRu ? 'Достижения' : 'Awards',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      isRu ? 'Награды' : 'Levels & XP',
+                      style: const TextStyle(fontSize: 10, color: Color(0xFFD2D7DF)),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
         Expanded(
           child: Card(
             shape: RoundedRectangleBorder(
@@ -744,19 +775,19 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               borderRadius: BorderRadius.circular(14),
               onTap: () => context.push('/statistics'),
               child: Padding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
                 child: Column(
                   children: [
-                    const Icon(Icons.bar_chart_rounded, color: Color(0xFF64B5F6), size: 28),
-                    const SizedBox(height: 8),
+                    const Icon(Icons.bar_chart_rounded, color: Color(0xFF64B5F6), size: 26),
+                    const SizedBox(height: 6),
                     Text(
                       isRu ? 'Статистика' : 'Statistics',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      isRu ? 'Аналитика чтения' : 'Reading analytics',
-                      style: const TextStyle(fontSize: 11, color: Color(0xFFD2D7DF)),
+                      isRu ? 'Аналитика' : 'Analytics',
+                      style: const TextStyle(fontSize: 10, color: Color(0xFFD2D7DF)),
                     ),
                   ],
                 ),
