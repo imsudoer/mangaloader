@@ -66,7 +66,6 @@ class ChapterTrackerService {
       try {
         await Workmanager().initialize(
           callbackDispatcher,
-          isInDebugMode: false,
         );
         await Workmanager().registerPeriodicTask(
           kBackgroundSyncTask,
@@ -75,7 +74,7 @@ class ChapterTrackerService {
           constraints: Constraints(
             networkType: NetworkType.connected,
           ),
-          existingWorkPolicy: ExistingWorkPolicy.keep,
+          existingWorkPolicy: ExistingPeriodicWorkPolicy.keep,
         );
       } catch (e) {
         debugPrint('Workmanager init error: $e');
