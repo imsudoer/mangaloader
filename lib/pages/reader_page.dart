@@ -383,6 +383,29 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
           } else {
             _nextChapter = null;
           }
+        } else if (_allChapters.isNotEmpty) {
+          final prevList = _allChapters.where((c) {
+            final v = double.tryParse(c.volume) ?? 0.0;
+            final n = double.tryParse(c.number) ?? 0.0;
+            return (v < currentVol) || (v == currentVol && n < currentNum);
+          }).toList();
+          if (prevList.isNotEmpty) {
+            _prevChapter = prevList.last;
+          } else {
+            _prevChapter = null;
+          }
+
+          final nextList = _allChapters.where((c) {
+            final v = double.tryParse(c.volume) ?? 0.0;
+            final n = double.tryParse(c.number) ?? 0.0;
+            return (v > currentVol) || (v == currentVol && n > currentNum);
+          }).toList();
+          if (nextList.isNotEmpty) {
+            _nextChapter = nextList.first;
+            _prefetchNextChapter(_nextChapter!);
+          } else {
+            _nextChapter = null;
+          }
         }
       } else if (widget.localCbzPath != null && widget.localCbzPath!.isNotEmpty) {
         final file = File(widget.localCbzPath!);
@@ -545,9 +568,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   }
 
   void _onPageChanged(int index) {
-    _currentPageIndex = index;
-    _pageIndexNotifier.value = index;
-    if (!_isDownloaded) _preloadImages(index);
+    _currentPageIndex = index.clamp(0, _totalPages > 0 ? _totalPages - 1 : 0);
+    _pageIndexNotifier.value = _currentPageIndex;
+    if (!_isDownloaded && index < _totalPages) _preloadImages(index);
     _scheduleSaveProgress();
 
     if (_nextChapter != null && !_isNextChapterPrefetched && index >= _totalPages - 3) {
@@ -1420,11 +1443,21 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     } else {
       return PageView.builder(
         controller: _pageController!,
-        itemCount: _totalPages,
+        itemCount: _totalPages + 1,
         reverse: _readMode == ReadMode.rtl,
         onPageChanged: _onPageChanged,
         physics: const ClampingScrollPhysics(),
         itemBuilder: (context, index) {
+          if (index == _totalPages) {
+            return Center(
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: _buildNextChapterSwipeCard(isRu),
+                ),
+              ),
+            );
+          }
           return _HorizontalReaderPageItem(
             key: ValueKey('h_page_$index'),
             index: index,
@@ -1748,7 +1781,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   }
 
   Widget _buildNextChapterSwipeCard(bool isRu) {
-    if (_nextChapter == null) {
+    if (_nextChapter == null && _nextLocalCbzPath == null) {
       return Container(
         margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 36),
         padding: const EdgeInsets.all(24),
@@ -1772,11 +1805,42 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
               style: const TextStyle(fontSize: 12, color: Color(0xFFBDBBB0)),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 16),
+            if (_prevChapter != null || _prevLocalCbzPath != null) ...[
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white70,
+                  side: const BorderSide(color: Color(0xFF484848)),
+                  minimumSize: const Size.fromHeight(42),
+                ),
+                onPressed: _navigateToPrevChapter,
+                icon: const Icon(Icons.arrow_back_rounded, size: 18),
+                label: Text(
+                  _prevChapter != null 
+                    ? (isRu ? 'Предыдущая: Том ${_prevChapter!.volume} Гл. ${_prevChapter!.number}' : 'Previous Chapter')
+                    : (isRu ? 'Предыдущая глава' : 'Previous Chapter'),
+                ),
+              ),
+              const SizedBox(height: 10),
+            ],
+            if (_allChapters.isNotEmpty) ...[
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFFD2D7DF),
+                  side: const BorderSide(color: Color(0xFF8A897C)),
+                  minimumSize: const Size.fromHeight(42),
+                ),
+                onPressed: _showChapterListDialog,
+                icon: const Icon(Icons.format_list_bulleted_rounded, size: 18),
+                label: Text(isRu ? 'Список всех глав' : 'All Chapters'),
+              ),
+              const SizedBox(height: 10),
+            ],
             OutlinedButton.icon(
               style: OutlinedButton.styleFrom(
                 foregroundColor: const Color(0xFF8A897C),
                 side: const BorderSide(color: Color(0xFF8A897C)),
+                minimumSize: const Size.fromHeight(42),
               ),
               onPressed: () async {
                 await _findNextChapter();
@@ -1824,14 +1888,21 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
             ],
           ),
           const SizedBox(height: 14),
-          Text(
-            isRu 
-              ? 'Следующая: Том ${_nextChapter!.volume} Глава ${_nextChapter!.number}' 
-              : 'Next: Volume ${_nextChapter!.volume} Chapter ${_nextChapter!.number}',
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
-            textAlign: TextAlign.center,
-          ),
-          if (_nextChapter!.name != null && _nextChapter!.name!.isNotEmpty) ...[
+          if (_nextChapter != null)
+            Text(
+              isRu 
+                ? 'Следующая: Том ${_nextChapter!.volume} Глава ${_nextChapter!.number}' 
+                : 'Next: Volume ${_nextChapter!.volume} Chapter ${_nextChapter!.number}',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
+              textAlign: TextAlign.center,
+            )
+          else if (_nextLocalCbzPath != null)
+            Text(
+              isRu ? 'Следующая глава' : 'Next Chapter',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
+              textAlign: TextAlign.center,
+            ),
+          if (_nextChapter?.name != null && _nextChapter!.name!.isNotEmpty) ...[
             const SizedBox(height: 4),
             Text(
               _nextChapter!.name!,
@@ -1844,19 +1915,47 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
             style: FilledButton.styleFrom(
               backgroundColor: const Color(0xFF8A897C),
               foregroundColor: Colors.white,
-              minimumSize: const Size.fromHeight(46),
+              minimumSize: const Size.fromHeight(48),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
-            onPressed: () {
-              final branchQ = _nextChapter!.branchId != null ? "?branchId=${_nextChapter!.branchId}" : "";
-              context.pushReplacement('/read/${widget.slugUrl}/${_nextChapter!.volume}/${_nextChapter!.number}$branchQ');
-            },
+            onPressed: _navigateToNextChapter,
             icon: const Icon(Icons.arrow_forward_rounded, size: 20),
             label: Text(
               isRu ? 'Читать следующую главу' : 'Read Next Chapter',
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
             ),
           ),
+          if (_allChapters.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.white70,
+                side: const BorderSide(color: Color(0xFF484848)),
+                minimumSize: const Size.fromHeight(42),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              onPressed: _showChapterListDialog,
+              icon: const Icon(Icons.format_list_bulleted_rounded, size: 18),
+              label: Text(isRu ? 'Список глав' : 'Chapter List'),
+            ),
+          ],
+          if (_prevChapter != null || _prevLocalCbzPath != null) ...[
+            const SizedBox(height: 10),
+            TextButton.icon(
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.white60,
+                minimumSize: const Size.fromHeight(38),
+              ),
+              onPressed: _navigateToPrevChapter,
+              icon: const Icon(Icons.arrow_back_rounded, size: 16),
+              label: Text(
+                _prevChapter != null
+                  ? (isRu ? 'Предыдущая: Том ${_prevChapter!.volume} Гл. ${_prevChapter!.number}' : 'Previous Chapter')
+                  : (isRu ? 'Предыдущая глава' : 'Previous Chapter'),
+                style: const TextStyle(fontSize: 13),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -1961,6 +2060,7 @@ class _VerticalReaderPageItemState extends State<_VerticalReaderPageItem> with A
         content = Image.memory(
           _cbzBytes!,
           fit: BoxFit.fitWidth,
+          filterQuality: FilterQuality.high,
           alignment: Alignment.topCenter,
           gaplessPlayback: true,
         );
@@ -1981,15 +2081,13 @@ class _VerticalReaderPageItemState extends State<_VerticalReaderPageItem> with A
       }
     } else if (widget.index < widget.onlinePages.length) {
       final pageUrl = widget.resolveImageUrl(widget.onlinePages[widget.index].url);
-      final dpr = MediaQuery.of(context).devicePixelRatio;
-      final memWidth = (itemWidth * dpr).toInt().clamp(300, 2560);
 
       content = CachedNetworkImage(
         imageUrl: pageUrl,
         httpHeaders: const {'Referer': 'https://mangalib.org/'},
         fit: BoxFit.fitWidth,
+        filterQuality: FilterQuality.high,
         alignment: Alignment.topCenter,
-        memCacheWidth: memWidth,
         placeholder: (ctx, url) => Container(
           height: placeholderHeight,
           color: const Color(0xFF181818),
@@ -2033,12 +2131,20 @@ class _VerticalReaderPageItemState extends State<_VerticalReaderPageItem> with A
       );
     }
 
-    return Container(
-      padding: const EdgeInsets.only(bottom: 1),
-      child: Center(
-        child: SizedBox(
-          width: itemWidth,
-          child: widget.applyColorFilter(content),
+    return InteractiveViewer(
+      minScale: 1.0,
+      maxScale: 4.5,
+      panEnabled: true,
+      scaleEnabled: true,
+      clipBehavior: Clip.none,
+      child: Container(
+        padding: const EdgeInsets.only(bottom: 1),
+        width: itemWidth,
+        child: Center(
+          child: SizedBox(
+            width: itemWidth,
+            child: widget.applyColorFilter(content),
+          ),
         ),
       ),
     );
@@ -2126,6 +2232,7 @@ class _HorizontalReaderPageItemState extends State<_HorizontalReaderPageItem> wi
         content = Image.memory(
           _cbzBytes!,
           fit: widget.boxFit,
+          filterQuality: FilterQuality.high,
           gaplessPlayback: true,
         );
       } else if (_cbzError) {
@@ -2141,15 +2248,12 @@ class _HorizontalReaderPageItemState extends State<_HorizontalReaderPageItem> wi
       }
     } else if (widget.index < widget.onlinePages.length) {
       final pageUrl = widget.resolveImageUrl(widget.onlinePages[widget.index].url);
-      final screenWidth = MediaQuery.of(context).size.width;
-      final dpr = MediaQuery.of(context).devicePixelRatio;
-      final memWidth = (screenWidth * widget.zoomLevel * dpr).toInt().clamp(300, 2560);
       
       content = CachedNetworkImage(
         imageUrl: pageUrl,
         httpHeaders: const {'Referer': 'https://mangalib.org/'},
         fit: widget.boxFit,
-        memCacheWidth: memWidth,
+        filterQuality: FilterQuality.high,
         placeholder: (ctx, url) => const AspectRatio(aspectRatio: 0.7, child: Center(child: CircularProgressIndicator())),
         errorWidget: (ctx, url, err) => InkWell(
           onTap: () => widget.reloadImage(pageUrl),

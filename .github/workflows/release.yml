@@ -387,6 +387,17 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install RuStore Publish Dependencies
+        run: pip install requests cryptography
+
       - name: Download Android Artifacts
         uses: actions/download-artifact@v4
         with:
@@ -397,15 +408,7 @@ jobs:
         env:
           RUSTORE_KEY_ID: ${{ secrets.RUSTORE_KEY_ID }}
           RUSTORE_PRIVATE_KEY: ${{ secrets.RUSTORE_PRIVATE_KEY }}
-          RUSTORE_APP_ID: ${{ secrets.RUSTORE_APP_ID || '2063748873' }}
+          RUSTORE_PACKAGE_NAME: 'bshv.mangaloader.app'
+          RUSTORE_APK_PATH: 'apks/mangaloader-android-universal.apk'
         run: |
-          if [ -z "$RUSTORE_KEY_ID" ] || [ -z "$RUSTORE_PRIVATE_KEY" ]; then
-            echo "RuStore API ключи (RUSTORE_KEY_ID / RUSTORE_PRIVATE_KEY) пока не настроены в GitHub Secrets."
-            echo "Шаг пропущен. Когда модерация завершится, добавьте ключи в настройки репозитория для автопубликации."
-            exit 0
-          fi
-          echo "Публикация версии в RuStore..."
-          # RuStore API Upload & Publish
-          # 1. Exchange keyId + privateKey for JWT token
-          # 2. Upload APK to https://public-api.rustore.ru/public/v1/application/${RUSTORE_APP_ID}/version
-          # 3. Commit version to moderation
+          python3 scripts/publish_rustore.py

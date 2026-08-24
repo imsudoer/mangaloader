@@ -26,7 +26,7 @@ android {
 
     defaultConfig {
         applicationId = "bshv.mangaloader.app"
-        minSdk = 30
+        minSdk = 24
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName

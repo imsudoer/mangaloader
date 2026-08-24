@@ -3,6 +3,7 @@
 *.log
 *.pyc
 *.py
+!scripts/*.py
 *.swp
 .DS_Store
 .atom/
