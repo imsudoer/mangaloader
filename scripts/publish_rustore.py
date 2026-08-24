@@ -128,58 +128,70 @@ def authenticate(key_id: str, private_key_pem: str) -> str:
 
 def create_or_get_draft_version(token: str, package_name: str, whats_new: str) -> int:
     headers = {"Public-Token": token}
-    create_url = f"{RUSTORE_API_BASE}/public/v1/application/{package_name}/version"
-    payload = {
-        "publishType": "INSTANTLY",
-        "whatsNew": whats_new if whats_new else "Bug fixes and performance improvements."
-    }
+    whats_new_text = whats_new if whats_new else "Bug fixes and performance improvements."
     
-    print(f"Creating new RuStore version draft for {package_name}...")
-    res = requests.post(create_url, json=payload, headers=headers, timeout=30)
-    if res.status_code in (200, 201):
-        data = res.json()
-        body = data.get("body")
-        if isinstance(body, int):
-            version_id = body
-        elif isinstance(body, dict):
-            version_id = body.get("versionId") or body.get("id")
-        else:
-            version_id = data.get("versionId")
-        print(f"Created version draft with versionId: {version_id}")
-        return int(version_id)
-        
-    # If direct creation failed (e.g. draft already exists), query existing versions
-    print(f"Draft creation notice (HTTP {res.status_code}): {res.text}")
-    list_url = f"{RUSTORE_API_BASE}/public/v1/application/{package_name}/version"
-    try:
-        res_list = requests.get(list_url, headers=headers, timeout=30)
-        if res_list.status_code == 200:
-            ldata = res_list.json().get("body", {})
-            items = ldata.get("content", []) if isinstance(ldata, dict) else (ldata if isinstance(ldata, list) else [])
-            for item in items:
-                status = item.get("versionStatus") or item.get("status")
-                vid = item.get("versionId") or item.get("id")
-                if status == "DRAFT" and vid:
-                    print(f"Found active DRAFT with versionId: {vid}")
-                    # Delete stale draft to re-create clean draft
-                    try:
-                        del_url = f"{RUSTORE_API_BASE}/public/v1/application/{package_name}/version/{vid}"
-                        del_res = requests.delete(del_url, headers=headers, timeout=15)
-                        if del_res.status_code in (200, 204):
-                            print(f"Deleted old draft {vid}. Creating fresh draft...")
-                            retry_res = requests.post(create_url, json=payload, headers=headers, timeout=30)
-                            if retry_res.status_code in (200, 201):
-                                rdata = retry_res.json()
-                                rbody = rdata.get("body")
-                                new_vid = rbody if isinstance(rbody, int) else (rbody.get("versionId") if isinstance(rbody, dict) else rdata.get("versionId"))
-                                return int(new_vid)
-                    except Exception as e:
-                        print(f"Draft delete notice: {e}")
-                    return int(vid)
-    except Exception as e:
-        print(f"List check notice: {e}")
+    # 1. Query existing versions first to check for DRAFT or active versions
+    print(f"Checking existing versions for {package_name}...")
+    version_endpoints = [
+        f"{RUSTORE_API_BASE}/public/v1/application/{package_name}/version?versionStatuses=DRAFT,MODERATION,REVIEW,READY_FOR_PUBLICATION,ACTIVE,REJECTED_BY_MODERATOR",
+        f"{RUSTORE_API_BASE}/public/v1/application/{package_name}/version?versionStatuses=DRAFT",
+        f"{RUSTORE_API_BASE}/public/v1/application/{package_name}/version",
+    ]
+    
+    for v_url in version_endpoints:
+        try:
+            res_list = requests.get(v_url, headers=headers, timeout=30)
+            if res_list.status_code == 200:
+                ldata = res_list.json().get("body", {})
+                items = ldata.get("content", []) if isinstance(ldata, dict) else (ldata if isinstance(ldata, list) else [])
+                print(f"Found {len(items)} version(s) in RuStore via {v_url.split('?')[-1]}:")
+                for item in items:
+                    status = item.get("versionStatus") or item.get("status")
+                    vid = item.get("versionId") or item.get("id")
+                    ver_name = item.get("versionName") or item.get("version")
+                    print(f"  - VersionId: {vid}, Status: {status}, VersionName: {ver_name}")
+                    
+                    if status == "DRAFT" and vid:
+                        print(f"Reusing existing DRAFT (versionId: {vid})...")
+                        # Update publish settings / whats_new for existing draft
+                        try:
+                            settings_url = f"{RUSTORE_API_BASE}/public/v1/application/{package_name}/version/{vid}/publish-settings"
+                            requests.post(settings_url, json={"publishType": "INSTANTLY"}, headers=headers, timeout=15)
+                        except Exception:
+                            pass
+                        return int(vid)
+                    
+                    if status in ("MODERATION", "REVIEW", "TAKEN_FOR_MODERATION") and vid:
+                        print(f"Notice: Version {vid} is currently in {status}. RuStore may reject new drafts until moderation completes.")
+        except Exception as e:
+            print(f"Version query notice: {e}")
 
-    print(f"Failed to create version draft: HTTP {res.status_code} - {res.text}")
+    # 2. If no existing draft found, create a new one
+    print(f"Creating new RuStore version draft for {package_name}...")
+    creation_attempts = [
+        (f"{RUSTORE_API_BASE}/public/v1/application/{package_name}/version", {"publishType": "INSTANTLY", "whatsNew": whats_new_text}),
+        (f"{RUSTORE_API_BASE}/public/v1/application/{package_name}/version?publishType=INSTANTLY", {"whatsNew": whats_new_text}),
+        (f"{RUSTORE_API_BASE}/public/v1/application/{package_name}/version", {"publishType": "MANUAL", "whatsNew": whats_new_text}),
+        (f"{RUSTORE_API_BASE}/public/v1/application/{package_name}/version?publishType=MANUAL", {"whatsNew": whats_new_text}),
+    ]
+
+    for create_url, payload in creation_attempts:
+        res = requests.post(create_url, json=payload, headers=headers, timeout=30)
+        if res.status_code in (200, 201):
+            data = res.json()
+            body = data.get("body")
+            if isinstance(body, int):
+                version_id = body
+            elif isinstance(body, dict):
+                version_id = body.get("versionId") or body.get("id")
+            else:
+                version_id = data.get("versionId")
+            print(f"Successfully created version draft with versionId: {version_id}")
+            return int(version_id)
+        else:
+            print(f"Draft creation attempt ({create_url.split('?')[-1]}): HTTP {res.status_code} - {res.text}")
+
+    print(f"Failed to create or obtain RuStore version draft for {package_name}.")
     sys.exit(1)
 
 def upload_apk(token: str, package_name: str, version_id: int, apk_path: str):
