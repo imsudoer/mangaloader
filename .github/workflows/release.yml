@@ -398,6 +398,30 @@ jobs:
       - name: Install RuStore Publish Dependencies
         run: pip install requests cryptography
 
+      - name: Extract Release Notes for RuStore
+        run: |
+          TAG_NAME="${GITHUB_REF#refs/tags/}"
+          VERSION_CLEAN="${TAG_NAME#v}"
+          if [ -f CHANGELOG.md ]; then
+            awk -v ver="$VERSION_CLEAN" '
+              BEGIN { recording=0; found=0 }
+              /^## \[?[vV]?[0-9]/ {
+                if (index($0, ver) > 0) {
+                  recording=1;
+                  found=1;
+                  next;
+                } else if (recording) {
+                  exit;
+                }
+              }
+              recording { print }
+              END { if (!found) exit 1 }
+            ' CHANGELOG.md > rustore_notes.txt || true
+          fi
+          if [ ! -s rustore_notes.txt ]; then
+            echo "Обновление MangaLoader $TAG_NAME: улучшение производительности и исправление ошибок." > rustore_notes.txt
+          fi
+
       - name: Download Android Artifacts
         uses: actions/download-artifact@v4
         with:
@@ -411,4 +435,5 @@ jobs:
           RUSTORE_PACKAGE_NAME: 'bshv.mangaloader.app'
           RUSTORE_APK_PATH: 'apks/mangaloader-android-universal.apk'
         run: |
+          export RUSTORE_WHATS_NEW="$(cat rustore_notes.txt)"
           python3 scripts/publish_rustore.py
