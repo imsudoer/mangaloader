@@ -128,36 +128,59 @@ def authenticate(key_id: str, private_key_pem: str) -> str:
 
 def create_or_get_draft_version(token: str, package_name: str, whats_new: str) -> int:
     headers = {"Public-Token": token}
-    
-    list_url = f"{RUSTORE_API_BASE}/public/v1/application/{package_name}/version?versionStatus=DRAFT"
-    try:
-        res = requests.get(list_url, headers=headers, timeout=30)
-        if res.status_code == 200:
-            body = res.json().get("body", {})
-            drafts = body.get("content", []) if isinstance(body, dict) else body
-            if drafts and len(drafts) > 0:
-                version_id = drafts[0].get("versionId") or drafts[0].get("id")
-                print(f"Reusing existing draft versionId: {version_id}")
-                return int(version_id)
-    except Exception as e:
-        print(f"Draft check notice: {e}")
-            
     create_url = f"{RUSTORE_API_BASE}/public/v1/application/{package_name}/version"
     payload = {
-        "publishType": "AUTOMATICALLY",
+        "publishType": "INSTANTLY",
         "whatsNew": whats_new if whats_new else "Bug fixes and performance improvements."
     }
     
-    print(f"Creating new RuStore draft for {package_name}...")
+    print(f"Creating new RuStore version draft for {package_name}...")
     res = requests.post(create_url, json=payload, headers=headers, timeout=30)
-    if res.status_code not in (200, 201):
-        print(f"Failed to create version draft: HTTP {res.status_code} - {res.text}")
-        sys.exit(1)
+    if res.status_code in (200, 201):
+        data = res.json()
+        body = data.get("body")
+        if isinstance(body, int):
+            version_id = body
+        elif isinstance(body, dict):
+            version_id = body.get("versionId") or body.get("id")
+        else:
+            version_id = data.get("versionId")
+        print(f"Created version draft with versionId: {version_id}")
+        return int(version_id)
         
-    data = res.json()
-    version_id = data.get("body", {}).get("versionId") or data.get("body") or data.get("versionId")
-    print(f"Created version draft with versionId: {version_id}")
-    return int(version_id)
+    # If direct creation failed (e.g. draft already exists), query existing versions
+    print(f"Draft creation notice (HTTP {res.status_code}): {res.text}")
+    list_url = f"{RUSTORE_API_BASE}/public/v1/application/{package_name}/version"
+    try:
+        res_list = requests.get(list_url, headers=headers, timeout=30)
+        if res_list.status_code == 200:
+            ldata = res_list.json().get("body", {})
+            items = ldata.get("content", []) if isinstance(ldata, dict) else (ldata if isinstance(ldata, list) else [])
+            for item in items:
+                status = item.get("versionStatus") or item.get("status")
+                vid = item.get("versionId") or item.get("id")
+                if status == "DRAFT" and vid:
+                    print(f"Found active DRAFT with versionId: {vid}")
+                    # Delete stale draft to re-create clean draft
+                    try:
+                        del_url = f"{RUSTORE_API_BASE}/public/v1/application/{package_name}/version/{vid}"
+                        del_res = requests.delete(del_url, headers=headers, timeout=15)
+                        if del_res.status_code in (200, 204):
+                            print(f"Deleted old draft {vid}. Creating fresh draft...")
+                            retry_res = requests.post(create_url, json=payload, headers=headers, timeout=30)
+                            if retry_res.status_code in (200, 201):
+                                rdata = retry_res.json()
+                                rbody = rdata.get("body")
+                                new_vid = rbody if isinstance(rbody, int) else (rbody.get("versionId") if isinstance(rbody, dict) else rdata.get("versionId"))
+                                return int(new_vid)
+                    except Exception as e:
+                        print(f"Draft delete notice: {e}")
+                    return int(vid)
+    except Exception as e:
+        print(f"List check notice: {e}")
+
+    print(f"Failed to create version draft: HTTP {res.status_code} - {res.text}")
+    sys.exit(1)
 
 def upload_apk(token: str, package_name: str, version_id: int, apk_path: str):
     headers = {"Public-Token": token}
