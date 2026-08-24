@@ -51,7 +51,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   final ValueNotifier<bool> _showControlsNotifier = ValueNotifier<bool>(false);
   ReadMode _readMode = ReadMode.vertical;
   ReadBgColor _bgColor = ReadBgColor.black;
-  final ReadBoxFit _boxFit = ReadBoxFit.fitWidth;
+  ReadBoxFit _boxFit = ReadBoxFit.contain;
   ReadColorFilter _filterMode = ReadColorFilter.none;
   ReadSharpenMode _sharpenMode = ReadSharpenMode.off;
   DualPageMode _dualPageMode = DualPageMode.auto;
@@ -1512,39 +1512,33 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         ),
       );
     } else if (_readMode == ReadMode.vertical) {
-      return InteractiveViewer(
-        minScale: 1.0,
-        maxScale: 4.5,
-        panEnabled: false,
-        scaleEnabled: true,
-        clipBehavior: Clip.none,
-        child: Scrollbar(
+      return Scrollbar(
+        controller: _scrollController,
+        thumbVisibility: true,
+        child: SingleChildScrollView(
           controller: _scrollController,
-          thumbVisibility: true,
-          child: SingleChildScrollView(
-            controller: _scrollController,
-            physics: const ClampingScrollPhysics(),
-            child: Column(
-              children: [
-                for (int i = 0; i < _totalPages; i++)
-                  _VerticalReaderPageItem(
-                    key: i < _pageKeys.length ? _pageKeys[i] : ValueKey('page_$i'),
-                    index: i,
-                    totalPages: _totalPages,
-                    isDownloaded: _isDownloaded,
-                    cbzPath: _cbzPath,
-                    onlinePages: _onlinePages,
-                    resolveImageUrl: _resolveImageUrl,
-                    getCbzPage: _getCbzPage,
-                    reloadImage: _reloadImage,
-                    zoomLevel: _zoomLevel,
-                    cropBorders: _cropBorders,
-                    cropPercent: _cropPercent,
-                    applyColorFilter: _applyColorFilter,
-                  ),
-                _buildNextChapterSwipeCard(isRu),
-              ],
-            ),
+          physics: const ClampingScrollPhysics(),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (int i = 0; i < _totalPages; i++)
+                _VerticalReaderPageItem(
+                  key: i < _pageKeys.length ? _pageKeys[i] : ValueKey('page_$i'),
+                  index: i,
+                  totalPages: _totalPages,
+                  isDownloaded: _isDownloaded,
+                  cbzPath: _cbzPath,
+                  onlinePages: _onlinePages,
+                  resolveImageUrl: _resolveImageUrl,
+                  getCbzPage: _getCbzPage,
+                  reloadImage: _reloadImage,
+                  zoomLevel: _zoomLevel,
+                  cropBorders: _cropBorders,
+                  cropPercent: _cropPercent,
+                  applyColorFilter: _applyColorFilter,
+                ),
+              _buildNextChapterSwipeCard(isRu),
+            ],
           ),
         ),
       );
@@ -1842,6 +1836,22 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                         selected: {_dualPageMode},
                         onSelectionChanged: (val) {
                           setState(() => _dualPageMode = val.first);
+                          setModalState(() {});
+                        },
+                      ),
+                      const SizedBox(height: 16),
+
+                      Text(isRu ? 'Масштабирование страниц' : 'Page Scale', style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 8),
+                      SegmentedButton<ReadBoxFit>(
+                        segments: [
+                          ButtonSegment(value: ReadBoxFit.contain, label: Text(isRu ? 'По экрану' : 'Fit Screen')),
+                          ButtonSegment(value: ReadBoxFit.fitWidth, label: Text(isRu ? 'По ширине' : 'Fit Width')),
+                          ButtonSegment(value: ReadBoxFit.cover, label: Text(isRu ? 'Заполнить' : 'Cover')),
+                        ],
+                        selected: {_boxFit},
+                        onSelectionChanged: (val) {
+                          setState(() => _boxFit = val.first);
                           setModalState(() {});
                         },
                       ),
@@ -2255,6 +2265,7 @@ class _VerticalReaderPageItemState extends State<_VerticalReaderPageItem> with A
       if (_cbzBytes != null) {
         content = Image.memory(
           _cbzBytes!,
+          width: itemWidth,
           fit: BoxFit.fitWidth,
           filterQuality: FilterQuality.high,
           alignment: Alignment.topCenter,
@@ -2281,9 +2292,17 @@ class _VerticalReaderPageItemState extends State<_VerticalReaderPageItem> with A
       content = CachedNetworkImage(
         imageUrl: pageUrl,
         httpHeaders: const {'Referer': 'https://mangalib.org/'},
+        width: itemWidth,
         fit: BoxFit.fitWidth,
         filterQuality: FilterQuality.high,
         alignment: Alignment.topCenter,
+        imageBuilder: (ctx, imageProvider) => Image(
+          image: imageProvider,
+          width: itemWidth,
+          fit: BoxFit.fitWidth,
+          alignment: Alignment.topCenter,
+          filterQuality: FilterQuality.high,
+        ),
         placeholder: (ctx, url) => Container(
           height: placeholderHeight,
           color: const Color(0xFF181818),
@@ -2425,14 +2444,10 @@ class _HorizontalReaderPageItemState extends State<_HorizontalReaderPageItem> wi
           gaplessPlayback: true,
         );
       } else if (_cbzError) {
-        content = const AspectRatio(
-          aspectRatio: 0.7,
-          child: Center(child: Icon(Icons.broken_image, color: Colors.white)),
-        );
+        content = const Center(child: Icon(Icons.broken_image, color: Colors.white54));
       } else {
-        content = const AspectRatio(
-          aspectRatio: 0.7,
-          child: Center(child: CircularProgressIndicator()),
+        content = const Center(
+          child: SizedBox(width: 28, height: 28, child: CircularProgressIndicator(strokeWidth: 2)),
         );
       }
     } else if (widget.index < widget.onlinePages.length) {
@@ -2443,35 +2458,31 @@ class _HorizontalReaderPageItemState extends State<_HorizontalReaderPageItem> wi
         httpHeaders: const {'Referer': 'https://mangalib.org/'},
         fit: widget.boxFit,
         filterQuality: FilterQuality.high,
-        placeholder: (ctx, url) => const AspectRatio(aspectRatio: 0.7, child: Center(child: CircularProgressIndicator())),
+        placeholder: (ctx, url) => const Center(
+          child: SizedBox(width: 28, height: 28, child: CircularProgressIndicator(strokeWidth: 2)),
+        ),
         errorWidget: (ctx, url, err) => InkWell(
           onTap: () => widget.reloadImage(pageUrl),
-          child: AspectRatio(
-            aspectRatio: 0.7,
-            child: Container(
-              color: const Color(0xFF181818),
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.refresh_rounded, color: Colors.white70, size: 32),
-                    const SizedBox(height: 8),
-                    Text(
-                      Localizations.localeOf(context).languageCode == 'ru' ? 'Нажмите для повтора' : 'Tap to retry',
-                      style: const TextStyle(color: Colors.white70, fontSize: 12),
-                    ),
-                  ],
-                ),
+          child: Container(
+            color: const Color(0xFF181818),
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.refresh_rounded, color: Colors.white70, size: 32),
+                  const SizedBox(height: 8),
+                  Text(
+                    Localizations.localeOf(context).languageCode == 'ru' ? 'Нажмите для повтора' : 'Tap to retry',
+                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+                ],
               ),
             ),
           ),
         ),
       );
     } else {
-      content = const AspectRatio(
-        aspectRatio: 0.7,
-        child: Center(child: Icon(Icons.broken_image, color: Colors.white)),
-      );
+      content = const Center(child: Icon(Icons.broken_image, color: Colors.white54));
     }
 
     if (widget.cropBorders) {
