@@ -488,7 +488,20 @@ pub async fn get_manga_details(slug_url: String) -> Result<MangaDetails> {
         views_formatted: data.get("views").and_then(|v| v.get("formated")).and_then(|v| v.as_str()).unwrap_or("0").to_string(),
         chapters_count: data.get("items_count").and_then(|i| i.get("uploaded")).and_then(|v| v.as_i64()).unwrap_or(0),
         format_labels,
-        publisher_name: data.get("publisher").and_then(|p| p.get("name")).and_then(|v| v.as_str()).map(|s| s.to_string()),
+        publisher_name: data.get("publisher").and_then(|p| {
+            if let Some(arr) = p.as_array() {
+                let names: Vec<&str> = arr.iter().filter_map(|x| x.get("name").and_then(|n| n.as_str())).collect();
+                if !names.is_empty() {
+                    Some(names.join(", "))
+                } else {
+                    None
+                }
+            } else if let Some(obj) = p.as_object() {
+                obj.get("name").and_then(|n| n.as_str()).map(|s| s.to_string())
+            } else {
+                None
+            }
+        }),
     };
 
     let _ = crate::api::storage::save_manga(details.clone()).await;

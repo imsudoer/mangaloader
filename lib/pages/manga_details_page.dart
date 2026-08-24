@@ -541,27 +541,64 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
               )).toList();
 
         if (chapters.isEmpty) {
+          final isLicensed = (manga.publisherName != null && manga.publisherName!.isNotEmpty) || manga.chaptersCount > 0;
           return Center(
             child: Padding(
               padding: const EdgeInsets.all(24),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.menu_book_rounded, size: 48, color: Color(0xFF8A897C)),
+                  Icon(
+                    isLicensed ? Icons.verified_user_outlined : Icons.menu_book_rounded,
+                    size: 48,
+                    color: isLicensed ? Colors.amber.shade700 : const Color(0xFF8A897C),
+                  ),
                   const SizedBox(height: 12),
                   Text(
-                    isRu ? 'Список глав пуст или доступен только на сайте' : 'No chapters available',
-                    style: const TextStyle(color: Color(0xFFBDBBB0), fontSize: 14),
+                    isLicensed
+                      ? (isRu ? 'Тайтл лицензирован правообладателем' : 'Title is officially licensed')
+                      : (isRu ? 'Список глав пуст' : 'No chapters available'),
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    isLicensed
+                      ? (isRu
+                          ? 'Главы удалены из открытого доступа MangaLib по требованию правообладателя${manga.publisherName != null && manga.publisherName!.isNotEmpty ? " (${manga.publisherName})" : ""}.'
+                          : 'Chapters have been removed from MangaLib by the copyright holder${manga.publisherName != null && manga.publisherName!.isNotEmpty ? " (${manga.publisherName})" : ""}.')
+                      : (isRu ? 'На сервере MangaLib пока нет загруженных глав для этого тайтла.' : 'No chapters uploaded on MangaLib yet.'),
+                    style: const TextStyle(color: Color(0xFFBDBBB0), fontSize: 13, height: 1.4),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 16),
-                  FilledButton.icon(
-                    style: FilledButton.styleFrom(backgroundColor: const Color(0xFF8A897C)),
-                    onPressed: () {
-                      ref.invalidate(mangaChaptersProvider(widget.slugUrl));
-                    },
-                    icon: const Icon(Icons.refresh_rounded, size: 18),
-                    label: Text(isRu ? 'Повторить загрузку глав' : 'Refresh chapters'),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFFD2D7DF),
+                          side: const BorderSide(color: Color(0xFF3E3E3E)),
+                        ),
+                        onPressed: () async {
+                          final uri = Uri.parse('https://mangalib.org/ru/${manga.slugUrl}');
+                          if (await canLaunchUrl(uri)) {
+                            await launchUrl(uri, mode: LaunchMode.externalApplication);
+                          }
+                        },
+                        icon: const Icon(Icons.open_in_browser_rounded, size: 16),
+                        label: Text(isRu ? 'Открыть на MangaLib' : 'Open on MangaLib'),
+                      ),
+                      const SizedBox(width: 8),
+                      FilledButton.icon(
+                        style: FilledButton.styleFrom(backgroundColor: const Color(0xFF8A897C)),
+                        onPressed: () {
+                          ref.invalidate(mangaChaptersProvider(widget.slugUrl));
+                        },
+                        icon: const Icon(Icons.refresh_rounded, size: 16),
+                        label: Text(isRu ? 'Обновить' : 'Refresh'),
+                      ),
+                    ],
                   ),
                 ],
               ),
