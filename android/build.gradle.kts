@@ -26,6 +26,11 @@ subprojects {
             compileSdkVersion(36)
         }
     }
+    afterEvaluate {
+        project.extensions.findByType(com.android.build.gradle.BaseExtension::class.java)?.apply {
+            compileSdkVersion(36)
+        }
+    }
 }
 
 subprojects {
