@@ -238,9 +238,10 @@ class _MangaCommentsModalState extends ConsumerState<MangaCommentsModal> {
       }
     } catch (e) {
       if (mounted) {
+        final isRu = Localizations.localeOf(context).languageCode == 'ru';
         setState(() => _isPosting = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Ошибка отправки: $e')),
+          SnackBar(content: Text(isRu ? 'Ошибка отправки: $e' : 'Failed to send comment: $e')),
         );
       }
     }
@@ -511,7 +512,7 @@ class _MangaCommentsModalState extends ConsumerState<MangaCommentsModal> {
                         ],
                         const Spacer(),
                         Text(
-                          _formatDate(comment.createdAt),
+                          _formatDate(comment.createdAt, isRu),
                           style: const TextStyle(fontSize: 11, color: Color(0xFF888888)),
                         ),
                       ],
@@ -660,7 +661,7 @@ class _MangaCommentsModalState extends ConsumerState<MangaCommentsModal> {
                       style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.white),
                     ),
                     Text(
-                      _formatDate(reply.createdAt),
+                      _formatDate(reply.createdAt, isRu),
                       style: const TextStyle(fontSize: 10, color: Color(0xFF888888)),
                     ),
                   ],
@@ -708,17 +709,17 @@ class _MangaCommentsModalState extends ConsumerState<MangaCommentsModal> {
     );
   }
 
-  String _formatDate(String dateStr) {
+  String _formatDate(String dateStr, bool isRu) {
     try {
       final dt = DateTime.parse(dateStr);
       final now = DateTime.now();
       final diff = now.difference(dt);
 
-      if (diff.inMinutes < 1) return 'только что';
-      if (diff.inHours < 1) return '${diff.inMinutes} мин. назад';
-      if (diff.inDays < 1) return '${diff.inHours} ч. назад';
-      if (diff.inDays < 30) return '${diff.inDays} дн. назад';
-      return '${dt.day}.${dt.month.toString().padLeft(2, '0')}.${dt.year}';
+      if (diff.inMinutes < 1) return isRu ? 'только что' : 'just now';
+      if (diff.inHours < 1) return isRu ? '${diff.inMinutes} мин. назад' : '${diff.inMinutes}m ago';
+      if (diff.inDays < 1) return isRu ? '${diff.inHours} ч. назад' : '${diff.inHours}h ago';
+      if (diff.inDays < 30) return isRu ? '${diff.inDays} дн. назад' : '${diff.inDays}d ago';
+      return '${dt.day.toString().padLeft(2, '0')}.${dt.month.toString().padLeft(2, '0')}.${dt.year}';
     } catch (_) {
       return dateStr;
     }

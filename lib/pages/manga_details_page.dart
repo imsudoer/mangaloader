@@ -127,29 +127,31 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
             ),
           );
         },
-        loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
-        error: (e, _) => Scaffold(
-          appBar: AppBar(title: const Text('Ошибка')),
-          body: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.error_outline_rounded, size: 48, color: Colors.grey),
-                  const SizedBox(height: 12),
-                  Text('Не удалось загрузить информацию: $e', textAlign: TextAlign.center),
-                  const SizedBox(height: 16),
-                  ElevatedButton.icon(
-                    onPressed: () => ref.invalidate(mangaDetailsProvider(widget.slugUrl)),
-                    icon: const Icon(Icons.refresh_rounded),
-                    label: const Text('Повторить'),
-                  ),
-                ],
+        error: (e, _) {
+          final isRu = Localizations.localeOf(context).languageCode == 'ru';
+          return Scaffold(
+            appBar: AppBar(title: Text(isRu ? 'Ошибка' : 'Error')),
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.error_outline_rounded, size: 48, color: Colors.grey),
+                    const SizedBox(height: 12),
+                    Text(isRu ? 'Не удалось загрузить информацию: $e' : 'Failed to load info: $e', textAlign: TextAlign.center),
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      onPressed: () => ref.invalidate(mangaDetailsProvider(widget.slugUrl)),
+                      icon: const Icon(Icons.refresh_rounded),
+                      label: Text(isRu ? 'Повторить' : 'Retry'),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }
@@ -924,7 +926,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                   title: Row(
                     children: [
                       Text(
-                        'Том ${ch.volume} Глава ${ch.number}',
+                        isRu ? 'Том ${ch.volume} Глава ${ch.number}' : 'Vol. ${ch.volume} Ch. ${ch.number}',
                         style: TextStyle(
                           fontWeight: FontWeight.w600,
                           color: isRead ? const Color(0xFFBDBBB0) : Colors.white,

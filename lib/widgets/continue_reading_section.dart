@@ -205,7 +205,9 @@ class ContinueReadingSection extends ConsumerWidget {
                                     children: [
                                       Expanded(
                                         child: Text(
-                                          'Т.${item.lastReadVolume} Гл.${item.lastReadChapter}',
+                                          isRu
+                                            ? 'Т.${item.lastReadVolume} Гл.${item.lastReadChapter}'
+                                            : 'Vol.${item.lastReadVolume} Ch.${item.lastReadChapter}',
                                           style: const TextStyle(color: Color(0xFFD2D7DF), fontSize: 10, fontWeight: FontWeight.bold),
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,

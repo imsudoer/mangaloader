@@ -21,36 +21,37 @@ class MangaCard extends ConsumerWidget {
     Color color;
     String tooltip;
 
+    final isRu = Localizations.localeOf(context).languageCode == 'ru';
     switch (libItem.listType) {
       case ListType.reading:
         icon = Icons.auto_stories_rounded;
         color = const Color(0xFF64B5F6);
-        tooltip = 'Читаю';
+        tooltip = isRu ? 'Читаю' : 'Reading';
         break;
       case ListType.planToRead:
         icon = Icons.bookmark_rounded;
         color = const Color(0xFFFFB74D);
-        tooltip = 'В планах';
+        tooltip = isRu ? 'В планах' : 'Plan to Read';
         break;
       case ListType.completed:
         icon = Icons.check_circle_rounded;
         color = const Color(0xFF81C784);
-        tooltip = 'Прочитано';
+        tooltip = isRu ? 'Прочитано' : 'Completed';
         break;
       case ListType.favorites:
         icon = Icons.favorite_rounded;
         color = const Color(0xFFF06292);
-        tooltip = 'Любимое';
+        tooltip = isRu ? 'Любимое' : 'Favorites';
         break;
       case ListType.dropped:
         icon = Icons.delete_outline_rounded;
         color = Colors.redAccent;
-        tooltip = 'Брошено';
+        tooltip = isRu ? 'Брошено' : 'Dropped';
         break;
       case ListType.onHold:
         icon = Icons.pause_circle_outline_rounded;
         color = Colors.grey;
-        tooltip = 'Отложено';
+        tooltip = isRu ? 'Отложено' : 'On Hold';
         break;
     }
 

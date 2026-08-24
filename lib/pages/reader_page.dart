@@ -97,6 +97,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   final FocusNode _focusNode = FocusNode();
   
   bool _isJumping = false;
+  Timer? _sliderDebounceTimer;
   
   Timer? _saveTimer;
   int _mangaId = 0;
@@ -220,6 +221,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     _scrollController.removeListener(_onVerticalScroll);
     _stopAutoScroll();
     _saveTimer?.cancel();
+    _sliderDebounceTimer?.cancel();
     _showControlsNotifier.dispose();
     _pageIndexNotifier.dispose();
     if (_mangaId > 0) {
@@ -795,23 +797,70 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     }
   }
 
-  void _zoomIn() {
-    setState(() {
-      _zoomLevel = (_zoomLevel + 0.25).clamp(0.5, 4.0);
+  void _changeZoom(double newZoom) {
+    newZoom = newZoom.clamp(0.5, 4.0);
+    if (newZoom == _zoomLevel) return;
+
+    if (_readMode != ReadMode.vertical || !_scrollController.hasClients) {
+      setState(() => _zoomLevel = newZoom);
+      return;
+    }
+
+    // 1. Record current visible page and fractional scroll within it
+    final visiblePage = _findVisiblePageIndex();
+    double fractionInPage = 0.0;
+
+    if (visiblePage < _pageKeys.length) {
+      final ctx = _pageKeys[visiblePage].currentContext;
+      if (ctx != null) {
+        final box = ctx.findRenderObject() as RenderBox?;
+        if (box != null && box.hasSize && box.size.height > 0) {
+          final pos = box.localToGlobal(Offset.zero);
+          // fraction: how much of this page has been scrolled past the top of the viewport
+          fractionInPage = (-pos.dy / box.size.height).clamp(0.0, 1.0);
+        }
+      }
+    }
+
+    // 2. Apply new zoom
+    _isJumping = true;
+    setState(() => _zoomLevel = newZoom);
+
+    // 3. Restore position after rebuild
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) {
+        _isJumping = false;
+        return;
+      }
+
+      if (visiblePage < _pageKeys.length) {
+        final ctx = _pageKeys[visiblePage].currentContext;
+        if (ctx != null) {
+          final box = ctx.findRenderObject() as RenderBox?;
+          if (box != null && box.hasSize) {
+            // Compute the page's top position in the scroll coordinate system
+            final posOnScreen = box.localToGlobal(Offset.zero);
+            final pageTopInScroll = _scrollController.offset + posOnScreen.dy;
+            // Add fraction offset within the page
+            final targetOffset = pageTopInScroll + (fractionInPage * box.size.height);
+            _scrollController.jumpTo(
+              targetOffset.clamp(0.0, _scrollController.position.maxScrollExtent),
+            );
+          }
+        }
+      }
+
+      Future.delayed(const Duration(milliseconds: 100), () {
+        if (mounted) _isJumping = false;
+      });
     });
   }
 
-  void _zoomOut() {
-    setState(() {
-      _zoomLevel = (_zoomLevel - 0.25).clamp(0.5, 4.0);
-    });
-  }
+  void _zoomIn() => _changeZoom(_zoomLevel + 0.25);
 
-  void _resetZoom() {
-    setState(() {
-      _zoomLevel = 1.0;
-    });
-  }
+  void _zoomOut() => _changeZoom(_zoomLevel - 0.25);
+
+  void _resetZoom() => _changeZoom(1.0);
 
   void _toggleFullscreen() async {
     setState(() => _isFullscreen = !_isFullscreen);
@@ -890,39 +939,72 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     if (event is! KeyDownEvent) return;
     
     final isRtl = _readMode == ReadMode.rtl;
-    if (event.logicalKey == LogicalKeyboardKey.arrowRight || event.logicalKey == LogicalKeyboardKey.pageDown || event.logicalKey == LogicalKeyboardKey.space) {
+    final key = event.logicalKey;
+
+    // Vertical mode: smooth scroll with arrow keys, space, pagedown/pageup
+    if (_readMode == ReadMode.vertical && _scrollController.hasClients) {
+      final viewportHeight = MediaQuery.of(context).size.height;
+      if (key == LogicalKeyboardKey.arrowDown) {
+        final target = (_scrollController.offset + viewportHeight * 0.25)
+            .clamp(0.0, _scrollController.position.maxScrollExtent);
+        _scrollController.animateTo(target, duration: const Duration(milliseconds: 150), curve: Curves.easeOut);
+        return;
+      } else if (key == LogicalKeyboardKey.arrowUp) {
+        final target = (_scrollController.offset - viewportHeight * 0.25)
+            .clamp(0.0, _scrollController.position.maxScrollExtent);
+        _scrollController.animateTo(target, duration: const Duration(milliseconds: 150), curve: Curves.easeOut);
+        return;
+      } else if (key == LogicalKeyboardKey.space || key == LogicalKeyboardKey.pageDown) {
+        final target = (_scrollController.offset + viewportHeight * 0.85)
+            .clamp(0.0, _scrollController.position.maxScrollExtent);
+        _scrollController.animateTo(target, duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
+        return;
+      } else if (key == LogicalKeyboardKey.pageUp) {
+        final target = (_scrollController.offset - viewportHeight * 0.85)
+            .clamp(0.0, _scrollController.position.maxScrollExtent);
+        _scrollController.animateTo(target, duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
+        return;
+      }
+    }
+
+    // Horizontal mode navigation
+    if (key == LogicalKeyboardKey.arrowRight) {
       if (isRtl && _currentPageIndex > 0) {
-        if (_readMode != ReadMode.vertical && _pageController != null && _pageController!.hasClients) {
+        if (_pageController != null && _pageController!.hasClients) {
           _pageController!.previousPage(duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
-        } else {
-          _jumpToPageIndex(_currentPageIndex - 1);
         }
-      } else {
+      } else if (!isRtl) {
         _nextPageAction();
       }
-    } else if (event.logicalKey == LogicalKeyboardKey.arrowLeft || event.logicalKey == LogicalKeyboardKey.pageUp) {
+    } else if (key == LogicalKeyboardKey.arrowLeft) {
       if (isRtl) {
         _nextPageAction();
       } else if (_currentPageIndex > 0) {
-        if (_readMode != ReadMode.vertical && _pageController != null && _pageController!.hasClients) {
+        if (_pageController != null && _pageController!.hasClients) {
           _pageController!.previousPage(duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
-        } else {
-          _jumpToPageIndex(_currentPageIndex - 1);
         }
       }
-    } else if (event.logicalKey == LogicalKeyboardKey.equal || event.logicalKey == LogicalKeyboardKey.numpadAdd) {
+    } else if (key == LogicalKeyboardKey.pageDown || key == LogicalKeyboardKey.space) {
+      _nextPageAction();
+    } else if (key == LogicalKeyboardKey.pageUp && _currentPageIndex > 0) {
+      if (_pageController != null && _pageController!.hasClients) {
+        _pageController!.previousPage(duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
+      } else {
+        _jumpToPageIndex(_currentPageIndex - 1);
+      }
+    } else if (key == LogicalKeyboardKey.equal || key == LogicalKeyboardKey.numpadAdd) {
       _zoomIn();
-    } else if (event.logicalKey == LogicalKeyboardKey.minus || event.logicalKey == LogicalKeyboardKey.numpadSubtract) {
+    } else if (key == LogicalKeyboardKey.minus || key == LogicalKeyboardKey.numpadSubtract) {
       _zoomOut();
-    } else if (event.logicalKey == LogicalKeyboardKey.digit0 || event.logicalKey == LogicalKeyboardKey.numpad0) {
+    } else if (key == LogicalKeyboardKey.digit0 || key == LogicalKeyboardKey.numpad0) {
       _resetZoom();
-    } else if (event.logicalKey == LogicalKeyboardKey.f11 || event.logicalKey == LogicalKeyboardKey.keyF) {
+    } else if (key == LogicalKeyboardKey.f11 || key == LogicalKeyboardKey.keyF) {
       _toggleFullscreen();
-    } else if (event.logicalKey == LogicalKeyboardKey.keyA) {
+    } else if (key == LogicalKeyboardKey.keyA) {
       if (_readMode == ReadMode.vertical) _toggleAutoScroll();
-    } else if (event.logicalKey == LogicalKeyboardKey.home) {
+    } else if (key == LogicalKeyboardKey.home) {
       _jumpToPageIndex(0);
-    } else if (event.logicalKey == LogicalKeyboardKey.end && _totalPages > 0) {
+    } else if (key == LogicalKeyboardKey.end && _totalPages > 0) {
       _jumpToPageIndex(_totalPages - 1);
     }
   }
@@ -1378,9 +1460,15 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                                       inactiveColor: const Color(0xFF353535),
                                       onChanged: (val) {
                                         final target = val.round();
-                                        if (target != _currentPageIndex) {
-                                          _jumpToPageIndex(target);
-                                        }
+                                        // Update visual indicator immediately
+                                        _pageIndexNotifier.value = target;
+                                        // Debounce the actual scroll jump
+                                        _sliderDebounceTimer?.cancel();
+                                        _sliderDebounceTimer = Timer(const Duration(milliseconds: 150), () {
+                                          if (mounted && target != _currentPageIndex) {
+                                            _jumpToPageIndex(target);
+                                          }
+                                        });
                                       },
                                     ),
                                   Row(
@@ -2281,6 +2369,7 @@ class _VerticalReaderPageItemState extends State<_VerticalReaderPageItem> with A
       }
     }
 
+    // Use known aspect ratio for accurate placeholder; fallback to generous 1.4x for unknown
     final placeholderHeight = (knownAspectRatio != null && knownAspectRatio > 0)
         ? itemWidth / knownAspectRatio
         : itemWidth * 1.4;
@@ -2288,22 +2377,25 @@ class _VerticalReaderPageItemState extends State<_VerticalReaderPageItem> with A
     Widget content;
     if (widget.isDownloaded) {
       if (_cbzBytes != null) {
+        // Let the image determine its own height from intrinsic aspect ratio.
+        // ConstrainedBox(maxWidth) will limit width; fitWidth scales height proportionally.
         content = Image.memory(
           _cbzBytes!,
-          width: itemWidth,
           fit: BoxFit.fitWidth,
+          width: itemWidth,
           filterQuality: FilterQuality.high,
-          alignment: Alignment.topCenter,
           gaplessPlayback: true,
         );
       } else if (_cbzError) {
         content = Container(
+          width: itemWidth,
           height: placeholderHeight,
           color: const Color(0xFF181818),
           child: const Center(child: Icon(Icons.broken_image, color: Colors.white54)),
         );
       } else {
         content = Container(
+          width: itemWidth,
           height: placeholderHeight,
           color: const Color(0xFF181818),
           child: const Center(
@@ -2317,18 +2409,16 @@ class _VerticalReaderPageItemState extends State<_VerticalReaderPageItem> with A
       content = CachedNetworkImage(
         imageUrl: pageUrl,
         httpHeaders: const {'Referer': 'https://mangalib.org/'},
-        width: itemWidth,
-        fit: BoxFit.fitWidth,
         filterQuality: FilterQuality.high,
-        alignment: Alignment.topCenter,
+        // Do NOT set width/height on CachedNetworkImage — use imageBuilder for proper sizing
         imageBuilder: (ctx, imageProvider) => Image(
           image: imageProvider,
           width: itemWidth,
           fit: BoxFit.fitWidth,
-          alignment: Alignment.topCenter,
           filterQuality: FilterQuality.high,
         ),
         placeholder: (ctx, url) => Container(
+          width: itemWidth,
           height: placeholderHeight,
           color: const Color(0xFF181818),
           child: const Center(
@@ -2338,6 +2428,7 @@ class _VerticalReaderPageItemState extends State<_VerticalReaderPageItem> with A
         errorWidget: (ctx, url, err) => InkWell(
           onTap: () => widget.reloadImage(pageUrl),
           child: Container(
+            width: itemWidth,
             height: placeholderHeight,
             color: const Color(0xFF181818),
             child: Center(
@@ -2358,6 +2449,7 @@ class _VerticalReaderPageItemState extends State<_VerticalReaderPageItem> with A
       );
     } else {
       content = Container(
+        width: itemWidth,
         height: placeholderHeight,
         color: const Color(0xFF181818),
         child: const Center(child: Icon(Icons.broken_image, color: Colors.white54)),
@@ -2371,14 +2463,13 @@ class _VerticalReaderPageItemState extends State<_VerticalReaderPageItem> with A
       );
     }
 
-    return Container(
+    // Use Align + ConstrainedBox: width is bounded to itemWidth, height is unconstrained.
+    // This prevents tall images from being vertically compressed.
+    return Padding(
       padding: const EdgeInsets.only(bottom: 1),
-      width: itemWidth,
-      child: Center(
-        child: SizedBox(
-          width: itemWidth,
-          child: widget.applyColorFilter(content),
-        ),
+      child: Align(
+        alignment: Alignment.center,
+        child: widget.applyColorFilter(content),
       ),
     );
   }
