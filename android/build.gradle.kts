@@ -18,12 +18,12 @@ subprojects {
 subprojects {
     project.plugins.withId("com.android.library") {
         project.extensions.findByType(com.android.build.gradle.BaseExtension::class.java)?.apply {
-            compileSdkVersion(35)
+            compileSdkVersion(36)
         }
     }
     project.plugins.withId("com.android.application") {
         project.extensions.findByType(com.android.build.gradle.BaseExtension::class.java)?.apply {
-            compileSdkVersion(35)
+            compileSdkVersion(36)
         }
     }
 }
