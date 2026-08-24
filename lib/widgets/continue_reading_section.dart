@@ -122,26 +122,27 @@ class ContinueReadingSection extends ConsumerWidget {
                                 ),
                               ),
                             ),
-                            // New Chapters Badge (Top-Left)
-                            if (item.hasNewChapters && item.newChaptersCount > 0)
+                            // Unread Chapters Badge (Top-Left)
+                            if (item.unreadCount > 0)
                               Positioned(
                                 top: 8,
                                 left: 8,
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFF4CAF50),
+                                    color: const Color(0xFF1E1E1E).withValues(alpha: 0.85),
                                     borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(color: const Color(0xFF8A897C).withValues(alpha: 0.5)),
                                     boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 4)],
                                   ),
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      const Icon(Icons.fiber_new_rounded, size: 13, color: Colors.white),
-                                      const SizedBox(width: 2),
+                                      const Icon(Icons.menu_book_rounded, size: 12, color: Color(0xFFD2D7DF)),
+                                      const SizedBox(width: 3),
                                       Text(
-                                        '+${item.newChaptersCount}',
-                                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white),
+                                        '${item.unreadCount} ${isRu ? "не прочит." : "unread"}',
+                                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFFD2D7DF)),
                                       ),
                                     ],
                                   ),

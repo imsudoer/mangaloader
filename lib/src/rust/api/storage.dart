@@ -122,6 +122,12 @@ Future<void> cacheChapters(
 Future<List<Chapter>> getCachedChapters({required PlatformInt64 mangaId}) =>
     RustLib.instance.api.crateApiStorageGetCachedChapters(mangaId: mangaId);
 
+Future<void> updateMangaChaptersCount(
+        {required PlatformInt64 mangaId,
+        required PlatformInt64 chaptersCount}) =>
+    RustLib.instance.api.crateApiStorageUpdateMangaChaptersCount(
+        mangaId: mangaId, chaptersCount: chaptersCount);
+
 Future<List<ContinueReadingItem>> getContinueReadingManga() =>
     RustLib.instance.api.crateApiStorageGetContinueReadingManga();
 

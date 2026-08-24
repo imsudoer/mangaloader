@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:mangaloader/services/streak_notification_service.dart';
 
 class ReleaseAsset {
   final String name;
@@ -222,6 +223,18 @@ class UpdateChecker {
       return false;
     } catch (_) {
       return false;
+    }
+  }
+
+  /// Silently check for update and trigger notification once
+  static Future<void> checkAppUpdateSilently({bool isRu = true}) async {
+    try {
+      final info = await checkForUpdates();
+      if (info != null && info.hasUpdate) {
+        await StreakNotificationService.showUpdateNotificationOnce(info, isRu: isRu);
+      }
+    } catch (e) {
+      debugPrint('Silent update check error: $e');
     }
   }
 }

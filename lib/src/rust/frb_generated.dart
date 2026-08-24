@@ -72,7 +72,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => -905847940;
+  int get rustContentHash => 666644794;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -339,6 +339,9 @@ abstract class RustLibApi extends BaseApi {
 
   Future<ReadingStreakInfo> crateApiStorageSyncReadingStreak(
       {required PlatformInt64 days});
+
+  Future<void> crateApiStorageUpdateMangaChaptersCount(
+      {required PlatformInt64 mangaId, required PlatformInt64 chaptersCount});
 
   Future<bool> crateApiMangalibClientUpdateUserPrivacy(
       {required PlatformInt64 userId,
@@ -2594,6 +2597,33 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<void> crateApiStorageUpdateMangaChaptersCount(
+      {required PlatformInt64 mangaId, required PlatformInt64 chaptersCount}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_i_64(mangaId, serializer);
+        sse_encode_i_64(chaptersCount, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 84, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_unit,
+        decodeErrorData: sse_decode_AnyhowException,
+      ),
+      constMeta: kCrateApiStorageUpdateMangaChaptersCountConstMeta,
+      argValues: [mangaId, chaptersCount],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiStorageUpdateMangaChaptersCountConstMeta =>
+      const TaskConstMeta(
+        debugName: "update_manga_chapters_count",
+        argNames: ["mangaId", "chaptersCount"],
+      );
+
+  @override
   Future<bool> crateApiMangalibClientUpdateUserPrivacy(
       {required PlatformInt64 userId,
       required PlatformInt64 profileVisibility,
@@ -2607,7 +2637,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_i_64(statisticsVisibility, serializer);
         sse_encode_i_64(previousUsernamesVisibility, serializer);
         pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 84, port: port_);
+            funcId: 85, port: port_);
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_bool,
@@ -2653,7 +2683,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_opt_String(avatar, serializer);
         sse_encode_opt_String(cover, serializer);
         pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 85, port: port_);
+            funcId: 86, port: port_);
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_bool,

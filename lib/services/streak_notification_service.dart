@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
@@ -21,7 +22,7 @@ class StreakNotificationService {
     try {
       tz.initializeTimeZones();
 
-      const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+      const androidSettings = AndroidInitializationSettings('@drawable/ic_notification');
       const darwinSettings = DarwinInitializationSettings(
         requestAlertPermission: false,
         requestBadgePermission: false,
@@ -79,7 +80,9 @@ class StreakNotificationService {
         channelDescription: 'Ежедневные уведомления для поддержания стрика чтения',
         importance: Importance.high,
         priority: Priority.high,
-        icon: '@mipmap/ic_launcher',
+        icon: '@drawable/ic_notification',
+        color: Color(0xFF8A897C),
+        largeIcon: DrawableResourceAndroidBitmap('@mipmap/ic_launcher'),
       );
 
       const notificationDetails = NotificationDetails(
@@ -137,7 +140,9 @@ class StreakNotificationService {
         channelDescription: 'Уведомления о выходе новых версий MangaLoader',
         importance: Importance.high,
         priority: Priority.high,
-        icon: '@mipmap/ic_launcher',
+        icon: '@drawable/ic_notification',
+        color: Color(0xFF8A897C),
+        largeIcon: DrawableResourceAndroidBitmap('@mipmap/ic_launcher'),
       );
 
       const notificationDetails = NotificationDetails(
@@ -177,7 +182,9 @@ class StreakNotificationService {
         channelDescription: 'Уведомления о выходе новых глав отслеживаемой манги',
         importance: Importance.high,
         priority: Priority.high,
-        icon: '@mipmap/ic_launcher',
+        icon: '@drawable/ic_notification',
+        color: Color(0xFF8A897C),
+        largeIcon: DrawableResourceAndroidBitmap('@mipmap/ic_launcher'),
       );
 
       const notificationDetails = NotificationDetails(

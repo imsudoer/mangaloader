@@ -52,6 +52,9 @@ Future<void> main() async {
   await StreakNotificationService.init();
   await StreakNotificationService.scheduleDailyStreakReminder();
 
+  // Initialize Background Sync (Workmanager on Android)
+  await ChapterTrackerService.initBackgroundWork();
+
   runApp(const ProviderScope(child: MangaLoaderApp()));
 }
 
@@ -79,6 +82,7 @@ class _MangaLoaderAppState extends ConsumerState<MangaLoaderApp> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await loadPersistentSettings(ref);
       ChapterTrackerService.checkLibraryUpdates(ref);
+      ChapterTrackerService.startForegroundPeriodicTracking(ref);
     });
   }
 

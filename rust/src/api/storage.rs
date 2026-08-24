@@ -994,6 +994,16 @@ pub async fn get_cached_chapters(manga_id: i64) -> Result<Vec<Chapter>> {
     Ok(chapters)
 }
 
+pub async fn update_manga_chapters_count(manga_id: i64, chapters_count: i64) -> Result<()> {
+    let guard = get_conn()?;
+    let conn = guard.as_ref().unwrap();
+    conn.execute(
+        "UPDATE manga SET chapters_count = ?1 WHERE id = ?2 AND chapters_count < ?1",
+        params![chapters_count, manga_id],
+    )?;
+    Ok(())
+}
+
 pub async fn get_continue_reading_manga() -> Result<Vec<ContinueReadingItem>> {
     let guard = get_conn()?;
     let conn = guard.as_ref().unwrap();
@@ -1011,7 +1021,6 @@ pub async fn get_continue_reading_manga() -> Result<Vec<ContinueReadingItem>> {
         let total_chaps: i64 = row.get("chapters_count").unwrap_or(0);
         let read_chaps: i64 = row.get("read_count").unwrap_or(0);
         let unread = (total_chaps - read_chaps).max(0);
-        let has_new = read_chaps > 0 && unread > 0 && total_chaps > read_chaps;
 
         Ok(ContinueReadingItem {
             manga_id: row.get("id")?,
@@ -1025,8 +1034,8 @@ pub async fn get_continue_reading_manga() -> Result<Vec<ContinueReadingItem>> {
             total_chapters: total_chaps,
             read_chapters: read_chaps,
             unread_count: unread,
-            has_new_chapters: has_new,
-            new_chapters_count: if has_new { unread } else { 0 },
+            has_new_chapters: false,
+            new_chapters_count: 0,
         })
     })?;
 
