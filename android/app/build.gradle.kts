@@ -15,7 +15,7 @@ if (keystorePropertiesFile.exists()) {
 
 android {
     namespace = "bshv.mangaloader.app"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 35
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -26,8 +26,8 @@ android {
 
     defaultConfig {
         applicationId = "bshv.mangaloader.app"
-        minSdk = 24
-        targetSdk = flutter.targetSdkVersion
+        minSdk = 30
+        targetSdk = 35
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
