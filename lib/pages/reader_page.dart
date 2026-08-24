@@ -1411,32 +1411,39 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         ),
       );
     } else if (_readMode == ReadMode.vertical) {
-      return Scrollbar(
-        controller: _scrollController,
-        thumbVisibility: true,
-        child: SingleChildScrollView(
+      return InteractiveViewer(
+        minScale: 1.0,
+        maxScale: 4.5,
+        panEnabled: false,
+        scaleEnabled: true,
+        clipBehavior: Clip.none,
+        child: Scrollbar(
           controller: _scrollController,
-          physics: const ClampingScrollPhysics(),
-          child: Column(
-            children: [
-              for (int i = 0; i < _totalPages; i++)
-                _VerticalReaderPageItem(
-                  key: i < _pageKeys.length ? _pageKeys[i] : ValueKey('page_$i'),
-                  index: i,
-                  totalPages: _totalPages,
-                  isDownloaded: _isDownloaded,
-                  cbzPath: _cbzPath,
-                  onlinePages: _onlinePages,
-                  resolveImageUrl: _resolveImageUrl,
-                  getCbzPage: _getCbzPage,
-                  reloadImage: _reloadImage,
-                  zoomLevel: _zoomLevel,
-                  cropBorders: _cropBorders,
-                  cropPercent: _cropPercent,
-                  applyColorFilter: _applyColorFilter,
-                ),
-              _buildNextChapterSwipeCard(isRu),
-            ],
+          thumbVisibility: true,
+          child: SingleChildScrollView(
+            controller: _scrollController,
+            physics: const ClampingScrollPhysics(),
+            child: Column(
+              children: [
+                for (int i = 0; i < _totalPages; i++)
+                  _VerticalReaderPageItem(
+                    key: i < _pageKeys.length ? _pageKeys[i] : ValueKey('page_$i'),
+                    index: i,
+                    totalPages: _totalPages,
+                    isDownloaded: _isDownloaded,
+                    cbzPath: _cbzPath,
+                    onlinePages: _onlinePages,
+                    resolveImageUrl: _resolveImageUrl,
+                    getCbzPage: _getCbzPage,
+                    reloadImage: _reloadImage,
+                    zoomLevel: _zoomLevel,
+                    cropBorders: _cropBorders,
+                    cropPercent: _cropPercent,
+                    applyColorFilter: _applyColorFilter,
+                  ),
+                _buildNextChapterSwipeCard(isRu),
+              ],
+            ),
           ),
         ),
       );
@@ -2131,20 +2138,13 @@ class _VerticalReaderPageItemState extends State<_VerticalReaderPageItem> with A
       );
     }
 
-    return InteractiveViewer(
-      minScale: 1.0,
-      maxScale: 4.5,
-      panEnabled: true,
-      scaleEnabled: true,
-      clipBehavior: Clip.none,
-      child: Container(
-        padding: const EdgeInsets.only(bottom: 1),
-        width: itemWidth,
-        child: Center(
-          child: SizedBox(
-            width: itemWidth,
-            child: widget.applyColorFilter(content),
-          ),
+    return Container(
+      padding: const EdgeInsets.only(bottom: 1),
+      width: itemWidth,
+      child: Center(
+        child: SizedBox(
+          width: itemWidth,
+          child: widget.applyColorFilter(content),
         ),
       ),
     );
