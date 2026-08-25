@@ -321,9 +321,14 @@ jobs:
           if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
             TAG_NAME="${{ github.ref_name }}"
             VERSION_CLEAN="${TAG_NAME#v}"
-            echo "is_prerelease=false" >> $GITHUB_OUTPUT
+            if [[ "$TAG_NAME" == *"-beta"* || "$TAG_NAME" == *"-alpha"* || "$TAG_NAME" == *"-rc"* ]]; then
+              echo "is_prerelease=true" >> $GITHUB_OUTPUT
+              echo "release_title=${TAG_NAME} (Beta)" >> $GITHUB_OUTPUT
+            else
+              echo "is_prerelease=false" >> $GITHUB_OUTPUT
+              echo "release_title=${TAG_NAME}" >> $GITHUB_OUTPUT
+            fi
             echo "tag_name=${TAG_NAME}" >> $GITHUB_OUTPUT
-            echo "release_title=${TAG_NAME}" >> $GITHUB_OUTPUT
             
             if [ -f CHANGELOG.md ]; then
               awk -v ver="$VERSION_CLEAN" '
@@ -365,7 +370,7 @@ jobs:
 
   publish-rustore:
     name: Publish to RuStore
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-beta') && !contains(github.ref, '-alpha') && !contains(github.ref, '-rc')
     needs: [build-android]
     runs-on: ubuntu-latest
     continue-on-error: true
