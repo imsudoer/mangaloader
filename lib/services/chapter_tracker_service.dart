@@ -120,7 +120,9 @@ class ChapterTrackerService {
           if (remoteChapters.length > currentKnownCount && currentKnownCount > 0) {
             final diff = remoteChapters.length - currentKnownCount;
             final latest = remoteChapters.last;
-            final chapterStr = 'Том ${latest.volume} Гл ${latest.number}';
+            final chapterStr = isRu
+                ? 'Том ${latest.volume} Гл. ${latest.number}'
+                : 'Vol. ${latest.volume} Ch. ${latest.number}';
             final title = entry.rusName.isNotEmpty ? entry.rusName : entry.name;
 
             // Update database baseline so subsequent checks won't repeat this notification
@@ -188,7 +190,9 @@ class ChapterTrackerService {
 
           if (remoteChapters.length > currentKnownCount && currentKnownCount > 0) {
             final latest = remoteChapters.last;
-            final chapterStr = 'Том ${latest.volume} Гл ${latest.number}';
+            final chapterStr = isRu
+                ? 'Том ${latest.volume} Гл. ${latest.number}'
+                : 'Vol. ${latest.volume} Ch. ${latest.number}';
             final title = entry.rusName.isNotEmpty ? entry.rusName : entry.name;
 
             await rust_storage.updateMangaChaptersCount(

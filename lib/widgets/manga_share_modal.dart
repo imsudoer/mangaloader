@@ -50,9 +50,10 @@ class _MangaShareModalState extends State<MangaShareModal> {
       final tempDir = await getTemporaryDirectory();
       final file = File('${tempDir.path}/manga_card_${widget.manga.id}_${DateTime.now().millisecondsSinceEpoch}.png');
       await file.writeAsBytes(pngBytes);
-
+      if (!mounted) return;
+      final isRu = Localizations.localeOf(context).languageCode == 'ru';
       final title = widget.manga.rusName.isNotEmpty ? widget.manga.rusName : widget.manga.name;
-      final shareText = '$title\nhttps://mangalib.org/ru/manga/${widget.manga.slugUrl}\nЧитайте в MangaLoader!';
+      final shareText = '$title\nhttps://mangalib.org/ru/manga/${widget.manga.slugUrl}\n${isRu ? "Читайте в MangaLoader!" : "Read on MangaLoader!"}';
 
       await SharePlus.instance.share(
         ShareParams(
@@ -62,8 +63,9 @@ class _MangaShareModalState extends State<MangaShareModal> {
       );
     } catch (e) {
       if (mounted) {
+        final isRu = Localizations.localeOf(context).languageCode == 'ru';
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Ошибка создания карточки: $e')),
+          SnackBar(content: Text(isRu ? 'Ошибка создания карточки: $e' : 'Failed to create card: $e')),
         );
       }
     } finally {

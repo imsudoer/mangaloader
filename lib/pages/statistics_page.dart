@@ -46,7 +46,7 @@ class StatisticsPage extends ConsumerWidget {
           ),
         ),
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Ошибка: $e')),
+        error: (e, _) => Center(child: Text(isRu ? 'Ошибка: $e' : 'Error: $e')),
       ),
     );
   }
@@ -312,7 +312,7 @@ class StatisticsPage extends ConsumerWidget {
     return sessionAsync.when(
       data: (sessions) {
         String formatSecs(int secs) {
-          if (secs <= 0) return '0м';
+          if (secs <= 0) return isRu ? '0м' : '0m';
           final h = secs ~/ 3600;
           final m = (secs % 3600) ~/ 60;
           if (h > 0) {

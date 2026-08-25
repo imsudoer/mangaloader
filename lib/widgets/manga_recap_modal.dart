@@ -56,7 +56,7 @@ class _MangaRecapModalState extends ConsumerState<MangaRecapModal> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Ошибка экспорта карточки: $e')),
+          SnackBar(content: Text(isRu ? 'Ошибка экспорта карточки: $e' : 'Failed to export card: $e')),
         );
       }
     } finally {
@@ -232,7 +232,7 @@ class _MangaRecapModalState extends ConsumerState<MangaRecapModal> {
                                 children: [
                                   _buildStatBlock(
                                     title: isRu ? 'Часов чтения' : 'Hours Read',
-                                    value: '${recap.estimatedReadingHours} ч',
+                                    value: '${recap.estimatedReadingHours} ${isRu ? "ч" : "h"}',
                                     icon: Icons.timer_outlined,
                                     color: const Color(0xFF4682B4),
                                   ),

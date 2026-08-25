@@ -33,13 +33,13 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   ];
 
   final List<Map<String, dynamic>> _typeOptions = [
-    {'id': 0, 'label': 'Все', 'typeId': null},
-    {'id': 1, 'label': 'Манга', 'typeId': 1},
-    {'id': 5, 'label': 'Манхва', 'typeId': 5},
-    {'id': 6, 'label': 'Маньхуа', 'typeId': 6},
-    {'id': 8, 'label': 'Руманга', 'typeId': 8},
-    {'id': 9, 'label': 'Комикс', 'typeId': 9},
-    {'id': 3, 'label': 'Сингл', 'typeId': 3},
+    {'id': 0, 'labelRu': 'Все', 'labelEn': 'All', 'typeId': null},
+    {'id': 1, 'labelRu': 'Манга', 'labelEn': 'Manga', 'typeId': 1},
+    {'id': 5, 'labelRu': 'Манхва', 'labelEn': 'Manhwa', 'typeId': 5},
+    {'id': 6, 'labelRu': 'Маньхуа', 'labelEn': 'Manhua', 'typeId': 6},
+    {'id': 8, 'labelRu': 'Руманга', 'labelEn': 'Rumanga', 'typeId': 8},
+    {'id': 9, 'labelRu': 'Комикс', 'labelEn': 'Comic', 'typeId': 9},
+    {'id': 3, 'labelRu': 'Сингл', 'labelEn': 'Single', 'typeId': 3},
   ];
 
   final List<Map<String, dynamic>> _statusOptions = [
@@ -319,7 +319,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                     return Padding(
                       padding: const EdgeInsets.only(right: 6),
                       child: ChoiceChip(
-                        label: Text(opt['label'] as String),
+                        label: Text(isRu ? opt['labelRu'] as String : opt['labelEn'] as String),
                         selected: isSelected,
                         selectedColor: const Color(0xFF8A897C),
                         backgroundColor: const Color(0xFF2C2C2C),

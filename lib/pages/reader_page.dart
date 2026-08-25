@@ -156,7 +156,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     _scrollController.addListener(_onVerticalScroll);
     _chapterTitle = widget.localCbzPath != null
         ? widget.localCbzPath!.split(Platform.pathSeparator).last
-        : 'Том ${widget.volume} Гл ${widget.number}';
+        : (ref.read(localeProvider)?.languageCode != 'en'
+            ? 'Том ${widget.volume} Гл. ${widget.number}'
+            : 'Vol. ${widget.volume} Ch. ${widget.number}');
     _updateWindowTitle();
     _loadChapter();
   }
@@ -1479,7 +1481,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                                           TextButton.icon(
                                             onPressed: _showPageJumperDialog,
                                             icon: const Icon(Icons.menu_book_rounded, size: 16, color: Colors.white70),
-                                            label: Text('${pageIndex + 1} / $_totalPages стр.', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                            label: Text('${pageIndex + 1} / $_totalPages ${isRu ? "стр." : "p."}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                                           ),
                                           if (_allChapters.isNotEmpty)
                                             IconButton(

@@ -127,6 +127,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
             ),
           );
         },
+        loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
         error: (e, _) {
           final isRu = Localizations.localeOf(context).languageCode == 'ru';
           return Scaffold(

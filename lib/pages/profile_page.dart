@@ -92,8 +92,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       }
     } catch (e) {
       if (mounted) {
+        final isRu = Localizations.localeOf(context).languageCode == 'ru';
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Ошибка синхронизации: $e')),
+          SnackBar(content: Text(isRu ? 'Ошибка синхронизации: $e' : 'Sync error: $e')),
         );
       }
     } finally {
@@ -192,7 +193,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                 } catch (e) {
                   if (mounted) {
                     messenger.showSnackBar(
-                      SnackBar(content: Text('Ошибка обновления профиля: $e')),
+                      SnackBar(content: Text(isRu ? 'Ошибка обновления профиля: $e' : 'Failed to update profile: $e')),
                     );
                   }
                 }
@@ -304,7 +305,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                 } catch (e) {
                   if (mounted) {
                     messenger.showSnackBar(
-                      SnackBar(content: Text('Ошибка обновления приватности: $e')),
+                      SnackBar(content: Text(isRu ? 'Ошибка обновления приватности: $e' : 'Failed to update privacy: $e')),
                     );
                   }
                 }
