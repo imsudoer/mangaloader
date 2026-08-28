@@ -243,9 +243,9 @@ def main():
     key_id = os.environ.get("RUSTORE_KEY_ID")
     private_key = os.environ.get("RUSTORE_PRIVATE_KEY")
     package_name = os.environ.get("RUSTORE_PACKAGE_NAME", "bshv.mangaloader.app")
-    apk_path = os.environ.get("RUSTORE_APK_PATH", "apks/mangaloader-android-universal_rustore.apk")
-    if not os.path.exists(apk_path) and os.path.exists("apks/mangaloader-android-universal.apk"):
-        apk_path = "apks/mangaloader-android-universal.apk"
+    apk_path = os.environ.get("RUSTORE_APK_PATH", "apks/mangaloader-android-arm64-v8a_rustore.apk")
+    if not os.path.exists(apk_path) and os.path.exists("apks/mangaloader-android-arm64-v8a.apk"):
+        apk_path = "apks/mangaloader-android-arm64-v8a.apk"
     whats_new = os.environ.get("RUSTORE_WHATS_NEW", "")
     
     if not key_id or not private_key:

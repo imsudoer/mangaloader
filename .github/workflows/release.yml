@@ -212,8 +212,8 @@ jobs:
       - name: Build RuStore Compliant APK (without REQUEST_INSTALL_PACKAGES)
         run: |
           sed -i '/REQUEST_INSTALL_PACKAGES/d' android/app/src/main/AndroidManifest.xml
-          flutter build apk --release --dart-define=RUSTORE_BUILD=true
-          cp build/app/outputs/flutter-apk/app-release.apk apks/mangaloader-android-universal_rustore.apk
+          flutter build apk --release --split-per-abi --dart-define=RUSTORE_BUILD=true
+          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk apks/mangaloader-android-arm64-v8a_rustore.apk
           git checkout android/app/src/main/AndroidManifest.xml
 
       - name: Upload Android Artifacts
@@ -424,12 +424,12 @@ jobs:
           name: mangaloader-android-artifacts
           path: apks
 
-      - name: Publish Universal APK to RuStore
+      - name: Publish arm64-v8a APK to RuStore
         env:
           RUSTORE_KEY_ID: ${{ secrets.RUSTORE_KEY_ID }}
           RUSTORE_PRIVATE_KEY: ${{ secrets.RUSTORE_PRIVATE_KEY }}
           RUSTORE_PACKAGE_NAME: 'bshv.mangaloader.app'
-          RUSTORE_APK_PATH: 'apks/mangaloader-android-universal_rustore.apk'
+          RUSTORE_APK_PATH: 'apks/mangaloader-android-arm64-v8a_rustore.apk'
         run: |
           export RUSTORE_WHATS_NEW="$(cat rustore_notes.txt)"
           python3 scripts/publish_rustore.py
