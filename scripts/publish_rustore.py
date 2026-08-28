@@ -195,16 +195,14 @@ def create_or_get_draft_version(token: str, package_name: str, whats_new: str) -
                 version_id = data.get("versionId")
             print(f"Successfully created version draft with versionId: {version_id}")
             return int(version_id)
-        else:
-            print(f"Draft creation attempt ({create_url.split('?')[-1]}): HTTP {res.status_code} - {res.text}")
-
-    if rejected_vid:
-        print(f"Reusing REJECTED_BY_MODERATOR version {rejected_vid} to upload corrected APK...")
-        return rejected_vid
-
     if moderation_info:
         print(f"\n[RuStore Notice] Previous version {moderation_info[0]} ({moderation_info[2]}) is currently under active RuStore {moderation_info[1]}.")
         print("RuStore only permits 1 version under review at a time. The new release will be submitted once current moderation concludes.")
+        return None
+
+    if rejected_vid:
+        print(f"\n[RuStore Notice] Previous version ({rejected_vid}) was REJECTED_BY_MODERATOR and RuStore API requires an ACTIVE version to auto-create drafts.")
+        print("Please create a draft in the RuStore developer console (or upload the new APK there once). After the first version becomes ACTIVE, all subsequent releases will be 100% automated via API.")
         return None
 
     print(f"Failed to create or obtain RuStore version draft for {package_name}.")
