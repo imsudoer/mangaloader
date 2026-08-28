@@ -700,179 +700,200 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
           // 5. Updates
           _buildSectionHeader(isRu ? 'Обновления' : 'Updates', Icons.system_update_rounded),
-          Card(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
-              side: const BorderSide(color: Color(0xFF353535)),
-            ),
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Text(
-                                  isRu ? 'Версия: v$currentVersionStr' : 'Version: v$currentVersionStr',
-                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white),
-                                ),
-                                if (availableUpdate != null && availableUpdate.hasUpdate) ...[
-                                  const SizedBox(width: 8),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF8A897C),
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
-                                    child: Text(
-                                      availableUpdate.tagName,
-                                      style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Colors.white),
-                                    ),
+          if (isRuStoreBuild)
+            Card(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+                side: const BorderSide(color: Color(0xFF353535)),
+              ),
+              child: ListTile(
+                leading: const Icon(Icons.storefront_rounded, color: Color(0xFF8A897C)),
+                title: Text(
+                  isRu ? 'Версия: v$currentVersionStr (RuStore)' : 'Version: v$currentVersionStr (RuStore)',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white),
+                ),
+                subtitle: Text(
+                  isRu
+                      ? 'Обновления приложения управляются через магазин RuStore'
+                      : 'App updates are managed via RuStore',
+                  style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
+                ),
+              ),
+            )
+          else
+            Card(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+                side: const BorderSide(color: Color(0xFF353535)),
+              ),
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Text(
+                                    isRu ? 'Версия: v$currentVersionStr' : 'Version: v$currentVersionStr',
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white),
                                   ),
+                                  if (availableUpdate != null && availableUpdate.hasUpdate) ...[
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF8A897C),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: Text(
+                                        availableUpdate.tagName,
+                                        style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Colors.white),
+                                      ),
+                                    ),
+                                  ],
                                 ],
-                              ],
-                            ),
-                            const SizedBox(height: 4),
-                            if (downloadState.status == UpdateDownloadStatus.downloading) ...[
-                              Text(
-                                '${isRu ? "Загрузка:" : "Downloading:"} ${(downloadState.progress * 100).toStringAsFixed(0)}%',
-                                style: const TextStyle(color: Color(0xFF8A897C), fontSize: 12, fontWeight: FontWeight.bold),
                               ),
-                              const SizedBox(height: 6),
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(4),
-                                child: LinearProgressIndicator(
-                                  value: downloadState.progress > 0 ? downloadState.progress : null,
-                                  backgroundColor: const Color(0xFF353535),
-                                  valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF8A897C)),
-                                  minHeight: 4,
+                              const SizedBox(height: 4),
+                              if (downloadState.status == UpdateDownloadStatus.downloading) ...[
+                                Text(
+                                  '${isRu ? "Загрузка:" : "Downloading:"} ${(downloadState.progress * 100).toStringAsFixed(0)}%',
+                                  style: const TextStyle(color: Color(0xFF8A897C), fontSize: 12, fontWeight: FontWeight.bold),
                                 ),
-                              ),
-                            ] else if (downloadState.status == UpdateDownloadStatus.completed) ...[
-                              Text(
-                                isRu ? 'Обновление готово к установке' : 'Update ready to install',
-                                style: const TextStyle(color: Colors.greenAccent, fontSize: 12, fontWeight: FontWeight.bold),
-                              ),
-                            ] else ...[
-                              Text(
-                                isRu ? 'Проверка новых релизов на GitHub' : 'Check for new releases on GitHub',
-                                style: const TextStyle(color: Color(0xFFBDBBB0), fontSize: 12),
-                              ),
+                                const SizedBox(height: 6),
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(4),
+                                  child: LinearProgressIndicator(
+                                    value: downloadState.progress > 0 ? downloadState.progress : null,
+                                    backgroundColor: const Color(0xFF353535),
+                                    valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF8A897C)),
+                                    minHeight: 4,
+                                  ),
+                                ),
+                              ] else if (downloadState.status == UpdateDownloadStatus.completed) ...[
+                                Text(
+                                  isRu ? 'Обновление готово к установке' : 'Update ready to install',
+                                  style: const TextStyle(color: Colors.greenAccent, fontSize: 12, fontWeight: FontWeight.bold),
+                                ),
+                              ] else ...[
+                                Text(
+                                  isRu ? 'Проверка новых релизов на GitHub' : 'Check for new releases on GitHub',
+                                  style: const TextStyle(color: Color(0xFFBDBBB0), fontSize: 12),
+                                ),
+                              ],
                             ],
-                          ],
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Builder(
-                        builder: (context) {
-                          if (downloadState.status == UpdateDownloadStatus.completed && downloadState.downloadedFile != null) {
-                            return FilledButton.icon(
-                              style: FilledButton.styleFrom(
-                                backgroundColor: Colors.green.shade800,
-                                foregroundColor: Colors.white,
-                              ),
-                              onPressed: () => AppUpdateDownloader.installOrOpen(downloadState.downloadedFile!),
-                              icon: const Icon(Icons.install_mobile_rounded, size: 18),
-                              label: Text(isRu ? 'Установить' : 'Install'),
-                            );
-                          }
-                          if (downloadState.status == UpdateDownloadStatus.downloading) {
-                            return OutlinedButton(
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: Colors.redAccent,
-                                side: const BorderSide(color: Colors.redAccent),
-                              ),
-                              onPressed: () {
-                                AppUpdateDownloader.cancel();
-                                ref.read(updateDownloadStateProvider.notifier).state = const UpdateDownloadState();
-                              },
-                              child: Text(isRu ? 'Отмена' : 'Cancel'),
-                            );
-                          }
-                          if (availableUpdate != null && availableUpdate.hasUpdate) {
+                        const SizedBox(width: 12),
+                        Builder(
+                          builder: (context) {
+                            if (downloadState.status == UpdateDownloadStatus.completed && downloadState.downloadedFile != null) {
+                              return FilledButton.icon(
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: Colors.green.shade800,
+                                  foregroundColor: Colors.white,
+                                ),
+                                onPressed: () => AppUpdateDownloader.installOrOpen(downloadState.downloadedFile!),
+                                icon: const Icon(Icons.install_mobile_rounded, size: 18),
+                                label: Text(isRu ? 'Установить' : 'Install'),
+                              );
+                            }
+                            if (downloadState.status == UpdateDownloadStatus.downloading) {
+                              return OutlinedButton(
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.redAccent,
+                                  side: const BorderSide(color: Colors.redAccent),
+                                ),
+                                onPressed: () {
+                                  AppUpdateDownloader.cancel();
+                                  ref.read(updateDownloadStateProvider.notifier).state = const UpdateDownloadState();
+                                },
+                                child: Text(isRu ? 'Отмена' : 'Cancel'),
+                              );
+                            }
+                            if (availableUpdate != null && availableUpdate.hasUpdate) {
+                              return FilledButton.icon(
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: const Color(0xFF8A897C),
+                                  foregroundColor: Colors.white,
+                                ),
+                                onPressed: () => _showUpdateSheet(context, availableUpdate, isRu),
+                                icon: const Icon(Icons.system_update_rounded, size: 18),
+                                label: Text(isRu ? 'Обновить' : 'Update'),
+                              );
+                            }
                             return FilledButton.icon(
                               style: FilledButton.styleFrom(
                                 backgroundColor: const Color(0xFF8A897C),
                                 foregroundColor: Colors.white,
                               ),
-                              onPressed: () => _showUpdateSheet(context, availableUpdate, isRu),
-                              icon: const Icon(Icons.system_update_rounded, size: 18),
-                              label: Text(isRu ? 'Обновить' : 'Update'),
+                              onPressed: _isCheckingUpdates ? null : () => _checkUpdates(isRu),
+                              icon: _isCheckingUpdates 
+                                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                                : const Icon(Icons.refresh_rounded, size: 18),
+                              label: Text(isRu ? 'Проверить' : 'Check'),
                             );
-                          }
-                          return FilledButton.icon(
-                            style: FilledButton.styleFrom(
-                              backgroundColor: const Color(0xFF8A897C),
-                              foregroundColor: Colors.white,
-                            ),
-                            onPressed: _isCheckingUpdates ? null : () => _checkUpdates(isRu),
-                            icon: _isCheckingUpdates 
-                              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                              : const Icon(Icons.refresh_rounded, size: 18),
-                            label: Text(isRu ? 'Проверить' : 'Check'),
-                          );
-                        },
-                      ),
-                    ],
+                          },
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                const Divider(height: 1, indent: 16, endIndent: 16),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(isRu ? 'Канал обновлений' : 'Update Channel', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                            const SizedBox(height: 2),
-                            Text(
-                              isRu ? 'Стабильные релизы или Dev/Beta' : 'Stable releases or Dev/Beta',
-                              style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
+                  const Divider(height: 1, indent: 16, endIndent: 16),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(isRu ? 'Канал обновлений' : 'Update Channel', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                              const SizedBox(height: 2),
+                              Text(
+                                isRu ? 'Стабильные релизы или Dev/Beta' : 'Stable releases or Dev/Beta',
+                                style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
+                              ),
+                            ],
+                          ),
+                        ),
+                        SegmentedButton<UpdateChannel>(
+                          segments: const [
+                            ButtonSegment(
+                              value: UpdateChannel.stable,
+                              label: Text('Stable'),
+                            ),
+                            ButtonSegment(
+                              value: UpdateChannel.beta,
+                              label: Text('Beta/Dev'),
                             ),
                           ],
+                          selected: {ref.watch(updateChannelProvider)},
+                          onSelectionChanged: (Set<UpdateChannel> newSelection) {
+                            ref.read(updateChannelProvider.notifier).setChannel(newSelection.first);
+                          },
                         ),
-                      ),
-                      SegmentedButton<UpdateChannel>(
-                        segments: const [
-                          ButtonSegment(
-                            value: UpdateChannel.stable,
-                            label: Text('Stable'),
-                          ),
-                          ButtonSegment(
-                            value: UpdateChannel.beta,
-                            label: Text('Beta/Dev'),
-                          ),
-                        ],
-                        selected: {ref.watch(updateChannelProvider)},
-                        onSelectionChanged: (Set<UpdateChannel> newSelection) {
-                          ref.read(updateChannelProvider.notifier).setChannel(newSelection.first);
-                        },
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-                const Divider(height: 1, indent: 16, endIndent: 16),
-                SwitchListTile(
-                  secondary: const Icon(Icons.schedule_rounded, color: Color(0xFF8A897C)),
-                  title: Text(isRu ? 'Проверять при запуске' : 'Check updates on launch'),
-                  subtitle: Text(
-                    isRu ? 'Тихий поиск свежих версий на главной' : 'Silent background check on startup',
-                    style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
+                  const Divider(height: 1, indent: 16, endIndent: 16),
+                  SwitchListTile(
+                    secondary: const Icon(Icons.schedule_rounded, color: Color(0xFF8A897C)),
+                    title: Text(isRu ? 'Проверять при запуске' : 'Check updates on launch'),
+                    subtitle: Text(
+                      isRu ? 'Тихий поиск свежих версий на главной' : 'Silent background check on startup',
+                      style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
+                    ),
+                    value: ref.watch(autoCheckUpdatesProvider),
+                    onChanged: (val) => ref.read(autoCheckUpdatesProvider.notifier).setAutoCheck(val),
                   ),
-                  value: ref.watch(autoCheckUpdatesProvider),
-                  onChanged: (val) => ref.read(autoCheckUpdatesProvider.notifier).setAutoCheck(val),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
           const SizedBox(height: 20),
 
           // 6. About

@@ -19,14 +19,21 @@ void callbackDispatcher() {
   Workmanager().executeTask((task, inputData) async {
     try {
       WidgetsFlutterBinding.ensureInitialized();
-      await RustLib.init();
+      try {
+        await RustLib.init();
+      } catch (_) {}
       final appDir = await getApplicationDocumentsDirectory();
       await rust_storage.initDatabase(appDir: appDir.path);
       await StreakNotificationService.init();
 
+      final localeSetting = await rust_storage.getSetting(key: 'locale');
+      final isRu = localeSetting != 'en';
+
       // Check library updates and app updates
-      await ChapterTrackerService.checkBackgroundUpdates();
-      await UpdateChecker.checkAppUpdateSilently();
+      await ChapterTrackerService.checkBackgroundUpdates(isRu: isRu);
+      if (!isRuStoreBuild) {
+        await UpdateChecker.checkAppUpdateSilently(isRu: isRu);
+      }
     } catch (e) {
       debugPrint('Background sync task error: $e');
     }
@@ -70,11 +77,11 @@ class ChapterTrackerService {
         await Workmanager().registerPeriodicTask(
           kBackgroundSyncTask,
           kBackgroundSyncTask,
-          frequency: const Duration(hours: 3),
+          frequency: const Duration(hours: 1),
           constraints: Constraints(
             networkType: NetworkType.connected,
           ),
-          existingWorkPolicy: ExistingPeriodicWorkPolicy.keep,
+          existingWorkPolicy: ExistingPeriodicWorkPolicy.update,
         );
       } catch (e) {
         debugPrint('Workmanager init error: $e');

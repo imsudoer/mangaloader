@@ -47,6 +47,7 @@ class _HomePageState extends ConsumerState<HomePage> {
   }
 
   Future<void> _checkUpdatesSilently() async {
+    if (isRuStoreBuild) return;
     final autoCheck = ref.read(autoCheckUpdatesProvider);
     if (!autoCheck) return;
     final currentUpdate = ref.read(availableUpdateProvider);

@@ -123,6 +123,8 @@ class AppUpdateInfo {
 
 enum UpdateChannel { stable, beta }
 
+const bool isRuStoreBuild = bool.fromEnvironment('RUSTORE_BUILD', defaultValue: false);
+
 class UpdateChecker {
   static String? _cachedCurrentVersion;
   static const String defaultRepo = 'imsudoer/mangaloader';
@@ -134,16 +136,17 @@ class UpdateChecker {
       _cachedCurrentVersion = info.version;
       return info.version;
     } catch (_) {
-      return '1.7.4';
+      return '1.8.2';
     }
   }
 
-  static String get currentVersion => _cachedCurrentVersion ?? '1.7.4';
+  static String get currentVersion => _cachedCurrentVersion ?? '1.8.2';
 
   static Future<AppUpdateInfo?> checkForUpdates({
     String repo = defaultRepo,
     UpdateChannel channel = UpdateChannel.stable,
   }) async {
+    if (isRuStoreBuild) return null;
     try {
       final curVer = await getCurrentVersion();
       final client = HttpClient();
@@ -228,6 +231,7 @@ class UpdateChecker {
 
   /// Silently check for update and trigger notification once
   static Future<void> checkAppUpdateSilently({bool isRu = true}) async {
+    if (isRuStoreBuild) return;
     try {
       final info = await checkForUpdates();
       if (info != null && info.hasUpdate) {

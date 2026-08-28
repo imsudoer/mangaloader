@@ -212,7 +212,7 @@ jobs:
       - name: Build RuStore Compliant APK (without REQUEST_INSTALL_PACKAGES)
         run: |
           sed -i '/REQUEST_INSTALL_PACKAGES/d' android/app/src/main/AndroidManifest.xml
-          flutter build apk --release
+          flutter build apk --release --dart-define=RUSTORE_BUILD=true
           cp build/app/outputs/flutter-apk/app-release.apk apks/mangaloader-android-universal_rustore.apk
           git checkout android/app/src/main/AndroidManifest.xml
 
