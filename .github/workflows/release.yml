@@ -201,13 +201,20 @@ jobs:
           flutter build apk --release
           flutter build apk --release --split-per-abi
 
-      - name: Prepare APK Artifacts
+      - name: Prepare Standard APK Artifacts
         run: |
           mkdir -p apks
           cp build/app/outputs/flutter-apk/app-release.apk apks/mangaloader-android-universal.apk
           cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk apks/mangaloader-android-arm64-v8a.apk
           cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk apks/mangaloader-android-armeabi-v7a.apk
           cp build/app/outputs/flutter-apk/app-x86_64-release.apk apks/mangaloader-android-x86_64.apk
+
+      - name: Build RuStore Compliant APK (without REQUEST_INSTALL_PACKAGES)
+        run: |
+          sed -i '/REQUEST_INSTALL_PACKAGES/d' android/app/src/main/AndroidManifest.xml
+          flutter build apk --release
+          cp build/app/outputs/flutter-apk/app-release.apk apks/mangaloader-android-universal_rustore.apk
+          git checkout android/app/src/main/AndroidManifest.xml
 
       - name: Upload Android Artifacts
         uses: actions/upload-artifact@v4
@@ -422,7 +429,7 @@ jobs:
           RUSTORE_KEY_ID: ${{ secrets.RUSTORE_KEY_ID }}
           RUSTORE_PRIVATE_KEY: ${{ secrets.RUSTORE_PRIVATE_KEY }}
           RUSTORE_PACKAGE_NAME: 'bshv.mangaloader.app'
-          RUSTORE_APK_PATH: 'apks/mangaloader-android-universal.apk'
+          RUSTORE_APK_PATH: 'apks/mangaloader-android-universal_rustore.apk'
         run: |
           export RUSTORE_WHATS_NEW="$(cat rustore_notes.txt)"
           python3 scripts/publish_rustore.py

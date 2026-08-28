@@ -139,6 +139,7 @@ def create_or_get_draft_version(token: str, package_name: str, whats_new: str) -
     ]
     
     moderation_info = None
+    rejected_vid = None
 
     for v_url in version_endpoints:
         try:
@@ -162,6 +163,9 @@ def create_or_get_draft_version(token: str, package_name: str, whats_new: str) -
                         except Exception:
                             pass
                         return int(vid)
+
+                    if status == "REJECTED_BY_MODERATOR" and vid:
+                        rejected_vid = int(vid)
                     
                     if status in ("MODERATION", "REVIEW", "TAKEN_FOR_MODERATION") and vid:
                         moderation_info = (vid, status, ver_name)
@@ -193,6 +197,10 @@ def create_or_get_draft_version(token: str, package_name: str, whats_new: str) -
             return int(version_id)
         else:
             print(f"Draft creation attempt ({create_url.split('?')[-1]}): HTTP {res.status_code} - {res.text}")
+
+    if rejected_vid:
+        print(f"Reusing REJECTED_BY_MODERATOR version {rejected_vid} to upload corrected APK...")
+        return rejected_vid
 
     if moderation_info:
         print(f"\n[RuStore Notice] Previous version {moderation_info[0]} ({moderation_info[2]}) is currently under active RuStore {moderation_info[1]}.")
@@ -235,7 +243,9 @@ def main():
     key_id = os.environ.get("RUSTORE_KEY_ID")
     private_key = os.environ.get("RUSTORE_PRIVATE_KEY")
     package_name = os.environ.get("RUSTORE_PACKAGE_NAME", "bshv.mangaloader.app")
-    apk_path = os.environ.get("RUSTORE_APK_PATH", "apks/mangaloader-android-universal.apk")
+    apk_path = os.environ.get("RUSTORE_APK_PATH", "apks/mangaloader-android-universal_rustore.apk")
+    if not os.path.exists(apk_path) and os.path.exists("apks/mangaloader-android-universal.apk"):
+        apk_path = "apks/mangaloader-android-universal.apk"
     whats_new = os.environ.get("RUSTORE_WHATS_NEW", "")
     
     if not key_id or not private_key:
