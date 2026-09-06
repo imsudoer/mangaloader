@@ -7,8 +7,18 @@ import 'package:mangaloader/src/rust/api/models.dart';
 import 'package:mangaloader/src/rust/api/storage.dart' as rust_storage;
 import 'package:shimmer/shimmer.dart';
 
+import 'package:mangaloader/services/content_filter.dart';
+import 'package:mangaloader/services/update_checker.dart';
+
 final historyProvider = FutureProvider.autoDispose<List<ReadingHistoryItem>>((ref) async {
-  return await rust_storage.getReadingHistory(limit: 200, offset: 0);
+  final items = await rust_storage.getReadingHistory(limit: 200, offset: 0);
+  if (!isRuStoreBuild) return items;
+  return items
+      .where((i) =>
+          !ContentFilter.isBlockedText(i.name) &&
+          !ContentFilter.isBlockedText(i.rusName) &&
+          !ContentFilter.isBlockedText(i.slugUrl))
+      .toList();
 });
 
 class HistoryPage extends ConsumerStatefulWidget {

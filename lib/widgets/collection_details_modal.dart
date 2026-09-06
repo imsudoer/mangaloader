@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:mangaloader/src/rust/api/mangalib_client.dart' as rust_api;
 import 'package:mangaloader/src/rust/api/models.dart';
 import 'package:mangaloader/widgets/manga_card.dart';
+import 'package:mangaloader/services/content_filter.dart';
 
 class CollectionDetailsModal extends StatefulWidget {
   final int collectionId;
@@ -48,9 +49,24 @@ class _CollectionDetailsModalState extends State<CollectionDetailsModal> {
   Future<void> _loadDetails() async {
     try {
       final data = await rust_api.getCollectionDetails(collectionId: widget.collectionId);
+      final filteredItems = ContentFilter.filterSearchResults(data.items);
+      final filteredData = MangaCollectionDetails(
+        id: data.id,
+        name: data.name,
+        description: data.description,
+        views: data.views,
+        favoritesCount: data.favoritesCount,
+        itemsCount: data.itemsCount,
+        commentsCount: data.commentsCount,
+        userId: data.userId,
+        username: data.username,
+        userAvatar: data.userAvatar,
+        createdAt: data.createdAt,
+        items: filteredItems,
+      );
       if (mounted) {
         setState(() {
-          _details = data;
+          _details = filteredData;
           _isLoading = false;
         });
       }

@@ -6,6 +6,8 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:mangaloader/providers/download_provider.dart';
 import 'package:mangaloader/src/rust/api/storage.dart' as rust_storage;
 import 'package:mangaloader/src/rust/api/models.dart';
+import 'package:mangaloader/services/content_filter.dart';
+import 'package:mangaloader/services/update_checker.dart';
 
 class DownloadsPage extends ConsumerStatefulWidget {
   const DownloadsPage({super.key});
@@ -31,9 +33,17 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
     setState(() => _loading = true);
     try {
       final list = await rust_storage.getDownloadedMangaGroups();
+      final filtered = !isRuStoreBuild
+          ? list
+          : list
+              .where((g) =>
+                  !ContentFilter.isBlockedText(g.name) &&
+                  !ContentFilter.isBlockedText(g.rusName) &&
+                  !ContentFilter.isBlockedText(g.slugUrl))
+              .toList();
       if (mounted) {
         setState(() {
-          _mangaGroups = list;
+          _mangaGroups = filtered;
           _loading = false;
         });
       }

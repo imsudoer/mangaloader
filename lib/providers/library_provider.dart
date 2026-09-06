@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mangaloader/src/rust/api/storage.dart' as rust_storage;
 import 'package:mangaloader/src/rust/api/mangalib_client.dart' as rust_api;
 import 'package:mangaloader/src/rust/api/models.dart';
+import 'package:mangaloader/services/content_filter.dart';
 
 final libraryProvider = StateNotifierProvider<LibraryNotifier, AsyncValue<List<LibraryEntry>>>((ref) {
   final notifier = LibraryNotifier();
@@ -16,7 +17,7 @@ class LibraryNotifier extends StateNotifier<AsyncValue<List<LibraryEntry>>> {
     state = const AsyncValue.loading();
     try {
       final entries = await rust_storage.getAllLibraryManga();
-      state = AsyncValue.data(entries);
+      state = AsyncValue.data(ContentFilter.filterLibraryEntries(entries));
     } catch (e, st) {
       state = AsyncValue.error(e, st);
     }

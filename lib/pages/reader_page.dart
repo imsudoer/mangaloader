@@ -16,6 +16,7 @@ import 'package:mangaloader/src/rust/api/mangalib_client.dart' as rust_api;
 import 'package:mangaloader/src/rust/api/cbz_export.dart' as rust_cbz;
 import 'package:mangaloader/src/rust/api/models.dart';
 import 'package:mangaloader/services/streak_notification_service.dart';
+import 'package:mangaloader/services/content_filter.dart';
 import 'package:mangaloader/widgets/manga_comments_modal.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -253,6 +254,17 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   }
 
   Future<void> _loadChapter() async {
+    if (ContentFilter.isBlockedText(widget.slugUrl) ||
+        (widget.localCbzPath != null && ContentFilter.isBlockedText(widget.localCbzPath))) {
+      setState(() {
+        _isLoading = false;
+        _errorMessage = ref.read(localeProvider)?.languageCode != 'en'
+            ? 'Контент недоступен в соответствии с требованиями законодательства РФ'
+            : 'Content is unavailable in compliance with local regulations';
+      });
+      return;
+    }
+
     setState(() { _isLoading = true; _errorMessage = null; });
     
     try {

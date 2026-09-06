@@ -130,6 +130,30 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
         loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
         error: (e, _) {
           final isRu = Localizations.localeOf(context).languageCode == 'ru';
+          final cleanError = e.toString().replaceAll('Exception: ', '');
+          final isBlocked = cleanError.contains('законодательства РФ') || cleanError.contains('regulations');
+          if (isBlocked) {
+            return Scaffold(
+              appBar: AppBar(title: Text(isRu ? 'Контент недоступен' : 'Content Unavailable')),
+              body: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(32),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.block_rounded, size: 56, color: Color(0xFF8A897C)),
+                      const SizedBox(height: 16),
+                      Text(
+                        cleanError,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 15, color: Color(0xFFD2D7DF)),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }
           return Scaffold(
             appBar: AppBar(title: Text(isRu ? 'Ошибка' : 'Error')),
             body: Center(

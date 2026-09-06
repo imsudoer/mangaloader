@@ -13,19 +13,35 @@ import 'package:mangaloader/widgets/update_bottom_sheet.dart';
 import 'package:mangaloader/widgets/reading_streak_button.dart';
 import 'package:mangaloader/widgets/continue_reading_section.dart';
 import 'package:mangaloader/services/streak_notification_service.dart';
+import 'package:mangaloader/services/content_filter.dart';
 
 final homeDataProvider = FutureProvider.autoDispose<HomePageData>((ref) async {
-  return await rust_api.getHomepage();
+  final data = await rust_api.getHomepage();
+  if (!isRuStoreBuild) return data;
+  return HomePageData(
+    popular: ContentFilter.filterSearchResults(data.popular),
+    newest: ContentFilter.filterSearchResults(data.newest),
+    latestUpdates: ContentFilter.filterSearchResults(data.latestUpdates),
+    topViews: ContentFilter.filterSearchResults(data.topViews),
+  );
 });
 
 final topViewsPeriodProvider = StateProvider<String>((ref) => 'day');
 
 final topViewsCustomProvider = FutureProvider.autoDispose.family<List<MangaSearchResult>, String>((ref, time) async {
-  return await rust_api.getTopViews(time: time);
+  final items = await rust_api.getTopViews(time: time);
+  return ContentFilter.filterSearchResults(items);
 });
 
 final recommendationsProvider = FutureProvider.autoDispose<List<RecommendedManga>>((ref) async {
-  return await rust_storage.getRecommendations(limit: 10);
+  final items = await rust_storage.getRecommendations(limit: 10);
+  if (!isRuStoreBuild) return items;
+  return items
+      .where((r) =>
+          !ContentFilter.isBlockedText(r.name) &&
+          !ContentFilter.isBlockedText(r.rusName) &&
+          !ContentFilter.isBlockedText(r.slugUrl))
+      .toList();
 });
 
 class HomePage extends ConsumerStatefulWidget {

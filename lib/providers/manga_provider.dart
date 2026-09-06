@@ -3,16 +3,27 @@ import 'package:mangaloader/src/rust/api/mangalib_client.dart' as rust_api;
 import 'package:mangaloader/src/rust/api/storage.dart' as rust_storage;
 import 'package:mangaloader/src/rust/api/models.dart';
 
+import 'package:mangaloader/services/content_filter.dart';
+
 final mangaDetailsProvider = FutureProvider.family<MangaDetails, String>((ref, slugUrl) async {
+  if (ContentFilter.isBlockedText(slugUrl)) {
+    throw Exception('Контент недоступен в соответствии с требованиями законодательства РФ');
+  }
   try {
     final details = await rust_api.getMangaDetails(slugUrl: slugUrl);
+    if (ContentFilter.isBlockedDetails(details)) {
+      throw Exception('Контент недоступен в соответствии с требованиями законодательства РФ');
+    }
     // Cache to SQLite for offline access
     await rust_storage.saveManga(manga: details);
     return details;
   } catch (e) {
+    if (ContentFilter.isBlockedText(slugUrl)) {
+      rethrow;
+    }
     // Fallback to SQLite cached manga when offline
     final cached = await rust_storage.getCachedManga(slugUrl: slugUrl);
-    if (cached != null) {
+    if (cached != null && !ContentFilter.isBlockedDetails(cached)) {
       return cached;
     }
     rethrow;
@@ -20,6 +31,9 @@ final mangaDetailsProvider = FutureProvider.family<MangaDetails, String>((ref, s
 });
 
 final mangaChaptersProvider = FutureProvider.family<List<Chapter>, String>((ref, slugUrl) async {
+  if (ContentFilter.isBlockedText(slugUrl)) {
+    return const [];
+  }
   try {
     final chapters = await rust_api.getChapters(slugUrl: slugUrl);
     final cachedManga = await rust_storage.getCachedManga(slugUrl: slugUrl);
@@ -54,16 +68,28 @@ final mangaCommentsProvider = FutureProvider.family<CommentsData, int>((ref, man
 });
 
 final mangaRelationsProvider = FutureProvider.family<List<MangaRelationItem>, String>((ref, slugUrl) async {
+  if (ContentFilter.isBlockedText(slugUrl)) {
+    return const [];
+  }
   try {
-    return await rust_api.getMangaRelations(slugUrl: slugUrl);
+    final items = await rust_api.getMangaRelations(slugUrl: slugUrl);
+    return items
+        .where((i) => !ContentFilter.isBlockedSearchResult(i.manga))
+        .toList();
   } catch (_) {
     return const [];
   }
 });
 
 final mangaSimilarProvider = FutureProvider.family<List<MangaSimilarItem>, String>((ref, slugUrl) async {
+  if (ContentFilter.isBlockedText(slugUrl)) {
+    return const [];
+  }
   try {
-    return await rust_api.getMangaSimilar(slugUrl: slugUrl);
+    final items = await rust_api.getMangaSimilar(slugUrl: slugUrl);
+    return items
+        .where((i) => !ContentFilter.isBlockedSearchResult(i.manga))
+        .toList();
   } catch (_) {
     return const [];
   }

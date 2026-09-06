@@ -3,6 +3,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mangaloader/src/rust/api/mangalib_client.dart' as rust_api;
 import 'package:mangaloader/src/rust/api/models.dart';
+import 'package:mangaloader/services/content_filter.dart';
 
 class CatalogFilter {
   final String sortBy;
@@ -106,7 +107,7 @@ class SearchNotifier extends StateNotifier<AsyncValue<List<MangaSearchResult>>> 
         formatIds: Int64List.fromList(filter.formatIds),
         scanlateIds: Int64List.fromList(filter.scanlateIds),
       );
-      state = AsyncValue.data(results);
+      state = AsyncValue.data(ContentFilter.filterSearchResults(results));
     } catch (e, st) {
       state = AsyncValue.error(e, st);
     }
@@ -116,15 +117,24 @@ class SearchNotifier extends StateNotifier<AsyncValue<List<MangaSearchResult>>> 
     _currentQuery = query.trim();
     if (_debounce?.isActive ?? false) _debounce!.cancel();
 
+    if (ContentFilter.isBlockedText(_currentQuery)) {
+      state = const AsyncValue.data([]);
+      return;
+    }
+
     _debounce = Timer(const Duration(milliseconds: 400), () async {
       if (_currentQuery.isEmpty) {
         await loadCatalog();
         return;
       }
+      if (ContentFilter.isBlockedText(_currentQuery)) {
+        state = const AsyncValue.data([]);
+        return;
+      }
       state = const AsyncValue.loading();
       try {
         final results = await rust_api.searchManga(query: _currentQuery);
-        state = AsyncValue.data(results);
+        state = AsyncValue.data(ContentFilter.filterSearchResults(results));
       } catch (e, st) {
         state = AsyncValue.error(e, st);
       }
