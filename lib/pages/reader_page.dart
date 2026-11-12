@@ -2779,7 +2779,8 @@ class _VerticalReaderPageItemState extends State<_VerticalReaderPageItem> {
   }
 }
 
-/// Dedicated horizontal page item with AutomaticKeepAliveClientMixin and InteractiveViewer
+/// Dedicated horizontal page item with its own zoom transform. InteractiveViewer is
+/// mounted only while zoomed so PageView keeps receiving horizontal swipes.
 class _HorizontalReaderPageItem extends StatefulWidget {
   final int index;
   final bool isDownloaded;
