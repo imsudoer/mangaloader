@@ -99,7 +99,75 @@ Future<void> loadPersistentSettings(WidgetRef ref) async {
       } catch (_) {}
     }
 
-    // 12. Cookies & User Profile
+    // 12. Reader preferences (reading mode, scale, filters)
+    if (map.containsKey('reader_prefs')) {
+      try {
+        final raw = map['reader_prefs']!;
+        if (raw.isNotEmpty) {
+          final json = jsonDecode(raw) as Map<String, dynamic>;
+          ref.read(readerPrefsProvider.notifier).load(ReaderPrefs.fromJson(json));
+        }
+      } catch (_) {}
+    }
+
+    // 12.1 Per-title reader overrides
+    if (map.containsKey('reader_prefs_titles')) {
+      try {
+        final raw = map['reader_prefs_titles']!;
+        if (raw.isNotEmpty) {
+          final decoded = jsonDecode(raw) as Map<String, dynamic>;
+          final overrides = decoded.map(
+            (key, value) => MapEntry(
+              key,
+              ReaderPrefs.fromJson(value as Map<String, dynamic>),
+            ),
+          );
+          ref.read(titleReaderPrefsProvider.notifier).load(overrides);
+        }
+      } catch (_) {}
+    }
+
+    // 12.2 Downloads
+    if (map.containsKey('downloads_wifi_only')) {
+      ref.read(wifiOnlyDownloadsProvider.notifier).setEnabled(
+            map['downloads_wifi_only'] == 'true',
+            persist: false,
+          );
+    }
+    if (map.containsKey('downloads_storage_limit_mb')) {
+      ref.read(downloadsStorageLimitProvider.notifier).setLimitMb(
+            int.tryParse(map['downloads_storage_limit_mb']!) ?? 0,
+            persist: false,
+          );
+    }
+
+    // 12.3 Notifications digest and quiet hours
+    if (map.containsKey('quiet_hours')) {
+      try {
+        final raw = map['quiet_hours']!;
+        if (raw.isNotEmpty) {
+          ref.read(quietHoursProvider.notifier).load(
+                QuietHours.fromJson(jsonDecode(raw) as Map<String, dynamic>),
+              );
+        }
+      } catch (_) {}
+    }
+    if (map.containsKey('chapter_digest')) {
+      ref.read(chapterDigestProvider.notifier).setEnabled(
+            map['chapter_digest'] == 'true',
+            persist: false,
+          );
+    }
+
+    // 12.4 Automatic backup interval
+    if (map.containsKey('auto_backup_interval_days')) {
+      ref.read(autoBackupIntervalProvider.notifier).setDays(
+            int.tryParse(map['auto_backup_interval_days']!) ?? 0,
+            persist: false,
+          );
+    }
+
+    // 13. Cookies & User Profile
     if (map.containsKey('cookies')) {
       final cookies = map['cookies']!;
       ref.read(cookiesProvider.notifier).setCookies(cookies, persist: false);
@@ -363,6 +431,311 @@ class SearchHistoryNotifier extends StateNotifier<List<String>> {
   void clearAll() {
     state = const [];
     rust_storage.setSetting(key: 'search_history', value: '[]');
+  }
+}
+
+// 13. Reader preferences (mode, scale, filters) persisted as a single JSON blob
+class ReaderPrefs {
+  final String mode;
+  final String background;
+  final String boxFit;
+  final String dualPage;
+  final String tapZones;
+  final String colorFilter;
+  final String sharpen;
+  final bool cropBorders;
+  final double cropPercent;
+  final double brightness;
+  final double autoScrollSpeed;
+
+  /// How many pages ahead of the current one are preloaded (1-12).
+  final int preloadRadius;
+
+  const ReaderPrefs({
+    this.mode = 'vertical',
+    this.background = 'black',
+    this.boxFit = 'contain',
+    this.dualPage = 'auto',
+    this.tapZones = 'standard',
+    this.colorFilter = 'none',
+    this.sharpen = 'off',
+    this.cropBorders = false,
+    this.cropPercent = 3.0,
+    this.brightness = 1.0,
+    this.autoScrollSpeed = 1.0,
+    this.preloadRadius = 4,
+  });
+
+  ReaderPrefs copyWith({
+    String? mode,
+    String? background,
+    String? boxFit,
+    String? dualPage,
+    String? tapZones,
+    String? colorFilter,
+    String? sharpen,
+    bool? cropBorders,
+    double? cropPercent,
+    double? brightness,
+    double? autoScrollSpeed,
+    int? preloadRadius,
+  }) {
+    return ReaderPrefs(
+      mode: mode ?? this.mode,
+      background: background ?? this.background,
+      boxFit: boxFit ?? this.boxFit,
+      dualPage: dualPage ?? this.dualPage,
+      tapZones: tapZones ?? this.tapZones,
+      colorFilter: colorFilter ?? this.colorFilter,
+      sharpen: sharpen ?? this.sharpen,
+      cropBorders: cropBorders ?? this.cropBorders,
+      cropPercent: cropPercent ?? this.cropPercent,
+      brightness: brightness ?? this.brightness,
+      autoScrollSpeed: autoScrollSpeed ?? this.autoScrollSpeed,
+      preloadRadius: preloadRadius ?? this.preloadRadius,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'mode': mode,
+        'background': background,
+        'boxFit': boxFit,
+        'dualPage': dualPage,
+        'tapZones': tapZones,
+        'colorFilter': colorFilter,
+        'sharpen': sharpen,
+        'cropBorders': cropBorders,
+        'cropPercent': cropPercent,
+        'brightness': brightness,
+        'autoScrollSpeed': autoScrollSpeed,
+        'preloadRadius': preloadRadius,
+      };
+
+  factory ReaderPrefs.fromJson(Map<String, dynamic> json) {
+    double readDouble(String key, double fallback) {
+      final value = json[key];
+      if (value is num) return value.toDouble();
+      if (value is String) return double.tryParse(value) ?? fallback;
+      return fallback;
+    }
+
+    String readString(String key, String fallback) {
+      final value = json[key];
+      return value is String && value.isNotEmpty ? value : fallback;
+    }
+
+    return ReaderPrefs(
+      mode: readString('mode', 'vertical'),
+      background: readString('background', 'black'),
+      boxFit: readString('boxFit', 'contain'),
+      dualPage: readString('dualPage', 'auto'),
+      tapZones: readString('tapZones', 'standard'),
+      colorFilter: readString('colorFilter', 'none'),
+      sharpen: readString('sharpen', 'off'),
+      cropBorders: json['cropBorders'] == true,
+      cropPercent: readDouble('cropPercent', 3.0),
+      brightness: readDouble('brightness', 1.0),
+      autoScrollSpeed: readDouble('autoScrollSpeed', 1.0),
+      preloadRadius: (json['preloadRadius'] is num
+              ? (json['preloadRadius'] as num).toInt()
+              : 4)
+          .clamp(1, 12),
+    );
+  }
+}
+
+final readerPrefsProvider = StateNotifierProvider<ReaderPrefsNotifier, ReaderPrefs>(
+  (ref) => ReaderPrefsNotifier(),
+);
+
+class ReaderPrefsNotifier extends StateNotifier<ReaderPrefs> {
+  ReaderPrefsNotifier() : super(const ReaderPrefs());
+
+  void update(ReaderPrefs prefs, {bool persist = true}) {
+    state = prefs;
+    if (persist) {
+      rust_storage.setSetting(key: 'reader_prefs', value: jsonEncode(prefs.toJson()));
+    }
+  }
+
+  void load(ReaderPrefs prefs) {
+    state = prefs;
+  }
+}
+
+/// Per-title reader overrides keyed by slugUrl. Manga (RTL) and webtoon titles need
+/// different defaults, which a single global profile cannot express.
+final titleReaderPrefsProvider =
+    StateNotifierProvider<TitleReaderPrefsNotifier, Map<String, ReaderPrefs>>(
+  (ref) => TitleReaderPrefsNotifier(),
+);
+
+class TitleReaderPrefsNotifier extends StateNotifier<Map<String, ReaderPrefs>> {
+  TitleReaderPrefsNotifier() : super(const {});
+
+  void load(Map<String, ReaderPrefs> overrides) {
+    state = overrides;
+  }
+
+  ReaderPrefs? forTitle(String slugUrl) =>
+      slugUrl.isEmpty ? null : state[slugUrl];
+
+  void setForTitle(String slugUrl, ReaderPrefs prefs) {
+    if (slugUrl.isEmpty) return;
+    state = {...state, slugUrl: prefs};
+    _persist();
+  }
+
+  void clearForTitle(String slugUrl) {
+    if (!state.containsKey(slugUrl)) return;
+    final next = Map<String, ReaderPrefs>.from(state)..remove(slugUrl);
+    state = next;
+    _persist();
+  }
+
+  void _persist() {
+    final encoded = jsonEncode(
+      state.map((key, value) => MapEntry(key, value.toJson())),
+    );
+    rust_storage.setSetting(key: 'reader_prefs_titles', value: encoded);
+  }
+}
+
+/// Download over Wi-Fi only.
+final wifiOnlyDownloadsProvider =
+    StateNotifierProvider<WifiOnlyDownloadsNotifier, bool>(
+  (ref) => WifiOnlyDownloadsNotifier(),
+);
+
+class WifiOnlyDownloadsNotifier extends StateNotifier<bool> {
+  WifiOnlyDownloadsNotifier() : super(false);
+
+  void setEnabled(bool value, {bool persist = true}) {
+    state = value;
+    if (persist) {
+      rust_storage.setSetting(key: 'downloads_wifi_only', value: value.toString());
+    }
+  }
+}
+
+/// Storage cap for downloaded chapters in megabytes (0 = unlimited).
+final downloadsStorageLimitProvider =
+    StateNotifierProvider<DownloadsStorageLimitNotifier, int>(
+  (ref) => DownloadsStorageLimitNotifier(),
+);
+
+class DownloadsStorageLimitNotifier extends StateNotifier<int> {
+  DownloadsStorageLimitNotifier() : super(0);
+
+  void setLimitMb(int value, {bool persist = true}) {
+    state = value < 0 ? 0 : value;
+    if (persist) {
+      rust_storage.setSetting(
+        key: 'downloads_storage_limit_mb',
+        value: state.toString(),
+      );
+    }
+  }
+}
+
+/// Quiet hours suppress per-chapter notifications during the night.
+class QuietHours {
+  final bool enabled;
+  final int startHour;
+  final int endHour;
+
+  const QuietHours({
+    this.enabled = false,
+    this.startHour = 23,
+    this.endHour = 8,
+  });
+
+  QuietHours copyWith({bool? enabled, int? startHour, int? endHour}) {
+    return QuietHours(
+      enabled: enabled ?? this.enabled,
+      startHour: startHour ?? this.startHour,
+      endHour: endHour ?? this.endHour,
+    );
+  }
+
+  /// Handles ranges that wrap over midnight (23:00 - 08:00).
+  bool contains(DateTime time) {
+    if (!enabled) return false;
+    final hour = time.hour;
+    if (startHour == endHour) return false;
+    return startHour < endHour
+        ? hour >= startHour && hour < endHour
+        : hour >= startHour || hour < endHour;
+  }
+
+  Map<String, dynamic> toJson() => {
+        'enabled': enabled,
+        'startHour': startHour,
+        'endHour': endHour,
+      };
+
+  factory QuietHours.fromJson(Map<String, dynamic> json) {
+    return QuietHours(
+      enabled: json['enabled'] == true,
+      startHour: json['startHour'] is num ? (json['startHour'] as num).toInt() : 23,
+      endHour: json['endHour'] is num ? (json['endHour'] as num).toInt() : 8,
+    );
+  }
+}
+
+final quietHoursProvider = StateNotifierProvider<QuietHoursNotifier, QuietHours>(
+  (ref) => QuietHoursNotifier(),
+);
+
+class QuietHoursNotifier extends StateNotifier<QuietHours> {
+  QuietHoursNotifier() : super(const QuietHours());
+
+  void update(QuietHours value, {bool persist = true}) {
+    state = value;
+    if (persist) {
+      rust_storage.setSetting(key: 'quiet_hours', value: jsonEncode(value.toJson()));
+    }
+  }
+
+  void load(QuietHours value) {
+    state = value;
+  }
+}
+
+/// One digest per day instead of a notification for every released chapter.
+final chapterDigestProvider =
+    StateNotifierProvider<ChapterDigestNotifier, bool>(
+  (ref) => ChapterDigestNotifier(),
+);
+
+class ChapterDigestNotifier extends StateNotifier<bool> {
+  ChapterDigestNotifier() : super(false);
+
+  void setEnabled(bool value, {bool persist = true}) {
+    state = value;
+    if (persist) {
+      rust_storage.setSetting(key: 'chapter_digest', value: value.toString());
+    }
+  }
+}
+
+/// Automatic JSON backup interval in days (0 = disabled).
+final autoBackupIntervalProvider =
+    StateNotifierProvider<AutoBackupIntervalNotifier, int>(
+  (ref) => AutoBackupIntervalNotifier(),
+);
+
+class AutoBackupIntervalNotifier extends StateNotifier<int> {
+  AutoBackupIntervalNotifier() : super(0);
+
+  void setDays(int value, {bool persist = true}) {
+    state = value < 0 ? 0 : value;
+    if (persist) {
+      rust_storage.setSetting(
+        key: 'auto_backup_interval_days',
+        value: state.toString(),
+      );
+    }
   }
 }
 

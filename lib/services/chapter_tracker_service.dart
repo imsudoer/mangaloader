@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:workmanager/workmanager.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:mangaloader/providers/settings_provider.dart';
+import 'package:mangaloader/services/backup_service.dart';
+import 'package:mangaloader/services/content_filter.dart';
 import 'package:mangaloader/services/streak_notification_service.dart';
 import 'package:mangaloader/services/update_checker.dart';
 import 'package:mangaloader/src/rust/frb_generated.dart';
@@ -31,6 +33,8 @@ void callbackDispatcher() {
 
       // Check library updates and app updates
       await ChapterTrackerService.checkBackgroundUpdates(isRu: isRu);
+      await StreakNotificationService.flushDigestIfDue(isRu: isRu);
+      await BackupService.runIfDue();
       if (!isRuStoreBuild) {
         await UpdateChecker.checkAppUpdateSilently(isRu: isRu);
       }
@@ -89,15 +93,29 @@ class ChapterTrackerService {
     }
   }
 
-  /// Start periodic tracking while the app is active in foreground
+  /// Start periodic tracking while the app is active in foreground.
+  ///
+  /// This is also the startup hook for the housekeeping that has no timer of
+  /// its own: a pending chapter digest and a due automatic backup. The library
+  /// re-check stays on the hourly tick because main() already ran it once.
   static void startForegroundPeriodicTracking(WidgetRef ref) {
     _periodicTimer?.cancel();
-    _periodicTimer = Timer.periodic(const Duration(minutes: 60), (_) {
-      checkLibraryUpdates(ref);
-      UpdateChecker.checkAppUpdateSilently(
-        isRu: ref.read(localeProvider)?.languageCode != 'en',
-      );
-    });
+    unawaited(StreakNotificationService.flushDigestIfDue(isRu: _isRu(ref)));
+    unawaited(BackupService.runIfDue());
+    _periodicTimer = Timer.periodic(const Duration(minutes: 60), (_) => _foregroundTick(ref));
+  }
+
+  static bool _isRu(WidgetRef ref) =>
+      ref.read(localeProvider)?.languageCode != 'en';
+
+  static Future<void> _foregroundTick(WidgetRef ref) async {
+    final isRu = _isRu(ref);
+    await checkLibraryUpdates(ref);
+    await StreakNotificationService.flushDigestIfDue(isRu: isRu);
+    await BackupService.runIfDue();
+    if (ref.read(autoCheckUpdatesProvider)) {
+      await UpdateChecker.checkAppUpdateSilently(isRu: isRu);
+    }
   }
 
   /// Check library manga for newly released chapters (called from UI / Riverpod)
@@ -117,6 +135,11 @@ class ChapterTrackerService {
 
       for (final entry in allToTrack) {
         if (entry.slugUrl.isEmpty || entry.slugUrl.startsWith('mal-')) continue;
+        if (ContentFilter.isBlockedText(entry.slugUrl) ||
+            ContentFilter.isBlockedText(entry.name) ||
+            ContentFilter.isBlockedText(entry.rusName)) {
+          continue;
+        }
 
         try {
           final remoteChapters = await rust_api.getChapters(slugUrl: entry.slugUrl);
@@ -154,6 +177,7 @@ class ChapterTrackerService {
                 mangaTitle: title,
                 chapterInfo: chapterStr,
                 isRu: isRu,
+                slugUrl: entry.slugUrl,
               );
             }
           } else if (currentKnownCount == 0 && remoteChapters.isNotEmpty) {
@@ -185,9 +209,18 @@ class ChapterTrackerService {
       final readingList = await rust_storage.getList(listType: 'reading');
       final planList = await rust_storage.getList(listType: 'plan_to_read');
       final allToTrack = [...readingList, ...planList];
+      // The background isolate has no provider container, so the switch is read
+      // from the persisted key; a missing key means the default (enabled).
+      final notificationsEnabled =
+          (await rust_storage.getSetting(key: 'chapter_notifications_enabled')) != 'false';
 
       for (final entry in allToTrack) {
         if (entry.slugUrl.isEmpty || entry.slugUrl.startsWith('mal-')) continue;
+        if (ContentFilter.isBlockedText(entry.slugUrl) ||
+            ContentFilter.isBlockedText(entry.name) ||
+            ContentFilter.isBlockedText(entry.rusName)) {
+          continue;
+        }
 
         try {
           final remoteChapters = await rust_api.getChapters(slugUrl: entry.slugUrl);
@@ -207,12 +240,15 @@ class ChapterTrackerService {
               chaptersCount: remoteChapters.length,
             );
 
-            await StreakNotificationService.showChapterUpdateNotification(
-              mangaId: entry.mangaId.toInt(),
-              mangaTitle: title,
-              chapterInfo: chapterStr,
-              isRu: isRu,
-            );
+            if (notificationsEnabled) {
+              await StreakNotificationService.showChapterUpdateNotification(
+                mangaId: entry.mangaId.toInt(),
+                mangaTitle: title,
+                chapterInfo: chapterStr,
+                isRu: isRu,
+                slugUrl: entry.slugUrl,
+              );
+            }
           } else if (currentKnownCount == 0 && remoteChapters.isNotEmpty) {
             await rust_storage.updateMangaChaptersCount(
               mangaId: entry.mangaId.toInt(),

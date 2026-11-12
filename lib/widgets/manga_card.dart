@@ -9,20 +9,30 @@ class MangaCard extends ConsumerWidget {
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
 
-  const MangaCard({super.key, required this.manga, required this.onTap, this.onLongPress});
+  /// Set to false in contexts rendered outside a ProviderScope, or where the
+  /// library indicator is redundant (the library screen itself).
+  final bool showLibraryBadge;
+
+  const MangaCard({
+    super.key,
+    required this.manga,
+    required this.onTap,
+    this.onLongPress,
+    this.showLibraryBadge = true,
+  });
 
   Widget? _buildLibraryStatusBadge(BuildContext context, WidgetRef ref) {
-    final libraryList = ref.watch(libraryProvider).value ?? [];
-    final libItem = libraryList.where((e) => e.mangaId == manga.id).firstOrNull;
-
-    if (libItem == null) return null;
+    // Only the membership of this single title is watched, so the card is not
+    // rebuilt when another title changes list.
+    final listType = ref.watch(mangaListTypeProvider(manga.id.toInt()));
+    if (listType == null) return null;
 
     IconData icon;
     Color color;
     String tooltip;
 
     final isRu = Localizations.localeOf(context).languageCode == 'ru';
-    switch (libItem.listType) {
+    switch (listType) {
       case ListType.reading:
         icon = Icons.auto_stories_rounded;
         color = const Color(0xFF64B5F6);
@@ -58,16 +68,14 @@ class MangaCard extends ConsumerWidget {
     return Tooltip(
       message: tooltip,
       child: Container(
-        padding: const EdgeInsets.all(5),
+        width: 18,
+        height: 18,
         decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.8),
-          shape: BoxShape.circle,
-          border: Border.all(color: color.withValues(alpha: 0.8), width: 1.2),
-          boxShadow: const [
-            BoxShadow(color: Colors.black54, blurRadius: 4, offset: Offset(0, 2)),
-          ],
+          color: Colors.black.withValues(alpha: 0.72),
+          borderRadius: BorderRadius.circular(5),
+          border: Border.all(color: color.withValues(alpha: 0.85), width: 1),
         ),
-        child: Icon(icon, size: 13, color: color),
+        child: Icon(icon, size: 12, color: color),
       ),
     );
   }
@@ -76,7 +84,7 @@ class MangaCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final title = manga.rusName.isNotEmpty ? manga.rusName : manga.name;
     final colorScheme = Theme.of(context).colorScheme;
-    final libBadge = _buildLibraryStatusBadge(context, ref);
+    final libBadge = showLibraryBadge ? _buildLibraryStatusBadge(context, ref) : null;
     final ratingNum = double.tryParse(manga.ratingAverage) ?? 0.0;
 
     return Container(

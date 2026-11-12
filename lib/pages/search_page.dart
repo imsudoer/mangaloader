@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:mangaloader/src/rust/api/mangalib_client.dart' as rust_api;
 import 'package:mangaloader/src/rust/api/models.dart';
 import 'package:mangaloader/providers/settings_provider.dart';
+import 'package:mangaloader/services/content_filter.dart';
 
 class SearchPage extends ConsumerStatefulWidget {
   const SearchPage({super.key});
@@ -65,10 +66,11 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 
     try {
       final items = await rust_api.getCollections(page: 1, sortBy: 'popularity');
+      final visible = ContentFilter.filterCollections(items);
       if (mounted) {
         setState(() {
           if (refresh) _collections.clear();
-          _collections.addAll(items);
+          _collections.addAll(visible);
           _isLoadingCollections = false;
         });
       }
@@ -395,7 +397,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           // Results Grid
           Expanded(
             child: searchState.when(
-              data: (items) {
+              data: (catalog) {
+                final items = catalog.items;
                 if (items.isEmpty) {
                   return Center(
                     child: Padding(
@@ -419,7 +422,9 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                             const SizedBox(height: 16),
                             OutlinedButton.icon(
                               onPressed: () {
-                                ref.read(searchProvider.notifier).updateFilter(const CatalogFilter());
+                                _searchController.clear();
+                                ref.read(searchProvider.notifier).resetFilters();
+                                setState(() {});
                               },
                               icon: const Icon(Icons.clear_all_rounded),
                               label: Text(isRu ? 'Сбросить все фильтры' : 'Reset all filters'),
@@ -434,22 +439,49 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                 return LayoutBuilder(
                   builder: (context, constraints) {
                     final crossAxisCount = (constraints.maxWidth / 160).floor().clamp(2, 6);
-                    return GridView.builder(
-                      padding: const EdgeInsets.all(12),
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: crossAxisCount,
-                        childAspectRatio: 0.65,
-                        crossAxisSpacing: 10,
-                        mainAxisSpacing: 10,
+                    final showLoader = catalog.hasMore;
+                    return RefreshIndicator(
+                      onRefresh: () => ref.read(searchProvider.notifier).loadCatalog(),
+                      child: GridView.builder(
+                        padding: const EdgeInsets.all(12),
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: crossAxisCount,
+                          childAspectRatio: 0.65,
+                          crossAxisSpacing: 10,
+                          mainAxisSpacing: 10,
+                        ),
+                        itemCount: items.length + (showLoader ? 1 : 0),
+                        itemBuilder: (context, index) {
+                          if (index >= items.length) {
+                            if (!catalog.isLoadingMore) {
+                              WidgetsBinding.instance.addPostFrameCallback((_) {
+                                ref.read(searchProvider.notifier).loadMore();
+                              });
+                            }
+                            return const Center(
+                              child: SizedBox(
+                                width: 26,
+                                height: 26,
+                                child: CircularProgressIndicator(strokeWidth: 2.5),
+                              ),
+                            );
+                          }
+                          // Prefetch the next page slightly before the grid bottom.
+                          if (!catalog.isLoadingMore &&
+                              catalog.hasMore &&
+                              index >= items.length - 4) {
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              ref.read(searchProvider.notifier).loadMore();
+                            });
+                          }
+                          final manga = items[index];
+                          return MangaCard(
+                            manga: manga,
+                            onTap: () => context.push('/manga/${manga.slugUrl}'),
+                          );
+                        },
                       ),
-                      itemCount: items.length,
-                      itemBuilder: (context, index) {
-                        final manga = items[index];
-                        return MangaCard(
-                          manga: manga,
-                          onTap: () => context.push('/manga/${manga.slugUrl}'),
-                        );
-                      },
                     );
                   },
                 );

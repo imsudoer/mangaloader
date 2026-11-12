@@ -11,6 +11,9 @@ import 'package:share_plus/share_plus.dart';
 import 'package:mangaloader/services/update_checker.dart';
 import 'package:mangaloader/services/update_downloader.dart';
 import 'package:mangaloader/services/streak_notification_service.dart';
+import 'package:mangaloader/services/backup_service.dart';
+import 'package:mangaloader/pages/profile_page.dart' show showMalUrlImportDialog;
+import 'package:mangaloader/utils/plural.dart';
 import 'package:mangaloader/widgets/update_bottom_sheet.dart';
 import 'package:mangaloader/widgets/manga_recap_modal.dart';
 import 'package:go_router/go_router.dart';
@@ -29,6 +32,56 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   String _sharpeningMode = 'subtle';
   bool _isCheckingUpdates = false;
   bool _isClearingCache = false;
+  bool _isBackingUp = false;
+  DateTime? _lastBackupAt;
+  String? _lastBackupPath;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLastBackup();
+  }
+
+  Future<void> _loadLastBackup() async {
+    final at = await BackupService.lastBackupAt();
+    if (mounted) setState(() => _lastBackupAt = at);
+  }
+
+  Future<void> _createBackupNow(bool isRu) async {
+    if (_isBackingUp) return;
+    setState(() => _isBackingUp = true);
+    final path = await BackupService.backupNow();
+    if (!mounted) return;
+    setState(() {
+      _isBackingUp = false;
+      if (path != null) {
+        _lastBackupPath = path;
+        _lastBackupAt = DateTime.now();
+      }
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          path == null
+              ? (isRu ? 'Не удалось создать резервную копию' : 'Could not create a backup')
+              : (isRu ? 'Копия сохранена: $path' : 'Backup saved: $path'),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _importMalFromUrl(bool isRu) async {
+    final imported = await showMalUrlImportDialog(context, isRu: isRu);
+    if (imported && mounted) {
+      await ref.read(libraryProvider.notifier).loadAll();
+    }
+  }
+
+  String _formatBackupMoment(DateTime at) {
+    String two(int value) => value.toString().padLeft(2, '0');
+    return '${two(at.day)}.${two(at.month)}.${at.year} ${two(at.hour)}:${two(at.minute)}';
+  }
 
   Future<void> _clearAllCaches(bool isRu) async {
     setState(() => _isClearingCache = true);
@@ -257,6 +310,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final downloadState = ref.watch(updateDownloadStateProvider);
     final appVersionAsync = ref.watch(appVersionProvider);
     final currentVersionStr = appVersionAsync.value ?? UpdateChecker.currentVersion;
+    final backupInterval = ref.watch(autoBackupIntervalProvider);
+    // A persisted value outside the offered set would trip the dropdown assert.
+    final selectedBackupInterval =
+        const [0, 1, 3, 7, 30].contains(backupInterval) ? backupInterval : 0;
 
     return Scaffold(
       appBar: AppBar(title: Text(isRu ? 'Настройки' : 'Settings')),
@@ -414,7 +471,15 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           ),
           const SizedBox(height: 20),
 
-          // 2. Reader Defaults
+          // 2. Notification timing
+          _buildSectionHeader(
+            isRu ? 'Уведомления и тихие часы' : 'Notifications & Quiet Hours',
+            Icons.notifications_none_rounded,
+          ),
+          _buildNotificationTimingCard(isRu),
+          const SizedBox(height: 20),
+
+          // 3. Reader Defaults
           _buildSectionHeader(isRu ? 'Читалка по умолчанию' : 'Reader Defaults', Icons.chrome_reader_mode_outlined),
           Card(
             shape: RoundedRectangleBorder(
@@ -507,7 +572,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           ),
           const SizedBox(height: 20),
 
-          // 3. Downloads Configuration
+          // 4. Downloads Configuration
           _buildSectionHeader(isRu ? 'Движок загрузки' : 'Download Engine', Icons.downloading_rounded),
           Card(
             shape: RoundedRectangleBorder(
@@ -598,8 +663,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           ),
           const SizedBox(height: 20),
 
-          // 4. Backup & Restore
-          _buildSectionHeader(isRu ? 'Резервное копирование и экспорт' : 'Backup & Export', Icons.backup_rounded),
+          // 5. Backups & Restore
+          _buildSectionHeader(isRu ? 'Резервные копии и экспорт' : 'Backups & Export', Icons.backup_rounded),
           Card(
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14),
@@ -607,6 +672,64 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             ),
             child: Column(
               children: [
+                ListTile(
+                  leading: const Icon(Icons.schedule_send_rounded, color: Color(0xFF8A897C)),
+                  title: Text(isRu ? 'Автоматические копии' : 'Automatic Backups'),
+                  subtitle: Text(
+                    _backupIntervalLabel(selectedBackupInterval, isRu),
+                    style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
+                  ),
+                  trailing: DropdownButton<int>(
+                    value: selectedBackupInterval,
+                    dropdownColor: const Color(0xFF2C2C2C),
+                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                    underline: const SizedBox(),
+                    items: [
+                      for (final days in const [0, 1, 3, 7, 30])
+                        DropdownMenuItem(
+                          value: days,
+                          child: Text(
+                            days == 0
+                                ? (isRu ? 'Отключено' : 'Off')
+                                : Plural.days(days, isRu ? 'ru' : 'en'),
+                          ),
+                        ),
+                    ],
+                    onChanged: (val) {
+                      if (val != null) {
+                        ref.read(autoBackupIntervalProvider.notifier).setDays(val);
+                      }
+                    },
+                  ),
+                ),
+                const Divider(height: 1, indent: 56),
+                ListTile(
+                  leading: const Icon(Icons.save_alt_rounded, color: Color(0xFF8A897C)),
+                  title: Text(isRu ? 'Создать копию сейчас' : 'Create Backup Now'),
+                  subtitle: Text(
+                    _lastBackupAt == null
+                        ? (isRu ? 'Копий пока не было' : 'No backups yet')
+                        : '${isRu ? 'Последняя копия' : 'Last backup'}: ${_formatBackupMoment(_lastBackupAt!)}',
+                    style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
+                  ),
+                  trailing: OutlinedButton(
+                    onPressed: _isBackingUp ? null : () => _createBackupNow(isRu),
+                    child: _isBackingUp
+                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                        : Text(isRu ? 'Создать' : 'Create'),
+                  ),
+                ),
+                if (_lastBackupPath != null) ...[
+                  const Divider(height: 1, indent: 56),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(56, 10, 16, 12),
+                    child: Text(
+                      _lastBackupPath!,
+                      style: const TextStyle(fontSize: 11, color: Color(0xFF8A897C), height: 1.3),
+                    ),
+                  ),
+                ],
+                const Divider(height: 1, indent: 56),
                 ListTile(
                   leading: const Icon(Icons.file_download_outlined, color: Color(0xFF8A897C)),
                   title: Text(isRu ? 'Экспорт базы данных (JSON)' : 'Export Backup (JSON)'),
@@ -638,12 +761,23 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   trailing: const Icon(Icons.chevron_right_rounded),
                   onTap: () => _importMalXml(isRu),
                 ),
+                const Divider(height: 1, indent: 56),
+                ListTile(
+                  leading: const Icon(Icons.link_rounded, color: Color(0xFF2E7D32)),
+                  title: Text(isRu ? 'Импорт из MyAnimeList по ссылке' : 'Import from MyAnimeList (URL)'),
+                  subtitle: Text(
+                    isRu ? 'Скачать XML-экспорт по прямой ссылке' : 'Download an XML export from a direct link',
+                    style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
+                  ),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => _importMalFromUrl(isRu),
+                ),
               ],
             ),
           ),
           const SizedBox(height: 20),
 
-          // 5. Cache & Storage
+          // 6. Cache & Storage
           _buildSectionHeader(isRu ? 'Хранилище и кэш' : 'Storage & Cache', Icons.storage_rounded),
           Card(
             shape: RoundedRectangleBorder(
@@ -698,7 +832,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           ),
           const SizedBox(height: 20),
 
-          // 5. Updates
+          // 7. Updates
           _buildSectionHeader(isRu ? 'Обновления' : 'Updates', Icons.system_update_rounded),
           if (isRuStoreBuild)
             Card(
@@ -896,7 +1030,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             ),
           const SizedBox(height: 20),
 
-          // 6. About
+          // 8. About
           _buildSectionHeader(isRu ? 'О приложении' : 'About App', Icons.info_outline_rounded),
           Card(
             shape: RoundedRectangleBorder(
@@ -926,6 +1060,99 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         ],
       ),
     );
+  }
+
+  Widget _buildNotificationTimingCard(bool isRu) {
+    final quiet = ref.watch(quietHoursProvider);
+    final digestEnabled = ref.watch(chapterDigestProvider);
+
+    return Card(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: const BorderSide(color: Color(0xFF353535)),
+      ),
+      child: Column(
+        children: [
+          SwitchListTile(
+            secondary: const Icon(Icons.bedtime_rounded, color: Color(0xFF8A897C)),
+            title: Text(isRu ? 'Тихие часы' : 'Quiet Hours'),
+            subtitle: Text(
+              isRu
+                  ? 'Не присылать уведомления о главах ночью'
+                  : 'Hold chapter notifications during the night',
+              style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
+            ),
+            value: quiet.enabled,
+            onChanged: (val) =>
+                ref.read(quietHoursProvider.notifier).update(quiet.copyWith(enabled: val)),
+          ),
+          if (quiet.enabled) ...[
+            const Divider(height: 1, indent: 56),
+            ListTile(
+              leading: const Icon(Icons.nightlight_round, color: Color(0xFF8A897C)),
+              title: Text(isRu ? 'Начало' : 'Starts at'),
+              trailing: _buildHourDropdown(
+                quiet.startHour,
+                (hour) =>
+                    ref.read(quietHoursProvider.notifier).update(quiet.copyWith(startHour: hour)),
+              ),
+            ),
+            const Divider(height: 1, indent: 56),
+            ListTile(
+              leading: const Icon(Icons.wb_sunny_rounded, color: Color(0xFF8A897C)),
+              title: Text(isRu ? 'Конец' : 'Ends at'),
+              trailing: _buildHourDropdown(
+                quiet.endHour,
+                (hour) =>
+                    ref.read(quietHoursProvider.notifier).update(quiet.copyWith(endHour: hour)),
+              ),
+            ),
+          ],
+          const Divider(height: 1, indent: 56),
+          SwitchListTile(
+            secondary: const Icon(Icons.mark_email_unread_rounded, color: Color(0xFF8A897C)),
+            title: Text(isRu ? 'Один дайджест в день' : 'One Daily Digest'),
+            subtitle: Text(
+              isRu
+                  ? 'Вместо уведомления на каждую главу — одна сводка «Новые главы: N»'
+                  : 'One summary («New chapters: N») instead of a ping per chapter',
+              style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
+            ),
+            value: digestEnabled,
+            onChanged: (val) => ref.read(chapterDigestProvider.notifier).setEnabled(val),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHourDropdown(int value, ValueChanged<int> onChanged) {
+    final safeValue = value.clamp(0, 23);
+    return DropdownButton<int>(
+      value: safeValue,
+      dropdownColor: const Color(0xFF2C2C2C),
+      style: const TextStyle(color: Colors.white, fontSize: 13),
+      underline: const SizedBox(),
+      items: [
+        for (var hour = 0; hour < 24; hour++)
+          DropdownMenuItem(
+            value: hour,
+            child: Text('${hour.toString().padLeft(2, '0')}:00'),
+          ),
+      ],
+      onChanged: (val) {
+        if (val != null) onChanged(val);
+      },
+    );
+  }
+
+  String _backupIntervalLabel(int days, bool isRu) {
+    if (days <= 0) {
+      return isRu ? 'Копии отключены — создавайте вручную' : 'Backups off — create them manually';
+    }
+    return isRu
+        ? 'Копия раз в ${Plural.days(days, 'ru')}'
+        : 'Backup every ${Plural.days(days, 'en')}';
   }
 
   Widget _buildSectionHeader(String title, IconData icon) {

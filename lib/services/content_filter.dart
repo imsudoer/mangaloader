@@ -53,6 +53,69 @@ class ContentFilter {
     return false;
   }
 
+  /// Single entry point used by every list widget: any matching field blocks the item.
+  static bool isBlockedAny(Iterable<String?> values, {bool forceCheck = false}) {
+    if (!isRuStoreBuild && !forceCheck) return false;
+    for (final value in values) {
+      if (isBlockedText(value, forceCheck: forceCheck)) return true;
+    }
+    return false;
+  }
+
+  static bool isBlockedContinueReading(ContinueReadingItem item,
+      {bool forceCheck = false}) {
+    return isBlockedAny([item.name, item.rusName, item.slugUrl],
+        forceCheck: forceCheck);
+  }
+
+  static bool isBlockedDownloadGroup(DownloadedMangaGroup group,
+      {bool forceCheck = false}) {
+    return isBlockedAny([group.name, group.rusName, group.slugUrl],
+        forceCheck: forceCheck);
+  }
+
+  static bool isBlockedRecapItem(RecapMangaItem item, {bool forceCheck = false}) {
+    return isBlockedAny([item.name, item.rusName], forceCheck: forceCheck);
+  }
+
+  static bool isBlockedCollection(MangaCollectionItem collection,
+      {bool forceCheck = false}) {
+    return isBlockedAny([collection.name, collection.description],
+        forceCheck: forceCheck);
+  }
+
+  static List<ContinueReadingItem> filterContinueReading(
+      List<ContinueReadingItem> list, {bool forceCheck = false}) {
+    if (!isRuStoreBuild && !forceCheck) return list;
+    return list
+        .where((i) => !isBlockedContinueReading(i, forceCheck: forceCheck))
+        .toList();
+  }
+
+  static List<DownloadedMangaGroup> filterDownloadGroups(
+      List<DownloadedMangaGroup> list, {bool forceCheck = false}) {
+    if (!isRuStoreBuild && !forceCheck) return list;
+    return list
+        .where((g) => !isBlockedDownloadGroup(g, forceCheck: forceCheck))
+        .toList();
+  }
+
+  static List<RecapMangaItem> filterRecapItems(List<RecapMangaItem> list,
+      {bool forceCheck = false}) {
+    if (!isRuStoreBuild && !forceCheck) return list;
+    return list
+        .where((i) => !isBlockedRecapItem(i, forceCheck: forceCheck))
+        .toList();
+  }
+
+  static List<MangaCollectionItem> filterCollections(
+      List<MangaCollectionItem> list, {bool forceCheck = false}) {
+    if (!isRuStoreBuild && !forceCheck) return list;
+    return list
+        .where((c) => !isBlockedCollection(c, forceCheck: forceCheck))
+        .toList();
+  }
+
   /// Check if a MangaSearchResult is prohibited in RuStore build
   static bool isBlockedSearchResult(MangaSearchResult manga, {bool forceCheck = false}) {
     if (!isRuStoreBuild && !forceCheck) return false;

@@ -27,28 +27,34 @@ import 'providers/settings_provider.dart';
 
 import 'services/streak_notification_service.dart';
 import 'services/chapter_tracker_service.dart';
+import 'services/download_queue_service.dart';
+import 'services/notification_navigation.dart';
+import 'services/window_state_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await RustLib.init();
 
+  // Initialize database first: the saved window geometry lives in the settings table.
+  final appDir = await getApplicationDocumentsDirectory();
+  await rust_storage.initDatabase(appDir: appDir.path);
+
   if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
     await windowManager.ensureInitialized();
-    WindowOptions windowOptions = const WindowOptions(
+    const windowOptions = WindowOptions(
       size: Size(1200, 800),
       minimumSize: Size(450, 600),
       center: true,
       title: "Manga Loader",
     );
     windowManager.waitUntilReadyToShow(windowOptions, () async {
+      // Restore before showing so the saved bounds win over the centered defaults.
+      await WindowStateService.restore();
       await windowManager.show();
       await windowManager.focus();
+      WindowStateService.startTracking();
     });
   }
-
-  // Initialize database
-  final appDir = await getApplicationDocumentsDirectory();
-  await rust_storage.initDatabase(appDir: appDir.path);
 
   // Initialize Streak Push Notifications
   await StreakNotificationService.init();
@@ -56,6 +62,8 @@ Future<void> main() async {
 
   // Initialize Background Sync (Workmanager on Android)
   await ChapterTrackerService.initBackgroundWork();
+
+  NotificationNavigation.attachRouter(_router);
 
   runApp(const ProviderScope(child: MangaLoaderApp()));
 }
@@ -83,6 +91,13 @@ class _MangaLoaderAppState extends ConsumerState<MangaLoaderApp> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await loadPersistentSettings(ref);
+      // Re-schedule with the language the user actually configured; the early call in
+      // main() runs before preferences are read from the database.
+      await StreakNotificationService.scheduleDailyStreakReminder(
+        isRu: ref.read(localeProvider)?.languageCode != 'en',
+      );
+      // Resume downloads that were interrupted by the previous app shutdown.
+      await DownloadQueueService.instance.restoreAndResume(ref);
       ChapterTrackerService.checkLibraryUpdates(ref);
       ChapterTrackerService.startForegroundPeriodicTracking(ref);
     });

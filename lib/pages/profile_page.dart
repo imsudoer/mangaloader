@@ -6,11 +6,13 @@ import 'package:go_router/go_router.dart';
 import 'package:mangaloader/providers/settings_provider.dart';
 import 'package:mangaloader/providers/library_provider.dart';
 import 'package:mangaloader/providers/streak_provider.dart';
+import 'package:mangaloader/services/backup_service.dart';
 import 'package:mangaloader/src/rust/api/storage.dart' as rust_storage;
 import 'package:mangaloader/src/rust/api/mangalib_client.dart' as rust_api;
 import 'package:mangaloader/src/rust/api/models.dart';
 import 'package:mangaloader/widgets/manga_recap_modal.dart';
 import 'package:mangaloader/widgets/user_search_modal.dart';
+import 'package:mangaloader/utils/plural.dart';
 
 class ProfilePage extends ConsumerStatefulWidget {
   const ProfilePage({super.key});
@@ -318,6 +320,13 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     );
   }
 
+  Future<void> _importMalFromUrl(bool isRu) async {
+    final imported = await showMalUrlImportDialog(context, isRu: isRu);
+    if (imported && mounted) {
+      await ref.read(libraryProvider.notifier).loadAll();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final selectedLocale = ref.watch(localeProvider);
@@ -393,7 +402,29 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             _buildQuickActionsGrid(context, isRu),
             const SizedBox(height: 18),
 
-            // 4. Account Settings & MangaLib Actions
+            // 4. Data import from a MyAnimeList export link
+            _buildSectionTitle(isRu ? 'Данные и экспорт' : 'Data & Export'),
+            Card(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+                side: const BorderSide(color: Color(0xFF353535)),
+              ),
+              child: ListTile(
+                leading: const Icon(Icons.link_rounded, color: Color(0xFF2E7D32)),
+                title: Text(isRu ? 'Импорт из ссылки' : 'Import from URL'),
+                subtitle: Text(
+                  isRu
+                      ? 'Загрузить XML-экспорт MyAnimeList по прямой ссылке'
+                      : 'Load a MyAnimeList XML export from a direct link',
+                  style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
+                ),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () => _importMalFromUrl(isRu),
+              ),
+            ),
+            const SizedBox(height: 18),
+
+            // 5. Account Settings & MangaLib Actions
             if (basicProfile != null) ...[
               _buildSectionTitle(isRu ? 'Управление аккаунтом MangaLib' : 'MangaLib Account Management'),
               Card(
@@ -572,7 +603,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                                 const Icon(Icons.local_fire_department_rounded, size: 14, color: Color(0xFFFF9800)),
                                 const SizedBox(width: 4),
                                 Text(
-                                  '$streakCount ${isRu ? 'дней' : 'days'}',
+                                  Plural.days(streakCount, Localizations.localeOf(context).languageCode),
                                   style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFFFF9800)),
                                 ),
                               ],
@@ -808,5 +839,158 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF8A897C)),
       ),
     );
+  }
+}
+
+/// Asks for a MyAnimeList export link, downloads it and imports its entries.
+///
+/// Returns true when an import completed, so the caller can refresh its library.
+/// Failures stay inside the dialog: a mistyped link is the common case and
+/// retyping beats reopening the whole flow.
+Future<bool> showMalUrlImportDialog(BuildContext context, {required bool isRu}) async {
+  final controller = TextEditingController();
+  final messenger = ScaffoldMessenger.of(context);
+  var busy = false;
+  String? errorText;
+
+  Future<void> submit(StateSetter setDialogState, BuildContext dialogContext) async {
+    final url = controller.text.trim();
+    if (url.isEmpty) {
+      setDialogState(
+        () => errorText = isRu ? 'Вставьте ссылку на XML-экспорт' : 'Paste a link to the XML export',
+      );
+      return;
+    }
+    setDialogState(() {
+      busy = true;
+      errorText = null;
+    });
+
+    try {
+      final result = await MalUrlImporter.importFromUrl(url);
+      final parts = <String>[
+        isRu ? 'добавлено ${result.importedCount}' : '${result.importedCount} added',
+        isRu ? 'обновлено ${result.updatedCount}' : '${result.updatedCount} updated',
+      ];
+      if (result.failedCount > 0) {
+        parts.add(isRu ? 'с ошибками ${result.failedCount}' : '${result.failedCount} failed');
+      }
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('${isRu ? 'Импорт MAL по ссылке' : 'MAL URL import'}: ${parts.join(', ')}'),
+          backgroundColor: Colors.green.shade800,
+        ),
+      );
+      if (dialogContext.mounted) Navigator.of(dialogContext).pop(true);
+    } on MalUrlImportException catch (e) {
+      if (!dialogContext.mounted) return;
+      setDialogState(() {
+        busy = false;
+        errorText = _malImportErrorText(e.kind, isRu);
+      });
+    } catch (_) {
+      if (!dialogContext.mounted) return;
+      setDialogState(() {
+        busy = false;
+        errorText = isRu ? 'Не удалось импортировать файл' : 'Import failed';
+      });
+    }
+  }
+
+  final imported = await showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => StatefulBuilder(
+      builder: (dialogContext, setDialogState) => AlertDialog(
+        backgroundColor: const Color(0xFF222222),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(isRu ? 'Импорт из ссылки' : 'Import from URL'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              isRu
+                  ? 'Прямая ссылка на XML-экспорт MyAnimeList. Размер файла до 5 МБ.'
+                  : 'Direct link to a MyAnimeList XML export. Files up to 5 MB.',
+              style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              enabled: !busy,
+              autofocus: true,
+              keyboardType: TextInputType.url,
+              textInputAction: TextInputAction.go,
+              onSubmitted: busy ? null : (_) => submit(setDialogState, dialogContext),
+              decoration: InputDecoration(
+                hintText: 'https://example.com/mangalist.xml',
+                errorText: errorText,
+                errorMaxLines: 3,
+                prefixIcon: const Icon(Icons.link_rounded),
+                filled: true,
+                fillColor: const Color(0xFF2C2C2C),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+            if (busy) ...[
+              const SizedBox(height: 14),
+              const LinearProgressIndicator(minHeight: 3, color: Color(0xFF8A897C)),
+              const SizedBox(height: 6),
+              Text(
+                isRu ? 'Загружаем и импортируем...' : 'Downloading and importing...',
+                style: const TextStyle(fontSize: 11, color: Color(0xFF8A897C)),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: busy ? null : () => Navigator.of(dialogContext).pop(false),
+            child: Text(isRu ? 'Отмена' : 'Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF8A897C)),
+            onPressed: busy ? null : () => submit(setDialogState, dialogContext),
+            child: busy
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  )
+                : Text(isRu ? 'Импортировать' : 'Import'),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  // The text field keeps listening during the pop animation, so the controller
+  // is released only after the route is fully gone.
+  Future<void>.delayed(const Duration(milliseconds: 400), controller.dispose);
+  return imported == true;
+}
+
+String _malImportErrorText(MalUrlImportError kind, bool isRu) {
+  switch (kind) {
+    case MalUrlImportError.invalidUrl:
+      return isRu
+          ? 'Нужна ссылка, начинающаяся с http:// или https://'
+          : 'The link must start with http:// or https://';
+    case MalUrlImportError.timeout:
+      return isRu
+          ? 'Сервер не ответил за 15 секунд'
+          : 'The server did not respond within 15 seconds';
+    case MalUrlImportError.tooLarge:
+      return isRu ? 'Файл больше 5 МБ' : 'The file is larger than 5 MB';
+    case MalUrlImportError.httpStatus:
+      return isRu
+          ? 'Сервер вернул ошибку — проверьте ссылку'
+          : 'The server returned an error — check the link';
+    case MalUrlImportError.network:
+      return isRu ? 'Нет соединения с сервером' : 'Cannot reach the server';
+    case MalUrlImportError.importFailed:
+      return isRu
+          ? 'Файл не похож на экспорт MyAnimeList'
+          : 'The file does not look like a MyAnimeList export';
   }
 }

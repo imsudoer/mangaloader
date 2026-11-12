@@ -6,6 +6,10 @@ final downloadProvider = StateNotifierProvider<DownloadNotifier, List<DownloadPr
   return DownloadNotifier();
 });
 
+/// Incremented every time the queue finishes one chapter on disk. Views that
+/// cache downloaded state listen to it instead of polling the Rust storage.
+final downloadCompletionTickProvider = StateProvider<int>((ref) => 0);
+
 class DownloadNotifier extends StateNotifier<List<DownloadProgress>> {
   DownloadNotifier() : super([]);
 

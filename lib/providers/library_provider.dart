@@ -10,6 +10,42 @@ final libraryProvider = StateNotifierProvider<LibraryNotifier, AsyncValue<List<L
   return notifier;
 });
 
+/// Storage key used by `addToList` / `removeFromList` for a given list type.
+String listTypeToStorageKey(ListType type) => switch (type) {
+      ListType.reading => 'reading',
+      ListType.planToRead => 'plan_to_read',
+      ListType.completed => 'completed',
+      ListType.dropped => 'dropped',
+      ListType.favorites => 'favorites',
+      ListType.onHold => 'on_hold',
+    };
+
+/// Library membership index, rebuilt once per library change instead of once
+/// per rendered card.
+final libraryListTypeIndexProvider = Provider<Map<int, ListType>>((ref) {
+  final entries = ref.watch(libraryProvider).valueOrNull;
+  if (entries == null) return const {};
+  return {
+    for (final entry in entries) entry.mangaId.toInt(): entry.listType,
+  };
+});
+
+/// Library membership of a single catalog title.
+///
+/// Exposes only the list type so that a grid of cards rebuilds when a title
+/// enters, leaves or moves inside the library instead of on every library
+/// mutation. The selector compares [ListType] values, which are stable.
+final mangaListTypeProvider = Provider.autoDispose.family<ListType?, int>(
+  (ref, mangaId) =>
+      ref.watch(libraryListTypeIndexProvider.select((index) => index[mangaId])),
+);
+
+/// Manga ids that keep at least one downloaded chapter on disk.
+final downloadedMangaIdsProvider = FutureProvider<Set<int>>((ref) async {
+  final chapters = await rust_storage.getAllDownloadedChapters();
+  return chapters.map((chapter) => chapter.mangaId.toInt()).toSet();
+});
+
 class LibraryNotifier extends StateNotifier<AsyncValue<List<LibraryEntry>>> {
   LibraryNotifier() : super(const AsyncValue.loading());
 

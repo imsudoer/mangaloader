@@ -77,6 +77,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   bool _isFullscreen = false;
   bool _isAutoScrolling = false;
   double _autoScrollSpeed = 1.0;
+  int _preloadRadius = 4;
   Timer? _autoScrollTimer;
   
   bool _isLoading = true;
@@ -99,6 +100,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   
   bool _isJumping = false;
   Timer? _sliderDebounceTimer;
+
+  // Measured page heights drive offset estimation so that jumping in the webtoon
+  // list stays accurate without keeping every page mounted.
+  final Map<int, double> _pageHeights = {};
+  bool? _appliedDualLayout;
   
   Timer? _saveTimer;
   int _mangaId = 0;
@@ -115,6 +121,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   @override
   void initState() {
     super.initState();
+    _restorePreferences();
     _sessionStartTime = DateTime.now();
     _sessionTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
       _continuousReadingMinutes++;
@@ -156,7 +163,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
     _scrollController.addListener(_onVerticalScroll);
     _chapterTitle = widget.localCbzPath != null
-        ? widget.localCbzPath!.split(Platform.pathSeparator).last
+        ? widget.localCbzPath!
+            .split(Platform.pathSeparator)
+            .last
+            .replaceAll(RegExp(r'\.(cbz|zip)$', caseSensitive: false), '')
+            .replaceAll('_', ' ')
         : (ref.read(localeProvider)?.languageCode != 'en'
             ? 'Том ${widget.volume} Гл. ${widget.number}'
             : 'Vol. ${widget.volume} Ch. ${widget.number}');
@@ -164,24 +175,142 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     _loadChapter();
   }
 
-  int _findVisiblePageIndex() {
-    if (_totalPages <= 1) return 0;
-    final screenH = MediaQuery.of(context).size.height;
-    final targetY = screenH * 0.35;
+  void _restorePreferences() {
+    final override = ref.read(titleReaderPrefsProvider)[widget.slugUrl];
+    _applyReaderPrefs(override ?? ref.read(readerPrefsProvider));
+  }
 
-    for (int i = 0; i < _totalPages && i < _pageKeys.length; i++) {
-      final ctx = _pageKeys[i].currentContext;
-      if (ctx != null) {
-        final box = ctx.findRenderObject() as RenderBox?;
-        if (box != null && box.hasSize) {
-          final pos = box.localToGlobal(Offset.zero);
-          if (pos.dy + box.size.height > targetY) {
-            return i;
-          }
-        }
-      }
+  void _applyReaderPrefs(ReaderPrefs prefs) {
+    _readMode = switch (prefs.mode) {
+      'ltr' => ReadMode.ltr,
+      'rtl' => ReadMode.rtl,
+      _ => ReadMode.vertical,
+    };
+    _bgColor = switch (prefs.background) {
+      'darkGrey' => ReadBgColor.darkGrey,
+      'white' => ReadBgColor.white,
+      _ => ReadBgColor.black,
+    };
+    _boxFit = switch (prefs.boxFit) {
+      'cover' => ReadBoxFit.cover,
+      'fitWidth' => ReadBoxFit.fitWidth,
+      _ => ReadBoxFit.contain,
+    };
+    _dualPageMode = switch (prefs.dualPage) {
+      'single' => DualPageMode.single,
+      'dual' => DualPageMode.dual,
+      _ => DualPageMode.auto,
+    };
+    _tapZoneLayout = switch (prefs.tapZones) {
+      'inverted' => TapZoneLayout.inverted,
+      'horizontal' => TapZoneLayout.horizontal,
+      'edgesOnly' => TapZoneLayout.edgesOnly,
+      _ => TapZoneLayout.standard,
+    };
+    _filterMode = switch (prefs.colorFilter) {
+      'invert' => ReadColorFilter.invert,
+      'sepia' => ReadColorFilter.sepia,
+      _ => ReadColorFilter.none,
+    };
+    _sharpenMode = switch (prefs.sharpen) {
+      'subtle' => ReadSharpenMode.subtle,
+      'high' => ReadSharpenMode.high,
+      _ => ReadSharpenMode.off,
+    };
+    _cropBorders = prefs.cropBorders;
+    _cropPercent = prefs.cropPercent.clamp(1.0, 10.0);
+    _brightness = prefs.brightness.clamp(0.2, 1.0);
+    _autoScrollSpeed = prefs.autoScrollSpeed.clamp(0.5, 5.0);
+    _preloadRadius = prefs.preloadRadius.clamp(1, 12);
+  }
+
+  /// Titles get their own override so manga (RTL) and webtoon entries can keep
+  /// different profiles; locally opened CBZ files have no slug and only have the
+  /// global profile to write to.
+  void _persistPreferences() {
+    final prefs = ReaderPrefs(
+      mode: _readMode.name,
+      background: _bgColor.name,
+      boxFit: _boxFit.name,
+      dualPage: _dualPageMode.name,
+      tapZones: _tapZoneLayout.name,
+      colorFilter: _filterMode.name,
+      sharpen: _sharpenMode.name,
+      cropBorders: _cropBorders,
+      cropPercent: _cropPercent,
+      brightness: _brightness,
+      autoScrollSpeed: _autoScrollSpeed,
+      preloadRadius: _preloadRadius,
+    );
+    if (widget.slugUrl.isEmpty) {
+      ref.read(readerPrefsProvider.notifier).update(prefs);
+    } else {
+      ref.read(titleReaderPrefsProvider.notifier).setForTitle(widget.slugUrl, prefs);
     }
-    return _currentPageIndex;
+  }
+
+  bool get _hasTitleOverride =>
+      widget.slugUrl.isNotEmpty &&
+      ref.read(titleReaderPrefsProvider).containsKey(widget.slugUrl);
+
+  int _findVisiblePageIndex() {
+    if (_totalPages <= 1 || !_scrollController.hasClients) return 0;
+    final target = _scrollController.offset + MediaQuery.of(context).size.height * 0.35;
+    final fallback = _fallbackPageHeight();
+    double accumulated = 0;
+    for (int i = 0; i < _totalPages; i++) {
+      accumulated += _pageHeights[i] ?? fallback;
+      if (accumulated > target) return i;
+    }
+    return _totalPages - 1;
+  }
+
+  void _onPageMeasured(int index, double height) {
+    if (height <= 0) return;
+    final previous = _pageHeights[index];
+    if (previous == null || (previous - height).abs() > 0.5) {
+      _pageHeights[index] = height;
+    }
+  }
+
+  double _fallbackPageHeight() {
+    if (_pageHeights.isNotEmpty) {
+      final total = _pageHeights.values.fold<double>(0, (sum, h) => sum + h);
+      return total / _pageHeights.length;
+    }
+    return MediaQuery.of(context).size.width * _zoomLevel * 1.45;
+  }
+
+  double _pageTopOffset(int index) {
+    final fallback = _fallbackPageHeight();
+    double offset = 0;
+    for (int i = 0; i < index; i++) {
+      offset += _pageHeights[i] ?? fallback;
+    }
+    return offset;
+  }
+
+  int _slideForPageIndex(int pageIndex, bool isDual) =>
+      isDual ? pageIndex ~/ 2 : pageIndex;
+
+  int _slideCount(bool isDual) =>
+      isDual ? (_totalPages + 1) ~/ 2 : _totalPages;
+
+  /// The slide mapping depends on the viewport (auto dual-page mode kicks in on wide
+  /// screens), so the controller has to be rebuilt when that mapping changes.
+  void _syncDualLayout(bool isDual) {
+    if (_appliedDualLayout == isDual) return;
+    final hadLayout = _appliedDualLayout != null;
+    _appliedDualLayout = isDual;
+    if (!hadLayout) return;
+
+    final slide = _slideForPageIndex(_currentPageIndex, isDual)
+        .clamp(0, _slideCount(isDual) > 0 ? _slideCount(isDual) - 1 : 0);
+    final previous = _pageController;
+    _pageController = PageController(initialPage: slide);
+    if (previous != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => previous.dispose());
+    }
   }
 
   void _onVerticalScroll() {
@@ -193,6 +322,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     if (currentVisible != _currentPageIndex) {
       _currentPageIndex = currentVisible;
       _pageIndexNotifier.value = currentVisible;
+      if (!_isDownloaded) _preloadImages(currentVisible);
       _scheduleSaveProgress();
     }
 
@@ -227,7 +357,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     _sliderDebounceTimer?.cancel();
     _showControlsNotifier.dispose();
     _pageIndexNotifier.dispose();
-    if (_mangaId > 0) {
+    if (_mangaId > 0 && _totalPages > 0) {
       rust_storage.saveReadingProgress(
         progress: ReadingPosition(
           mangaId: _mangaId,
@@ -266,14 +396,21 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     }
 
     setState(() { _isLoading = true; _errorMessage = null; });
-    
+    _pageCache.clear();
+    _pageHeights.clear();
+    _onlinePages = [];
+
+    final isRu = Localizations.localeOf(context).languageCode == 'ru';
+
     try {
       if (widget.localCbzPath != null && widget.localCbzPath!.isNotEmpty) {
         _cbzPath = widget.localCbzPath!;
         _isDownloaded = true;
         _totalPages = await rust_cbz.getCbzPageCount(cbzPath: _cbzPath);
         if (_totalPages == 0) {
-          throw Exception("Не удалось прочитать страницы из локального CBZ файла");
+          throw Exception(isRu
+              ? 'Не удалось прочитать страницы из локального CBZ файла'
+              : 'Could not read pages from the local CBZ file');
         }
       } else {
         if (widget.slugUrl.isNotEmpty) {
@@ -353,9 +490,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
     _pageKeys = List.generate(_totalPages, (i) => GlobalKey(debugLabel: 'page_$i'));
 
-    // Create PageController with correct initial page for horizontal modes
+    // The paged controller is created on the first layout pass, once the viewport
+    // (and therefore the single/dual page mapping) is known.
     _pageController?.dispose();
-    _pageController = PageController(initialPage: _currentPageIndex);
+    _pageController = null;
+    _appliedDualLayout = null;
     _pageIndexNotifier.value = _currentPageIndex;
 
     setState(() => _isLoading = false);
@@ -372,35 +511,54 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     if (targetIndex < 0 || targetIndex >= _totalPages) return;
     _currentPageIndex = targetIndex;
     _pageIndexNotifier.value = targetIndex;
-    
+
     if (_readMode != ReadMode.vertical) {
-      if (_pageController != null && _pageController!.hasClients) {
-        _pageController!.jumpToPage(targetIndex);
+      final controller = _pageController;
+      if (controller != null && controller.hasClients) {
+        final slide = _slideForPageIndex(targetIndex, _appliedDualLayout ?? false);
+        controller.jumpToPage(slide.clamp(0, _slideCount(_appliedDualLayout ?? false) - 1));
       }
-    } else {
+    } else if (_scrollController.hasClients) {
       _isJumping = true;
-      if (targetIndex < _pageKeys.length) {
-        final ctx = _pageKeys[targetIndex].currentContext;
-        if (ctx != null) {
-          Scrollable.ensureVisible(
-            ctx, 
-            alignment: 0.0, 
-            duration: Duration.zero,
-          );
-        } else if (_scrollController.hasClients) {
-          final maxExtent = _scrollController.position.maxScrollExtent;
-          if (maxExtent > 0) {
-            final ratio = targetIndex / (_totalPages > 1 ? (_totalPages - 1) : 1);
-            _scrollController.jumpTo((maxExtent * ratio).clamp(0.0, maxExtent));
-          }
-        }
-      }
-      
-      Future.delayed(const Duration(milliseconds: 120), () {
-        if (mounted) _isJumping = false;
-      });
+      final maxExtent = _scrollController.position.maxScrollExtent;
+      _scrollController.jumpTo(_pageTopOffset(targetIndex).clamp(0.0, maxExtent));
+      WidgetsBinding.instance.addPostFrameCallback((_) => _refineVerticalJump(targetIndex, 0));
     }
     _scheduleSaveProgress();
+  }
+
+  /// After landing near the estimated offset, align the target page to the top of the
+  /// viewport using its real measured box. Retries a couple of frames while lazy
+  /// building catches up with the requested position.
+  void _refineVerticalJump(int target, int attempt, {double fraction = 0}) {
+    if (!mounted || !_scrollController.hasClients) {
+      _isJumping = false;
+      return;
+    }
+
+    final ctx = target < _pageKeys.length ? _pageKeys[target].currentContext : null;
+    final box = ctx?.findRenderObject() as RenderBox?;
+    if (box != null && box.hasSize) {
+      final deltaOnScreen = box.localToGlobal(Offset.zero).dy;
+      final desired = _scrollController.offset +
+          deltaOnScreen +
+          (fraction > 0 ? fraction * box.size.height : 0);
+      final maxExtent = _scrollController.position.maxScrollExtent;
+      final clamped = desired.clamp(0.0, maxExtent);
+      if ((clamped - _scrollController.offset).abs() > 1.0) {
+        _scrollController.jumpTo(clamped);
+      }
+      _isJumping = false;
+      return;
+    }
+
+    if (attempt >= 3) {
+      _isJumping = false;
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _refineVerticalJump(target, attempt + 1, fraction: fraction),
+    );
   }
 
   Future<void> _findNextChapter() async {
@@ -566,7 +724,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
             branchId: next.branchId,
           );
           if (pages.isNotEmpty) {
-            for (int i = 0; i < 3 && i < pages.length; i++) {
+            final prefetchCount = _preloadRadius.clamp(1, 6);
+            for (int i = 0; i < prefetchCount && i < pages.length; i++) {
               final url = _resolveImageUrl(pages[i].url);
               if (mounted) {
                 precacheImage(
@@ -615,7 +774,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
   void _preloadImages(int startIndex) {
     if (_isDownloaded || _onlinePages.isEmpty) return;
-    for (int i = startIndex; i < startIndex + 5 && i < _onlinePages.length; i++) {
+    final end = startIndex + _preloadRadius;
+    for (int i = startIndex; i < end && i < _onlinePages.length; i++) {
       final url = _resolveImageUrl(_onlinePages[i].url);
       precacheImage(
         CachedNetworkImageProvider(url, headers: const {'Referer': 'https://mangalib.org/'}), 
@@ -629,8 +789,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     try {
       final bytes = await rust_cbz.readCbzPage(cbzPath: _cbzPath, pageIndex: index);
       final data = Uint8List.fromList(bytes);
+      // Keep a small window of decoded archive entries so page flips feel instant
+      // without pinning a full chapter of bytes in memory.
       _pageCache[index] = data;
-      _pageCache.removeWhere((k, _) => (k - index).abs() > 10);
+      _pageCache.removeWhere((k, _) => (k - index).abs() > 6);
       return data;
     } catch (e) {
       debugPrint("Error reading CBZ page $index: $e");
@@ -651,6 +813,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   }
 
   void _scheduleSaveProgress() {
+    if (_totalPages <= 0) return;
     _saveTimer?.cancel();
     _saveTimer = Timer(const Duration(seconds: 1), () async {
       if (_mangaId == 0 && widget.slugUrl.isNotEmpty) {
@@ -684,7 +847,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
           lastReadAt: DateTime.now().toIso8601String(),
         )
       );
-      final isCompleted = _currentPageIndex >= _totalPages - 1;
+      // A chapter counts as read once the reader reached 90% of the pages, so the
+      // last spread does not have to be opened for the chapter to be marked read.
+      final threshold = _totalPages <= 1 ? 1 : (_totalPages * 0.9).ceil();
+      final isCompleted = _totalPages > 0 && (_currentPageIndex + 1) >= threshold;
       await rust_storage.markChapterRead(
         mangaId: _mangaId, 
         volume: widget.volume, 
@@ -694,7 +860,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         isCompleted: isCompleted,
       );
       if (isCompleted) {
-        StreakNotificationService.scheduleDailyStreakReminder();
+        if (mounted) {
+          StreakNotificationService.scheduleDailyStreakReminder(
+            isRu: Localizations.localeOf(context).languageCode == 'ru',
+          );
+        }
         if (ref.read(autoDeleteReadChaptersProvider) && _isDownloaded) {
           try {
             await rust_storage.deleteDownloadedChapter(
@@ -720,18 +890,16 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   }
 
   void _handleTap(TapUpDetails details) {
-    final width = MediaQuery.of(context).size.width;
-    final height = MediaQuery.of(context).size.height;
+    final size = MediaQuery.of(context).size;
     final dx = details.globalPosition.dx;
     final dy = details.globalPosition.dy;
     final isRtl = _readMode == ReadMode.rtl;
+    final isVertical = _readMode == ReadMode.vertical;
 
     if (_tapZoneLayout == TapZoneLayout.horizontal) {
-      if (dy < height * 0.25) {
-        if (_readMode != ReadMode.vertical && _currentPageIndex > 0) {
-          _pageController?.previousPage(duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
-        }
-      } else if (dy > height * 0.75) {
+      if (dy < size.height * 0.25) {
+        _prevPageAction();
+      } else if (dy > size.height * 0.75) {
         _nextPageAction();
       } else {
         _showControlsNotifier.value = !_showControlsNotifier.value;
@@ -739,65 +907,82 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       return;
     }
 
-    final edgeFraction = _tapZoneLayout == TapZoneLayout.edgesOnly ? 0.15 : 0.25;
+    // In the continuous webtoon layout there is nothing to page through, so every tap
+    // toggles the overlays instead of leaving dead zones on the screen edges.
+    if (isVertical) {
+      _showControlsNotifier.value = !_showControlsNotifier.value;
+      return;
+    }
 
-    if (dx < width * edgeFraction) {
-      if (_readMode != ReadMode.vertical) {
-        if (_tapZoneLayout == TapZoneLayout.inverted) {
-          if (!isRtl && _currentPageIndex > 0) {
-            _pageController?.previousPage(duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
-          } else if (isRtl) {
-            _nextPageAction();
-          }
-        } else {
-          if (isRtl) {
-            _nextPageAction();
-          } else if (_currentPageIndex > 0) {
-            _pageController?.previousPage(duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
-          }
-        }
+    final edgeFraction = _tapZoneLayout == TapZoneLayout.edgesOnly ? 0.15 : 0.25;
+    // "Inverted" swaps which edge advances; RTL already advances towards the left.
+    final leftIsNext =
+        _tapZoneLayout == TapZoneLayout.inverted ? !isRtl : isRtl;
+
+    if (dx < size.width * edgeFraction) {
+      if (leftIsNext) {
+        _nextPageAction();
+      } else {
+        _prevPageAction();
       }
-    } else if (dx > width * (1.0 - edgeFraction)) {
-      if (_readMode != ReadMode.vertical) {
-        if (_tapZoneLayout == TapZoneLayout.inverted) {
-          if (isRtl && _currentPageIndex > 0) {
-            _pageController?.previousPage(duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
-          } else if (!isRtl) {
-            _nextPageAction();
-          }
-        } else {
-          if (isRtl && _currentPageIndex > 0) {
-            _pageController?.previousPage(duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
-          } else if (!isRtl) {
-            _nextPageAction();
-          }
-        }
+    } else if (dx > size.width * (1.0 - edgeFraction)) {
+      if (leftIsNext) {
+        _prevPageAction();
+      } else {
+        _nextPageAction();
       }
     } else {
       _showControlsNotifier.value = !_showControlsNotifier.value;
     }
   }
 
-  void _nextPageAction() {
-    if (_currentPageIndex < _totalPages - 1) {
-      if (_readMode != ReadMode.vertical && _pageController != null && _pageController!.hasClients) {
-        _pageController!.nextPage(duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
-      } else {
-        _jumpToPageIndex(_currentPageIndex + 1);
-      }
-    } else {
-      _showEndOfChapter();
+  void _prevPageAction() {
+    if (_readMode == ReadMode.vertical) {
+      if (_currentPageIndex > 0) _jumpToPageIndex(_currentPageIndex - 1);
+      return;
     }
+    final controller = _pageController;
+    if (controller != null && controller.hasClients && (controller.page ?? 0) > 0) {
+      controller.previousPage(duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
+    }
+  }
+
+  void _nextPageAction() {
+    if (_readMode == ReadMode.vertical) {
+      if (_currentPageIndex < _totalPages - 1) {
+        _jumpToPageIndex(_currentPageIndex + 1);
+      } else {
+        _showEndOfChapter();
+      }
+      return;
+    }
+
+    final controller = _pageController;
+    if (controller == null || !controller.hasClients) {
+      _showEndOfChapter();
+      return;
+    }
+    final isDual = _appliedDualLayout ?? false;
+    final lastSlide = _slideCount(isDual) - 1;
+    final currentSlide = (controller.page ?? _slideForPageIndex(_currentPageIndex, isDual)).round();
+    if (currentSlide >= lastSlide) {
+      _showEndOfChapter();
+      return;
+    }
+    controller.nextPage(duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
   }
 
   void _showEndOfChapter() {
     _stopAutoScroll();
+    final isRu = Localizations.localeOf(context).languageCode == 'ru';
     if (_nextChapter != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Перейти к следующей главе: Том ${_nextChapter!.volume} Гл ${_nextChapter!.number}?'),
+          content: Text(isRu
+              ? 'Перейти к следующей главе: Том ${_nextChapter!.volume} Гл. ${_nextChapter!.number}?'
+              : 'Continue with volume ${_nextChapter!.volume} chapter ${_nextChapter!.number}?'),
           action: SnackBarAction(
-            label: 'Читать',
+            label: isRu ? 'Читать' : 'Read',
             onPressed: () {
               final branchQ = _nextChapter!.branchId != null ? "?branchId=${_nextChapter!.branchId}" : "";
               context.pushReplacement('/read/${widget.slugUrl}/${_nextChapter!.volume}/${_nextChapter!.number}$branchQ');
@@ -807,7 +992,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         )
       );
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Вы дочитали главу.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(isRu ? 'Вы дочитали главу.' : 'You reached the end of this chapter.')),
+      );
     }
   }
 
@@ -820,53 +1007,30 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       return;
     }
 
-    // 1. Record current visible page and fractional scroll within it
     final visiblePage = _findVisiblePageIndex();
     double fractionInPage = 0.0;
-
     if (visiblePage < _pageKeys.length) {
-      final ctx = _pageKeys[visiblePage].currentContext;
-      if (ctx != null) {
-        final box = ctx.findRenderObject() as RenderBox?;
-        if (box != null && box.hasSize && box.size.height > 0) {
-          final pos = box.localToGlobal(Offset.zero);
-          // fraction: how much of this page has been scrolled past the top of the viewport
-          fractionInPage = (-pos.dy / box.size.height).clamp(0.0, 1.0);
-        }
+      final box = _pageKeys[visiblePage].currentContext?.findRenderObject() as RenderBox?;
+      if (box != null && box.hasSize && box.size.height > 0) {
+        fractionInPage = (-box.localToGlobal(Offset.zero).dy / box.size.height).clamp(0.0, 1.0);
       }
     }
 
-    // 2. Apply new zoom
+    // Heights are expressed in pixels of the previous scale, so they must be re-measured.
     _isJumping = true;
+    _pageHeights.clear();
     setState(() => _zoomLevel = newZoom);
 
-    // 3. Restore position after rebuild
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_scrollController.hasClients) {
         _isJumping = false;
         return;
       }
-
-      if (visiblePage < _pageKeys.length) {
-        final ctx = _pageKeys[visiblePage].currentContext;
-        if (ctx != null) {
-          final box = ctx.findRenderObject() as RenderBox?;
-          if (box != null && box.hasSize) {
-            // Compute the page's top position in the scroll coordinate system
-            final posOnScreen = box.localToGlobal(Offset.zero);
-            final pageTopInScroll = _scrollController.offset + posOnScreen.dy;
-            // Add fraction offset within the page
-            final targetOffset = pageTopInScroll + (fractionInPage * box.size.height);
-            _scrollController.jumpTo(
-              targetOffset.clamp(0.0, _scrollController.position.maxScrollExtent),
-            );
-          }
-        }
-      }
-
-      Future.delayed(const Duration(milliseconds: 100), () {
-        if (mounted) _isJumping = false;
-      });
+      final maxExtent = _scrollController.position.maxScrollExtent;
+      final estimate = _pageTopOffset(visiblePage) +
+          fractionInPage * _fallbackPageHeight();
+      _scrollController.jumpTo(estimate.clamp(0.0, maxExtent));
+      _refineVerticalJump(visiblePage, 0, fraction: fractionInPage);
     });
   }
 
@@ -890,23 +1054,34 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   }
 
   void _toggleAutoScroll() {
+    if (_isAutoScrolling) {
+      _stopAutoScroll();
+      return;
+    }
+
+    if (_readMode != ReadMode.vertical) {
+      final isRu = Localizations.localeOf(context).languageCode == 'ru';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(isRu
+            ? 'Автопрокрутка доступна только в режиме ленты'
+            : 'Auto-scroll is available in webtoon mode only')),
+      );
+      return;
+    }
+
     setState(() {
-      _isAutoScrolling = !_isAutoScrolling;
-      if (_isAutoScrolling) {
-        _autoScrollTimer = Timer.periodic(const Duration(milliseconds: 30), (timer) {
-          if (_scrollController.hasClients) {
-            final nextOffset = _scrollController.offset + _autoScrollSpeed;
-            if (nextOffset >= _scrollController.position.maxScrollExtent) {
-              _stopAutoScroll();
-              _showEndOfChapter();
-            } else {
-              _scrollController.jumpTo(nextOffset);
-            }
-          }
-        });
-      } else {
-        _stopAutoScroll();
-      }
+      _isAutoScrolling = true;
+      // 60 fps ticks keep the motion smooth; speed is expressed in px per second.
+      _autoScrollTimer = Timer.periodic(const Duration(milliseconds: 16), (timer) {
+        if (!_scrollController.hasClients) return;
+        final nextOffset = _scrollController.offset + (_autoScrollSpeed * 60 * 0.016);
+        if (nextOffset >= _scrollController.position.maxScrollExtent) {
+          _stopAutoScroll();
+          _showEndOfChapter();
+        } else {
+          _scrollController.jumpTo(nextOffset);
+        }
+      });
     });
   }
 
@@ -943,8 +1118,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     }
     if (mounted) {
       setState(() {});
+      final isRu = Localizations.localeOf(context).languageCode == 'ru';
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Кэш изображений главы сброшен, перезагрузка...')),
+        SnackBar(content: Text(isRu
+            ? 'Кэш изображений главы сброшен, перезагрузка...'
+            : 'Chapter image cache cleared, reloading...')),
       );
     }
   }
@@ -983,29 +1161,21 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
     // Horizontal mode navigation
     if (key == LogicalKeyboardKey.arrowRight) {
-      if (isRtl && _currentPageIndex > 0) {
-        if (_pageController != null && _pageController!.hasClients) {
-          _pageController!.previousPage(duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
-        }
-      } else if (!isRtl) {
+      if (isRtl) {
+        _prevPageAction();
+      } else {
         _nextPageAction();
       }
     } else if (key == LogicalKeyboardKey.arrowLeft) {
       if (isRtl) {
         _nextPageAction();
-      } else if (_currentPageIndex > 0) {
-        if (_pageController != null && _pageController!.hasClients) {
-          _pageController!.previousPage(duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
-        }
+      } else {
+        _prevPageAction();
       }
     } else if (key == LogicalKeyboardKey.pageDown || key == LogicalKeyboardKey.space) {
       _nextPageAction();
-    } else if (key == LogicalKeyboardKey.pageUp && _currentPageIndex > 0) {
-      if (_pageController != null && _pageController!.hasClients) {
-        _pageController!.previousPage(duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
-      } else {
-        _jumpToPageIndex(_currentPageIndex - 1);
-      }
+    } else if (key == LogicalKeyboardKey.pageUp) {
+      _prevPageAction();
     } else if (key == LogicalKeyboardKey.equal || key == LogicalKeyboardKey.numpadAdd) {
       _zoomIn();
     } else if (key == LogicalKeyboardKey.minus || key == LogicalKeyboardKey.numpadSubtract) {
@@ -1090,12 +1260,13 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   }
 
   void _showPageJumperDialog() {
+    final isRu = Localizations.localeOf(context).languageCode == 'ru';
     showDialog(
       context: context,
       builder: (ctx) {
         return AlertDialog(
           backgroundColor: const Color(0xFF222222),
-          title: const Text('Перейти на страницу', style: TextStyle(color: Colors.white)),
+          title: Text(isRu ? 'Перейти на страницу' : 'Jump to page', style: const TextStyle(color: Colors.white)),
           content: SizedBox(
             width: double.maxFinite,
             height: 350,
@@ -1136,7 +1307,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Закрыть', style: TextStyle(color: Color(0xFFD2D7DF))),
+              child: Text(isRu ? 'Закрыть' : 'Close', style: const TextStyle(color: Color(0xFFD2D7DF))),
             ),
           ],
         );
@@ -1565,7 +1736,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                         children: [
                           const Icon(Icons.play_circle_fill_rounded, size: 16, color: Color(0xFF8A897C)),
                           const SizedBox(width: 6),
-                          const Text('Автоскролл', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                          Text(isRu ? 'Автоскролл' : 'Auto-scroll', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
                           const SizedBox(width: 8),
                           IconButton(
                             icon: const Icon(Icons.remove_rounded, size: 16, color: Color(0xFFD2D7DF)),
@@ -1575,6 +1746,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                               setState(() {
                                 _autoScrollSpeed = (_autoScrollSpeed - 0.5).clamp(0.5, 5.0);
                               });
+                              _persistPreferences();
                             },
                           ),
                           Container(
@@ -1596,6 +1768,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                               setState(() {
                                 _autoScrollSpeed = (_autoScrollSpeed + 0.5).clamp(0.5, 5.0);
                               });
+                              _persistPreferences();
                             },
                           ),
                           const SizedBox(width: 4),
@@ -1639,43 +1812,58 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         ),
       );
     } else if (_readMode == ReadMode.vertical) {
-      return Scrollbar(
-        controller: _scrollController,
-        thumbVisibility: true,
-        child: SingleChildScrollView(
+      return NotificationListener<ScrollNotification>(
+        onNotification: (notification) {
+          // Any manual drag takes control away from auto-scroll.
+          if (_isAutoScrolling &&
+              notification is ScrollStartNotification &&
+              notification.dragDetails != null) {
+            _stopAutoScroll();
+          }
+          return false;
+        },
+        child: Scrollbar(
           controller: _scrollController,
-          physics: const ClampingScrollPhysics(),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (int i = 0; i < _totalPages; i++)
-                _VerticalReaderPageItem(
-                  key: i < _pageKeys.length ? _pageKeys[i] : ValueKey('page_$i'),
-                  index: i,
-                  totalPages: _totalPages,
-                  isDownloaded: _isDownloaded,
-                  cbzPath: _cbzPath,
-                  onlinePages: _onlinePages,
-                  resolveImageUrl: _resolveImageUrl,
-                  getCbzPage: _getCbzPage,
-                  reloadImage: _reloadImage,
-                  zoomLevel: _zoomLevel,
-                  cropBorders: _cropBorders,
-                  cropPercent: _cropPercent,
-                  applyColorFilter: _applyColorFilter,
-                ),
-              _buildNextChapterSwipeCard(isRu),
-            ],
+          thumbVisibility: true,
+          child: ListView.builder(
+            controller: _scrollController,
+            physics: const ClampingScrollPhysics(),
+            itemCount: _totalPages + 1,
+            itemBuilder: (context, i) {
+              if (i == _totalPages) {
+                return _buildNextChapterSwipeCard(isRu);
+              }
+              return _VerticalReaderPageItem(
+                key: i < _pageKeys.length ? _pageKeys[i] : ValueKey('page_$i'),
+                index: i,
+                totalPages: _totalPages,
+                isDownloaded: _isDownloaded,
+                cbzPath: _cbzPath,
+                onlinePages: _onlinePages,
+                resolveImageUrl: _resolveImageUrl,
+                getCbzPage: _getCbzPage,
+                reloadImage: _reloadImage,
+                zoomLevel: _zoomLevel,
+                cropBorders: _cropBorders,
+                cropPercent: _cropPercent,
+                applyColorFilter: _applyColorFilter,
+                onMeasuredHeight: (height) => _onPageMeasured(i, height),
+              );
+            },
           ),
         ),
       );
     } else {
       final isDual = _isDualPageActive(context);
-      final dualSlidesCount = isDual ? ((_totalPages) / 2).ceil() : _totalPages;
+      _syncDualLayout(isDual);
+      final dualSlidesCount = _slideCount(isDual);
       final totalItemsCount = dualSlidesCount + 1;
+      final controller = _pageController ??= PageController(
+        initialPage: _slideForPageIndex(_currentPageIndex, isDual),
+      );
 
       return PageView.builder(
-        controller: _pageController!,
+        controller: controller,
         itemCount: totalItemsCount,
         reverse: _readMode == ReadMode.rtl,
         onPageChanged: (slideIdx) {
@@ -1936,11 +2124,18 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                       selected: {_readMode},
                       onSelectionChanged: (val) {
                         final newMode = val.first;
-                        if (newMode != ReadMode.vertical && _readMode == ReadMode.vertical) {
-                          _pageController?.dispose();
-                          _pageController = PageController(initialPage: _currentPageIndex);
-                        }
-                        setState(() => _readMode = newMode);
+                        final leavingVertical = _readMode == ReadMode.vertical;
+                        setState(() {
+                          _readMode = newMode;
+                          if (leavingVertical && newMode != ReadMode.vertical) {
+                            // Rebuild the controller with the correct slide mapping.
+                            _pageController?.dispose();
+                            _pageController = null;
+                            _appliedDualLayout = null;
+                          }
+                          if (leavingVertical) _stopAutoScroll();
+                        });
+                        _persistPreferences();
                         setModalState(() {});
                         if (newMode == ReadMode.vertical && _currentPageIndex > 0) {
                           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1963,6 +2158,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                         selected: {_dualPageMode},
                         onSelectionChanged: (val) {
                           setState(() => _dualPageMode = val.first);
+                          _persistPreferences();
                           setModalState(() {});
                         },
                       ),
@@ -1979,6 +2175,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                         selected: {_boxFit},
                         onSelectionChanged: (val) {
                           setState(() => _boxFit = val.first);
+                          _persistPreferences();
                           setModalState(() {});
                         },
                       ),
@@ -1996,6 +2193,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                       selected: {_tapZoneLayout},
                       onSelectionChanged: (val) {
                         setState(() => _tapZoneLayout = val.first);
+                        _persistPreferences();
                         setModalState(() {});
                       },
                     ),
@@ -2012,6 +2210,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                       selected: {_bgColor},
                       onSelectionChanged: (val) {
                         setState(() => _bgColor = val.first);
+                        _persistPreferences();
                         setModalState(() {});
                       },
                     ),
@@ -2029,6 +2228,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                       selected: {_filterMode},
                       onSelectionChanged: (val) {
                         setState(() => _filterMode = val.first);
+                        _persistPreferences();
                         setModalState(() {});
                       },
                     ),
@@ -2046,6 +2246,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                       selected: {_sharpenMode},
                       onSelectionChanged: (val) {
                         setState(() => _sharpenMode = val.first);
+                        _persistPreferences();
                         setModalState(() {});
                       },
                     ),
@@ -2062,6 +2263,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                       value: _cropBorders,
                       onChanged: (val) {
                         setState(() => _cropBorders = val);
+                        _persistPreferences();
                         setModalState(() {});
                       },
                     ),
@@ -2082,6 +2284,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                           setState(() => _cropPercent = val);
                           setModalState(() {});
                         },
+                        onChangeEnd: (_) => _persistPreferences(),
                       ),
                     ],
 
@@ -2102,7 +2305,63 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                         setState(() => _brightness = val);
                         setModalState(() {});
                       },
+                      onChangeEnd: (_) => _persistPreferences(),
                     ),
+
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(isRu ? 'Предзагрузка страниц' : 'Page preload', style: const TextStyle(color: Colors.white70)),
+                        Text('${_preloadRadius.clamp(1, 10)}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                    Slider(
+                      value: _preloadRadius.toDouble().clamp(1.0, 10.0),
+                      min: 1,
+                      max: 10,
+                      divisions: 9,
+                      label: '${_preloadRadius.clamp(1, 10)}',
+                      onChanged: (val) {
+                        setState(() => _preloadRadius = val.round().clamp(1, 12));
+                        setModalState(() {});
+                      },
+                      onChangeEnd: (_) {
+                        _persistPreferences();
+                        setModalState(() {});
+                      },
+                    ),
+                    if (_hasTitleOverride) ...[
+                      const SizedBox(height: 4),
+                      TextButton.icon(
+                        style: TextButton.styleFrom(foregroundColor: const Color(0xFF8A897C)),
+                        onPressed: () {
+                          final global = ref.read(readerPrefsProvider);
+                          ref.read(titleReaderPrefsProvider.notifier).clearForTitle(widget.slugUrl);
+                          final wasVertical = _readMode == ReadMode.vertical;
+                          setState(() {
+                            _applyReaderPrefs(global);
+                            if (wasVertical != (_readMode == ReadMode.vertical)) {
+                              _pageController?.dispose();
+                              _pageController = null;
+                              _appliedDualLayout = null;
+                            }
+                          });
+                          if (_readMode != ReadMode.vertical) _stopAutoScroll();
+                          setModalState(() {});
+                          if (_readMode == ReadMode.vertical && _currentPageIndex > 0) {
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              if (mounted) _jumpToPageIndex(_currentPageIndex);
+                            });
+                          }
+                        },
+                        icon: const Icon(Icons.restart_alt_rounded, size: 18),
+                        label: Text(
+                          isRu ? 'Сбросить настройки для этого тайтла' : 'Reset settings for this title',
+                          style: const TextStyle(fontSize: 13),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -2309,6 +2568,7 @@ class _VerticalReaderPageItem extends StatefulWidget {
   final bool cropBorders;
   final double cropPercent;
   final Widget Function(Widget) applyColorFilter;
+  final void Function(double) onMeasuredHeight;
 
   const _VerticalReaderPageItem({
     super.key,
@@ -2324,19 +2584,18 @@ class _VerticalReaderPageItem extends StatefulWidget {
     required this.cropBorders,
     required this.cropPercent,
     required this.applyColorFilter,
+    required this.onMeasuredHeight,
   });
 
   @override
   State<_VerticalReaderPageItem> createState() => _VerticalReaderPageItemState();
 }
 
-class _VerticalReaderPageItemState extends State<_VerticalReaderPageItem> with AutomaticKeepAliveClientMixin {
+class _VerticalReaderPageItemState extends State<_VerticalReaderPageItem> {
   Uint8List? _cbzBytes;
   bool _isLoadingCbz = false;
   bool _cbzError = false;
-
-  @override
-  bool get wantKeepAlive => true;
+  double _reportedHeight = 0;
 
   @override
   void initState() {
@@ -2344,6 +2603,24 @@ class _VerticalReaderPageItemState extends State<_VerticalReaderPageItem> with A
     if (widget.isDownloaded) {
       _loadCbzBytes();
     }
+  }
+
+  @override
+  void didUpdateWidget(covariant _VerticalReaderPageItem oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // The chapter can be downloaded (or auto-deleted) while it is open.
+    if (widget.isDownloaded && !oldWidget.isDownloaded) {
+      _loadCbzBytes();
+    }
+  }
+
+  void _reportHeight() {
+    if (!mounted) return;
+    final box = context.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return;
+    if ((box.size.height - _reportedHeight).abs() < 1.0) return;
+    _reportedHeight = box.size.height;
+    widget.onMeasuredHeight(box.size.height);
   }
 
   void _loadCbzBytes() async {
@@ -2370,7 +2647,9 @@ class _VerticalReaderPageItemState extends State<_VerticalReaderPageItem> with A
 
   @override
   Widget build(BuildContext context) {
-    super.build(context);
+    // Height is reported after layout so the parent can keep jump targets accurate
+    // without mounting every page of the chapter.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _reportHeight());
 
     final screenWidth = MediaQuery.of(context).size.width;
     final itemWidth = screenWidth * widget.zoomLevel;
@@ -2382,6 +2661,14 @@ class _VerticalReaderPageItemState extends State<_VerticalReaderPageItem> with A
         knownAspectRatio = p.width! / p.height!;
       }
     }
+
+    // Decoding a 2000px wide manga page at its source resolution would pin megabytes
+    // of RAM per page; decode at the on-screen pixel width instead.
+    final cacheWidth =
+        (itemWidth * MediaQuery.devicePixelRatioOf(context)).round().clamp(128, 4096);
+    final cacheHeight = knownAspectRatio != null
+        ? (cacheWidth / knownAspectRatio).round().clamp(128, 8192)
+        : null;
 
     // Use known aspect ratio for accurate placeholder; fallback to generous 1.4x for unknown
     final placeholderHeight = (knownAspectRatio != null && knownAspectRatio > 0)
@@ -2399,6 +2686,7 @@ class _VerticalReaderPageItemState extends State<_VerticalReaderPageItem> with A
           width: itemWidth,
           filterQuality: FilterQuality.high,
           gaplessPlayback: true,
+          cacheWidth: cacheWidth,
         );
       } else if (_cbzError) {
         content = Container(
@@ -2424,6 +2712,8 @@ class _VerticalReaderPageItemState extends State<_VerticalReaderPageItem> with A
         imageUrl: pageUrl,
         httpHeaders: const {'Referer': 'https://mangalib.org/'},
         filterQuality: FilterQuality.high,
+        memCacheWidth: cacheWidth,
+        memCacheHeight: cacheHeight,
         // Do NOT set width/height on CachedNetworkImage — use imageBuilder for proper sizing
         imageBuilder: (ctx, imageProvider) => Image(
           image: imageProvider,
@@ -2522,18 +2812,64 @@ class _HorizontalReaderPageItem extends StatefulWidget {
   State<_HorizontalReaderPageItem> createState() => _HorizontalReaderPageItemState();
 }
 
-class _HorizontalReaderPageItemState extends State<_HorizontalReaderPageItem> with AutomaticKeepAliveClientMixin {
+class _HorizontalReaderPageItemState extends State<_HorizontalReaderPageItem>
+    with SingleTickerProviderStateMixin {
+  static const double _doubleTapScale = 2.5;
+
   Uint8List? _cbzBytes;
   bool _isLoadingCbz = false;
   bool _cbzError = false;
 
-  @override
-  bool get wantKeepAlive => true;
+  final TransformationController _transformController = TransformationController();
+  late final AnimationController _zoomAnimationController;
+  Animation<Matrix4>? _zoomAnimation;
+  Offset _doubleTapPosition = Offset.zero;
+  bool _isZoomed = false;
 
   @override
   void initState() {
     super.initState();
     if (widget.isDownloaded) {
+      _loadCbzBytes();
+    }
+    _zoomAnimationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 180),
+    )..addListener(_applyZoomFrame);
+    _transformController.addListener(_syncZoomFlag);
+  }
+
+  @override
+  void dispose() {
+    _zoomAnimationController.dispose();
+    _transformController.removeListener(_syncZoomFlag);
+    _transformController.dispose();
+    super.dispose();
+  }
+
+  double get _matrixScale => _transformController.value.getMaxScaleOnAxis();
+
+  void _applyZoomFrame() {
+    final animation = _zoomAnimation;
+    if (animation != null) _transformController.value = animation.value;
+  }
+
+  /// InteractiveViewer owns a scale recognizer that would swallow the horizontal
+  /// drag before PageView sees it, so the viewer only exists while zoomed in.
+  void _syncZoomFlag() {
+    final zoomed = _matrixScale > 1.001;
+    if (zoomed == _isZoomed) return;
+    if (!mounted) {
+      _isZoomed = zoomed;
+      return;
+    }
+    setState(() => _isZoomed = zoomed);
+  }
+
+  @override
+  void didUpdateWidget(covariant _HorizontalReaderPageItem oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isDownloaded && !oldWidget.isDownloaded) {
       _loadCbzBytes();
     }
   }
@@ -2560,10 +2896,7 @@ class _HorizontalReaderPageItemState extends State<_HorizontalReaderPageItem> wi
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    super.build(context);
-
+  Widget _buildPage(bool isRu, int cacheWidth) {
     Widget content;
     if (widget.isDownloaded) {
       if (_cbzBytes != null) {
@@ -2572,6 +2905,7 @@ class _HorizontalReaderPageItemState extends State<_HorizontalReaderPageItem> wi
           fit: widget.boxFit,
           filterQuality: FilterQuality.high,
           gaplessPlayback: true,
+          cacheWidth: cacheWidth,
         );
       } else if (_cbzError) {
         content = const Center(child: Icon(Icons.broken_image, color: Colors.white54));
@@ -2588,6 +2922,7 @@ class _HorizontalReaderPageItemState extends State<_HorizontalReaderPageItem> wi
         httpHeaders: const {'Referer': 'https://mangalib.org/'},
         fit: widget.boxFit,
         filterQuality: FilterQuality.high,
+        memCacheWidth: cacheWidth,
         placeholder: (ctx, url) => const Center(
           child: SizedBox(width: 28, height: 28, child: CircularProgressIndicator(strokeWidth: 2)),
         ),
@@ -2602,7 +2937,7 @@ class _HorizontalReaderPageItemState extends State<_HorizontalReaderPageItem> wi
                   const Icon(Icons.refresh_rounded, color: Colors.white70, size: 32),
                   const SizedBox(height: 8),
                   Text(
-                    Localizations.localeOf(context).languageCode == 'ru' ? 'Нажмите для повтора' : 'Tap to retry',
+                    isRu ? 'Нажмите для повтора' : 'Tap to retry',
                     style: const TextStyle(color: Colors.white70, fontSize: 12),
                   ),
                 ],
@@ -2622,13 +2957,89 @@ class _HorizontalReaderPageItemState extends State<_HorizontalReaderPageItem> wi
       );
     }
 
-    return InteractiveViewer(
-      minScale: 1.0,
-      maxScale: 4.0,
-      clipBehavior: Clip.none,
-      child: Center(
-        child: widget.applyColorFilter(content),
-      ),
+    return widget.applyColorFilter(content);
+  }
+
+  /// Decodes at the pixels the page actually occupies on screen. The double-tap matrix
+  /// scale is deliberately excluded: changing the decode size swaps the provider, which
+  /// makes CachedNetworkImage drop the bitmap and fade its spinner back in mid-gesture.
+  int _decodeWidth(double logicalWidth, double devicePixelRatio) {
+    final zoom = widget.zoomLevel.clamp(1.0, 4.0);
+    return (logicalWidth * devicePixelRatio * zoom).round().clamp(128, 4096);
+  }
+
+  void _handleDoubleTapDown(TapDownDetails details) {
+    _doubleTapPosition = details.localPosition;
+  }
+
+  void _handleDoubleTap() {
+    final zoomOut = _matrixScale > 1.05;
+    final target = zoomOut
+        ? Matrix4.identity()
+        : _anchoredScaleMatrix(_doubleTapPosition, _doubleTapScale);
+    _zoomAnimationController.stop();
+    _zoomAnimation = Matrix4Tween(
+      begin: _transformController.value,
+      end: target,
+    ).animate(
+      CurvedAnimation(parent: _zoomAnimationController, curve: Curves.easeOutCubic),
+    );
+    _zoomAnimationController.forward(from: 0.0);
+  }
+
+  /// M = T(-anchor * (scale - 1)) * S(scale) keeps the tapped pixel under the finger.
+  Matrix4 _anchoredScaleMatrix(Offset anchor, double scale) {
+    return Matrix4.identity()
+      ..translateByDouble(-anchor.dx * (scale - 1), -anchor.dy * (scale - 1), 0.0, 1.0)
+      ..scaleByDouble(scale, scale, 1.0, 1.0);
+  }
+
+  void _handleInteractionStart(ScaleStartDetails details) {
+    _zoomAnimationController.stop();
+  }
+
+  void _handleInteractionEnd(ScaleEndDetails details) {
+    if (_matrixScale > 1.02) return;
+    _transformController.value = Matrix4.identity();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Resolved outside of LayoutBuilder: inherited widgets cannot be depended on from
+    // a builder that runs during layout.
+    final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
+    final fallbackWidth = MediaQuery.sizeOf(context).width;
+    final isRu = Localizations.localeOf(context).languageCode == 'ru';
+    final baseScale = widget.zoomLevel.clamp(1.0, 4.0);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final logicalWidth = constraints.maxWidth.isFinite && constraints.maxWidth > 0
+            ? constraints.maxWidth
+            : fallbackWidth;
+        final page = _buildPage(isRu, _decodeWidth(logicalWidth, devicePixelRatio));
+
+        final Widget body = (_isZoomed || baseScale > 1.001)
+            ? InteractiveViewer(
+                transformationController: _transformController,
+                minScale: 1.0,
+                maxScale: 4.0,
+                clipBehavior: Clip.none,
+                onInteractionStart: _handleInteractionStart,
+                onInteractionEnd: _handleInteractionEnd,
+                child: Center(
+                  child: Transform.scale(scale: baseScale, child: page),
+                ),
+              )
+            : Center(child: page);
+
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onDoubleTapDown: _handleDoubleTapDown,
+          onDoubleTap: _handleDoubleTap,
+          child: body,
+        );
+      },
     );
   }
 }

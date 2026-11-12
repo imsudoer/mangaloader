@@ -9,6 +9,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:mangaloader/providers/settings_provider.dart';
 import 'package:mangaloader/src/rust/api/storage.dart' as rust_storage;
 import 'package:mangaloader/src/rust/api/models.dart';
+import 'package:mangaloader/services/content_filter.dart';
 
 class MangaRecapModal extends ConsumerStatefulWidget {
   const MangaRecapModal({super.key});
@@ -130,6 +131,13 @@ class _MangaRecapModalState extends ConsumerState<MangaRecapModal> {
                 }
 
                 final recap = snapshot.data!;
+                // Regulatory filter: a recap card may expose titles that are
+                // prohibited in the RuStore build.
+                final topManga = recap.topManga
+                    .where((m) =>
+                        !ContentFilter.isBlockedText(m.name) &&
+                        !ContentFilter.isBlockedText(m.rusName))
+                    .toList();
 
                 return SingleChildScrollView(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -283,13 +291,13 @@ class _MangaRecapModalState extends ConsumerState<MangaRecapModal> {
                               ],
 
                               // Top Manga Read
-                              if (recap.topManga.isNotEmpty) ...[
+                              if (topManga.isNotEmpty) ...[
                                 Text(
                                   isRu ? 'Топ прочитанных тайтлов' : 'Top Read Manga',
                                   style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
                                 ),
                                 const SizedBox(height: 10),
-                                ...recap.topManga.take(3).map((m) {
+                                ...topManga.take(3).map((m) {
                                   final title = m.rusName.isNotEmpty ? m.rusName : m.name;
                                   return Padding(
                                     padding: const EdgeInsets.only(bottom: 8),

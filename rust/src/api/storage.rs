@@ -14,6 +14,16 @@ pub async fn init_database(app_dir: String) -> Result<()> {
     let db_path = format!("{}/mangaloader.db", app_dir);
     let conn = Connection::open(&db_path).context("Failed to open SQLite database")?;
 
+    // The background isolate opens its own connection to the same file. WAL plus a
+    // generous busy timeout keeps concurrent readers/writers from failing with
+    // "database is locked" while notifications are checked in the background.
+    conn.execute_batch(
+        "PRAGMA journal_mode = WAL;
+         PRAGMA synchronous = NORMAL;
+         PRAGMA busy_timeout = 5000;
+         PRAGMA foreign_keys = ON;",
+    )?;
+
     conn.execute_batch(
         "
         CREATE TABLE IF NOT EXISTS manga (
@@ -172,6 +182,20 @@ pub async fn init_database(app_dir: String) -> Result<()> {
     for sql in migrations {
         let _ = conn.execute(sql, []);
     }
+
+    // Indexes for the hot lookups (list filters, history merges, statistics joins).
+    let _ = conn.execute_batch(
+        "CREATE INDEX IF NOT EXISTS idx_user_lists_type ON user_lists(list_type);
+         CREATE INDEX IF NOT EXISTS idx_user_lists_manga ON user_lists(manga_id);
+         CREATE INDEX IF NOT EXISTS idx_progress_last_read ON reading_progress(last_read_at DESC);
+         CREATE INDEX IF NOT EXISTS idx_history_manga ON chapter_history(manga_id);
+         CREATE INDEX IF NOT EXISTS idx_history_completed ON chapter_history(is_completed);
+         CREATE INDEX IF NOT EXISTS idx_cached_chapters_manga ON cached_chapters(manga_id);
+         CREATE INDEX IF NOT EXISTS idx_downloaded_manga ON downloaded_chapters(manga_id);
+         CREATE INDEX IF NOT EXISTS idx_sessions_manga ON reading_sessions(manga_id);
+         CREATE INDEX IF NOT EXISTS idx_custom_items_manga ON custom_list_items(manga_id);
+         CREATE INDEX IF NOT EXISTS idx_custom_tags_manga ON manga_custom_tags(manga_id);",
+    );
 
     *DB.lock().unwrap() = Some(conn);
     Ok(())
@@ -371,7 +395,8 @@ pub async fn get_list(list_type: String) -> Result<Vec<LibraryEntry>> {
 
     let mut stmt = conn.prepare(
         "SELECT m.id, m.slug_url, m.name, m.rus_name, m.cover_url, m.rating_average, m.chapters_count,
-                ul.list_type, ul.added_at, rp.chapter_number, rp.chapter_volume, 0 as unread_count,
+                ul.list_type, ul.added_at, rp.chapter_number, rp.chapter_volume,
+                MAX(m.chapters_count - COALESCE((SELECT COUNT(1) FROM chapter_history ch WHERE ch.manga_id = m.id AND ch.is_completed = 1), 0), 0) as unread_count,
                 COALESCE((SELECT COUNT(1) FROM chapter_history ch WHERE ch.manga_id = m.id AND ch.is_completed = 1), 0) as read_chapters_count
          FROM user_lists ul
          JOIN manga m ON m.id = ul.manga_id
@@ -421,7 +446,7 @@ pub async fn save_reading_progress(progress: ReadingPosition) -> Result<()> {
     let conn = guard.as_ref().unwrap();
     conn.execute(
         "INSERT OR REPLACE INTO reading_progress (manga_id, chapter_volume, chapter_number, page_index, scroll_position, last_read_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, datetime('now'))",
+         VALUES (?1, ?2, ?3, ?4, ?5, datetime('now', 'localtime'))",
         params![progress.manga_id, progress.chapter_volume, progress.chapter_number, progress.page_index, progress.scroll_position],
     )?;
 
@@ -633,6 +658,7 @@ pub async fn delete_downloaded_chapter(manga_id: i64, volume: String, number: St
     };
 
     if let Some(path) = path_opt {
+        crate::api::cbz_export::invalidate_archive_cache(&path);
         let _ = std::fs::remove_file(&path);
     }
 
@@ -661,6 +687,7 @@ pub async fn delete_downloaded_manga(manga_id: i64) -> Result<()> {
     };
 
     for path in paths {
+        crate::api::cbz_export::invalidate_archive_cache(&path);
         let _ = std::fs::remove_file(&path);
     }
 
@@ -678,7 +705,8 @@ pub async fn get_all_library_manga() -> Result<Vec<LibraryEntry>> {
     
     let mut stmt = conn.prepare(
         "SELECT m.id, m.slug_url, m.name, m.rus_name, m.cover_url, m.rating_average, m.chapters_count,
-                ul.list_type, ul.added_at, rp.chapter_number, rp.chapter_volume, 0 as unread_count,
+                ul.list_type, ul.added_at, rp.chapter_number, rp.chapter_volume,
+                MAX(m.chapters_count - COALESCE((SELECT COUNT(1) FROM chapter_history ch WHERE ch.manga_id = m.id AND ch.is_completed = 1), 0), 0) as unread_count,
                 COALESCE((SELECT COUNT(1) FROM chapter_history ch WHERE ch.manga_id = m.id AND ch.is_completed = 1), 0) as read_chapters_count
          FROM user_lists ul
          JOIN manga m ON m.id = ul.manga_id
@@ -715,20 +743,40 @@ pub async fn get_all_library_manga() -> Result<Vec<LibraryEntry>> {
 }
 
 pub async fn mark_chapter_read(manga_id: i64, volume: String, number: String, page_index: i64, total_pages: i64, is_completed: bool) -> Result<()> {
-    {
+    let was_completed = {
         let guard = get_conn()?;
         let conn = guard.as_ref().unwrap();
+        let previous: Option<bool> = conn.query_row(
+            "SELECT is_completed FROM chapter_history WHERE manga_id = ?1 AND volume = ?2 AND number = ?3",
+            params![manga_id, volume, number],
+            |row| row.get(0),
+        ).optional()?;
+
         conn.execute(
             "INSERT OR REPLACE INTO chapter_history (manga_id, volume, number, page_index, total_pages, is_completed, last_read_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, datetime('now'))",
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, datetime('now', 'localtime'))",
             params![manga_id, volume, number, page_index, total_pages, is_completed],
         )?;
-    }
 
-    if is_completed {
+        previous.unwrap_or(false)
+    };
+
+    // Progress is persisted repeatedly while the last page is open; the streak must
+    // only advance on the transition to a completed chapter, otherwise the daily
+    // counter grows on every save tick.
+    if is_completed && !was_completed {
         let _ = record_chapter_read_for_streak().await;
     }
     Ok(())
+}
+
+/// Streaks are a human-facing concept: the day rolls over at local midnight, not at
+/// UTC midnight, otherwise a chapter read at 01:00 Moscow time would still count as
+/// yesterday and silently break the streak.
+fn local_date(days_ago: i64) -> String {
+    (chrono::Local::now() - chrono::Duration::days(days_ago))
+        .format("%Y-%m-%d")
+        .to_string()
 }
 
 pub async fn get_reading_streak() -> Result<ReadingStreakInfo> {
@@ -755,8 +803,8 @@ pub async fn get_reading_streak() -> Result<ReadingStreakInfo> {
         },
     ).optional()?;
 
-    let today_str = chrono::Utc::now().format("%Y-%m-%d").to_string();
-    let yesterday_str = (chrono::Utc::now() - chrono::Duration::days(1)).format("%Y-%m-%d").to_string();
+    let today_str = local_date(0);
+    let yesterday_str = local_date(1);
 
     match row {
         Some(mut info) => {
@@ -790,8 +838,8 @@ pub async fn record_chapter_read_for_streak() -> Result<ReadingStreakInfo> {
     let guard = get_conn()?;
     let conn = guard.as_ref().unwrap();
 
-    let today_str = chrono::Utc::now().format("%Y-%m-%d").to_string();
-    let yesterday_str = (chrono::Utc::now() - chrono::Duration::days(1)).format("%Y-%m-%d").to_string();
+    let today_str = local_date(0);
+    let yesterday_str = local_date(1);
 
     let existing = conn.query_row(
         "SELECT current_streak, max_streak, last_read_date, today_chapters_count, total_days_read, total_chapters_read, history_json
@@ -874,13 +922,12 @@ pub async fn sync_reading_streak(days: i64) -> Result<ReadingStreakInfo> {
     let guard = get_conn()?;
     let conn = guard.as_ref().unwrap();
 
-    let today_str = chrono::Utc::now().format("%Y-%m-%d").to_string();
+    let today_str = local_date(0);
     let max_s = days.max(1);
     let mut history_dates = Vec::new();
     let count = 7.min(days);
     for i in (0..count).rev() {
-        let d = chrono::Utc::now() - chrono::Duration::days(i);
-        history_dates.push(d.format("%Y-%m-%d").to_string());
+        history_dates.push(local_date(i));
     }
     let hist_json = serde_json::to_string(&history_dates).unwrap_or_else(|_| "[]".to_string());
 
@@ -1534,7 +1581,7 @@ pub async fn get_reading_statistics() -> Result<ReadingStatistics> {
         };
         GenreCount { name, count, percentage: (pct * 10.0).round() / 10.0 }
     }).collect();
-    top_genres.sort_by(|a, b| b.count.cmp(&a.count));
+    top_genres.sort_by_key(|a| std::cmp::Reverse(a.count));
     top_genres.truncate(8);
 
     // 5. Time of day distribution
@@ -1853,7 +1900,7 @@ pub async fn get_manga_recap() -> Result<MangaRecapData> {
         })
         .collect();
 
-    top_genres.sort_by(|a, b| b.count.cmp(&a.count));
+    top_genres.sort_by_key(|a| std::cmp::Reverse(a.count));
     top_genres.truncate(5);
 
     // Time of day distribution from chapter_history

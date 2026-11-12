@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:mangaloader/services/streak_notification_service.dart';
+import 'package:mangaloader/src/rust/api/storage.dart' as rust_storage;
 
 class ReleaseAsset {
   final String name;
@@ -123,6 +124,43 @@ class AppUpdateInfo {
 
 enum UpdateChannel { stable, beta }
 
+/// Minimal semantic version holder that understands prerelease suffixes
+/// (`1.8.3-beta.2`), which plain integer splitting used to mangle.
+class _ParsedVersion {
+  final List<int> core;
+  final String? pre;
+
+  const _ParsedVersion(this.core, this.pre);
+
+  static _ParsedVersion? parse(String raw) {
+    var value = raw.trim();
+    if (value.startsWith('v') || value.startsWith('V')) {
+      value = value.substring(1);
+    }
+    // Drop build metadata (1.8.2+37).
+    final plusIndex = value.indexOf('+');
+    if (plusIndex != -1) value = value.substring(0, plusIndex);
+
+    String? pre;
+    final dashIndex = value.indexOf('-');
+    if (dashIndex != -1) {
+      pre = value.substring(dashIndex + 1);
+      value = value.substring(0, dashIndex);
+    }
+
+    final core = <int>[];
+    for (final part in value.split('.')) {
+      final number = int.tryParse(part);
+      if (number == null) return null;
+      core.add(number);
+    }
+    while (core.length < 3) {
+      core.add(0);
+    }
+    return _ParsedVersion(core, pre);
+  }
+}
+
 const bool isRuStoreBuild = bool.fromEnvironment('RUSTORE_BUILD', defaultValue: false);
 
 class UpdateChecker {
@@ -170,8 +208,21 @@ class UpdateChecker {
       
       Map<String, dynamic> json;
       if (decoded is List) {
-        if (decoded.isEmpty) return null;
-        json = decoded.first as Map<String, dynamic>;
+        final releases = decoded.whereType<Map<String, dynamic>>().toList();
+        if (releases.isEmpty) return null;
+        json = releases.first;
+        if (channel == UpdateChannel.beta) {
+          // GitHub orders releases by creation date, which is not the same as the
+          // highest version when a hotfix lands after a beta.
+          var bestTag = json['tag_name'] as String? ?? '';
+          for (final release in releases.skip(1)) {
+            final candidateTag = release['tag_name'] as String? ?? '';
+            if (isNewerVersion(bestTag, candidateTag)) {
+              bestTag = candidateTag;
+              json = release;
+            }
+          }
+        }
       } else if (decoded is Map<String, dynamic>) {
         json = decoded;
       } else {
@@ -186,7 +237,7 @@ class UpdateChecker {
       if (rawTag == 'dev-latest' || rawTag == 'nightly') {
         hasUpdate = true;
       } else {
-        hasUpdate = _isNewerVersion(curVer, cleanTag);
+        hasUpdate = isNewerVersion(curVer, cleanTag);
       }
 
       final assetsJson = json['assets'] as List<dynamic>? ?? [];
@@ -207,32 +258,55 @@ class UpdateChecker {
     }
   }
 
-  static bool _isNewerVersion(String current, String remote) {
-    try {
-      final currentParts = current.split('.').map((p) => int.tryParse(p) ?? 0).toList();
-      final remoteParts = remote.split('.').map((p) => int.tryParse(p) ?? 0).toList();
+  /// Returns true when [remote] is newer than [current], honouring prerelease
+  /// suffixes so that `1.8.3-beta.1` still beats `1.8.2`.
+  static bool isNewerVersion(String current, String remote) {
+    final currentVersion = _ParsedVersion.parse(current);
+    final remoteVersion = _ParsedVersion.parse(remote);
+    if (currentVersion == null || remoteVersion == null) return false;
 
-      while (currentParts.length < 3) {
-        currentParts.add(0);
+    for (int i = 0; i < 3; i++) {
+      if (remoteVersion.core[i] != currentVersion.core[i]) {
+        return remoteVersion.core[i] > currentVersion.core[i];
       }
-      while (remoteParts.length < 3) {
-        remoteParts.add(0);
-      }
-
-      for (int i = 0; i < 3; i++) {
-        if (remoteParts[i] > currentParts[i]) return true;
-        if (remoteParts[i] < currentParts[i]) return false;
-      }
-      return false;
-    } catch (_) {
-      return false;
     }
+
+    // Same numeric core: a final release supersedes its prereleases, and two
+    // prereleases are ordered by their identifiers (beta.2 > beta.1).
+    if (currentVersion.pre == null && remoteVersion.pre == null) return false;
+    if (currentVersion.pre == null) return false;
+    if (remoteVersion.pre == null) return true;
+    return _comparePrerelease(remoteVersion.pre!, currentVersion.pre!) > 0;
+  }
+
+  static int _comparePrerelease(String a, String b) {
+    final left = a.split('.');
+    final right = b.split('.');
+    final length = left.length > right.length ? left.length : right.length;
+    for (int i = 0; i < length; i++) {
+      if (i >= left.length) return -1;
+      if (i >= right.length) return 1;
+      final leftNumber = int.tryParse(left[i]);
+      final rightNumber = int.tryParse(right[i]);
+      if (leftNumber != null && rightNumber != null) {
+        if (leftNumber != rightNumber) return leftNumber.compareTo(rightNumber);
+      } else {
+        final comparison = left[i].compareTo(right[i]);
+        if (comparison != 0) return comparison;
+      }
+    }
+    return 0;
   }
 
   /// Silently check for update and trigger notification once
   static Future<void> checkAppUpdateSilently({bool isRu = true}) async {
     if (isRuStoreBuild) return;
     try {
+      // The background isolate has no Riverpod container, so the user preference is
+      // read straight from the settings table.
+      final enabled = await rust_storage.getSetting(key: 'auto_check_updates');
+      if (enabled == 'false') return;
+
       final info = await checkForUpdates();
       if (info != null && info.hasUpdate) {
         await StreakNotificationService.showUpdateNotificationOnce(info, isRu: isRu);

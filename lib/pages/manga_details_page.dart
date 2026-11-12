@@ -4,19 +4,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart' hide DownloadProgress;
 import 'package:window_manager/window_manager.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:mangaloader/providers/manga_provider.dart';
 import 'package:mangaloader/providers/download_provider.dart';
 import 'package:mangaloader/providers/library_provider.dart';
-import 'package:mangaloader/providers/settings_provider.dart';
 import 'package:mangaloader/providers/streak_provider.dart';
 import 'package:mangaloader/providers/continue_reading_provider.dart';
+import 'package:mangaloader/services/download_queue_service.dart';
 import 'package:mangaloader/widgets/download_button.dart';
 import 'package:mangaloader/widgets/manga_share_modal.dart';
 import 'package:mangaloader/widgets/manga_comments_modal.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mangaloader/src/rust/api/storage.dart' as rust_storage;
-import 'package:mangaloader/src/rust/api/download_engine.dart' as rust_download;
 import 'package:mangaloader/src/rust/api/models.dart';
 
 final mangaHistoryProvider = FutureProvider.family<List<ChapterHistory>, int>((ref, mangaId) async {
@@ -42,17 +40,27 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
   bool _isAscending = true;
   bool _isBatchMode = false;
   final Set<String> _selectedChapters = {};
+  List<DownloadQueueItem> _queueItems = DownloadQueueService.instance.items;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    DownloadQueueService.instance.queue.addListener(_syncQueueItems);
   }
 
   @override
   void dispose() {
+    DownloadQueueService.instance.queue.removeListener(_syncQueueItems);
     _tabController.dispose();
     super.dispose();
+  }
+
+  void _syncQueueItems() {
+    if (!mounted) return;
+    final next = DownloadQueueService.instance.items;
+    if (identical(next, _queueItems)) return;
+    setState(() => _queueItems = next);
   }
 
   @override
@@ -61,6 +69,11 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
     final chaptersAsync = ref.watch(mangaChaptersProvider(widget.slugUrl));
     final downloadList = ref.watch(downloadProvider);
     final isRu = Localizations.localeOf(context).languageCode == 'ru';
+
+    ref.listen<int>(downloadCompletionTickProvider, (_, __) {
+      ref.invalidate(mangaDownloadedChaptersProvider);
+      ref.invalidate(mangaHistoryProvider);
+    });
 
     return Scaffold(
       body: detailsAsync.when(
@@ -668,11 +681,9 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
           list = list.reversed.toList();
         }
 
-        return ListView(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          children: [
-            // Chapter controls bar
-            Row(
+        final headerChildren = <Widget>[
+          // Chapter controls bar
+          Row(
               children: [
                 Expanded(
                   child: TextField(
@@ -698,8 +709,8 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                   }),
                 ),
                 IconButton(
-                  tooltip: _isAscending ? (isRu ? 'Сначала новые' : 'Newest first') : (isRu ? 'Сначала старые' : 'Oldest first'),
-                  icon: Icon(_isAscending ? Icons.arrow_downward_rounded : Icons.arrow_upward_rounded, size: 20),
+                  tooltip: _isAscending ? (isRu ? 'Сначала старые' : 'Oldest first') : (isRu ? 'Сначала новые' : 'Newest first'),
+                  icon: Icon(_isAscending ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded, size: 20),
                   onPressed: () => setState(() => _isAscending = !_isAscending),
                 ),
               ],
@@ -831,31 +842,28 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                           return numA.compareTo(numB);
                         });
 
-                        final appDir = await getApplicationDocumentsDirectory();
-                        for (final ch in toDownload) {
-                          final stream = rust_download.startChapterDownload(
-                            slugUrl: manga.slugUrl,
-                            mangaId: manga.id,
-                            chapters: [
+                        await DownloadQueueService.instance.enqueue(
+                          ref: ref,
+                          slugUrl: manga.slugUrl,
+                          mangaId: manga.id,
+                          chapters: [
+                            for (final ch in toDownload)
                               ChapterDownloadRequest(
                                 volume: ch.volume,
                                 number: ch.number,
                                 branchId: ch.branchId,
                               ),
-                            ],
-                            appDir: appDir.path,
-                            concurrentImages: ref.read(downloadConcurrencyImagesProvider),
-                          );
-                          stream.listen((p) {
-                            ref.read(downloadProvider.notifier).addProgress(p);
-                            if (p.state == DownloadState.completed) {
-                              ref.invalidate(mangaDownloadedChaptersProvider(manga.id));
-                            }
-                          });
-                        }
+                          ],
+                        );
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text(isRu ? 'Начата загрузка ${toDownload.length} глав' : 'Started downloading ${toDownload.length} chapters')),
+                            SnackBar(
+                              content: Text(
+                                isRu
+                                  ? 'В очереди на загрузку: ${toDownload.length} глав'
+                                  : 'Queued ${toDownload.length} chapters for download',
+                              ),
+                            ),
                           );
                           setState(() {
                             _selectedChapters.clear();
@@ -874,9 +882,16 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
               ),
             ],
             const SizedBox(height: 10),
+          ];
 
-            // Chapter Tiles
-            ...list.map((ch) {
+          // Chapter tiles are built lazily: long-running titles easily exceed a
+          // thousand chapters, and mounting them all froze the tab.
+          return ListView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            itemCount: headerChildren.length + list.length,
+            itemBuilder: (context, index) {
+              if (index < headerChildren.length) return headerChildren[index];
+              final ch = list[index - headerChildren.length];
               final isRead = history.any((h) => h.volume == ch.volume && h.number == ch.number && h.isCompleted);
               final localChapter = downloadedChapters.where((dc) => dc.volume == ch.volume && dc.number == ch.number).firstOrNull;
               final isDownloadedLocally = localChapter != null;
@@ -885,25 +900,42 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                 (p) => p.mangaSlug == manga.slugUrl && p.chapterVolume == ch.volume && p.chapterNumber == ch.number,
               ).firstOrNull;
 
-              final double downloadProgress;
-              if (progressItem != null) {
-                if (progressItem.state == DownloadState.completed) {
+              final queueItem = _queueItems.where(
+                (item) => item.mangaId == manga.id && item.volume == ch.volume && item.number == ch.number,
+              ).firstOrNull;
+              final isQueueFailed = queueItem?.status == DownloadQueueStatus.failed;
+
+                final double downloadProgress;
+                if (progressItem != null) {
+                  if (progressItem.state == DownloadState.completed) {
+                    downloadProgress = 1.0;
+                  } else if (progressItem.state == DownloadState.queued) {
+                    downloadProgress = -2.0;
+                  } else {
+                    downloadProgress = (progressItem.currentPage / (progressItem.totalPages > 0 ? progressItem.totalPages : 1)).clamp(0.0, 1.0);
+                  }
+                } else if (isDownloadedLocally) {
                   downloadProgress = 1.0;
-                } else if (progressItem.state == DownloadState.queued) {
-                  downloadProgress = -2.0;
+                } else if (queueItem != null) {
+                  switch (queueItem.status) {
+                    case DownloadQueueStatus.completed:
+                      downloadProgress = 1.0;
+                    case DownloadQueueStatus.queued:
+                    case DownloadQueueStatus.waitingForWifi:
+                      downloadProgress = -2.0;
+                    case DownloadQueueStatus.downloading:
+                      downloadProgress = 0.0;
+                    case DownloadQueueStatus.failed:
+                      downloadProgress = -1.0;
+                  }
                 } else {
-                  downloadProgress = (progressItem.currentPage / (progressItem.totalPages > 0 ? progressItem.totalPages : 1)).clamp(0.0, 1.0);
+                  downloadProgress = -1.0;
                 }
-              } else if (isDownloadedLocally) {
-                downloadProgress = 1.0;
-              } else {
-                downloadProgress = -1.0;
-              }
 
-              final key = '${ch.volume}_${ch.number}';
-              final isSelected = _selectedChapters.contains(key);
+                final key = '${ch.volume}_${ch.number}';
+                final isSelected = _selectedChapters.contains(key);
 
-              return Card(
+                return Card(
                 margin: const EdgeInsets.only(bottom: 6),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
@@ -1057,9 +1089,27 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                       if (!ch.isPaid)
                         DownloadButton(
                           progress: downloadProgress,
+                          failed: isQueueFailed,
                           onPressed: () async {
-                            final appDir = await getApplicationDocumentsDirectory();
-                            final stream = rust_download.startChapterDownload(
+                            if (isQueueFailed && queueItem != null) {
+                              await DownloadQueueService.instance.retry(queueItem);
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text(isRu ? 'Повторная попытка: Том ${ch.volume} Гл ${ch.number}' : 'Retrying Vol ${ch.volume} Ch ${ch.number}')),
+                                );
+                              }
+                              return;
+                            }
+                            if (localChapter != null) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text(isRu ? 'Глава уже скачана' : 'Chapter is already downloaded')),
+                                );
+                              }
+                              return;
+                            }
+                            await DownloadQueueService.instance.enqueue(
+                              ref: ref,
                               slugUrl: manga.slugUrl,
                               mangaId: manga.id,
                               chapters: [
@@ -1069,18 +1119,10 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                                   branchId: ch.branchId,
                                 ),
                               ],
-                              appDir: appDir.path,
-                              concurrentImages: ref.read(downloadConcurrencyImagesProvider),
                             );
-                            stream.listen((p) {
-                              ref.read(downloadProvider.notifier).addProgress(p);
-                              if (p.state == DownloadState.completed) {
-                                ref.invalidate(mangaDownloadedChaptersProvider(manga.id));
-                              }
-                            });
                             if (context.mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text(isRu ? 'Загрузка начата: Том ${ch.volume} Гл ${ch.number}' : 'Downloading started')),
+                                SnackBar(content: Text(isRu ? 'В очереди: Том ${ch.volume} Гл ${ch.number}' : 'Queued Vol ${ch.volume} Ch ${ch.number}')),
                               );
                             }
                           },
@@ -1111,9 +1153,8 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                   },
                 ),
               );
-            }),
-          ],
-        );
+            },
+          );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => Center(

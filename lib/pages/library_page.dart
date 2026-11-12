@@ -14,6 +14,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:go_router/go_router.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:mangaloader/utils/plural.dart';
 
 enum LibrarySortMode { recent, title, rating, progress, chapters }
 
@@ -31,6 +32,9 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
   bool _isGridView = true;
   LibrarySortMode _sortMode = LibrarySortMode.recent;
   bool _isSyncingWithMangaLib = false;
+
+  bool _selectionMode = false;
+  final Set<int> _selectedMangaIds = {};
 
   Future<void> _syncWithMangaLib(BuildContext context, bool isRu) async {
     final profile = ref.read(currentUserProfileProvider);
@@ -112,7 +116,8 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
   }
 
   List<LibraryEntry> _filterAndSort(List<LibraryEntry> all, ListType? filterType, String query) {
-    var list = all;
+    // Copy first: the provider state list must never be reordered in place.
+    var list = List<LibraryEntry>.of(all);
     if (filterType != null) {
       list = list.where((e) => e.listType == filterType).toList();
     }
@@ -296,12 +301,38 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
 
   @override
   Widget build(BuildContext context) {
+    return PopScope(
+      canPop: !_selectionMode,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _selectionMode) _exitSelectionMode();
+      },
+      child: _buildScaffold(context),
+    );
+  }
+
+  Widget _buildScaffold(BuildContext context) {
     final libState = ref.watch(libraryProvider);
     final isRu = Localizations.localeOf(context).languageCode == 'ru';
+    final allEntries = libState.valueOrNull ?? const <LibraryEntry>[];
+    final selectedEntries =
+        allEntries.where((e) => _selectedMangaIds.contains(e.mangaId.toInt())).toList();
+    final downloadedIds =
+        ref.watch(downloadedMangaIdsProvider).valueOrNull ?? const <int>{};
+    final hasSelectedDownloads = selectedEntries
+        .any((entry) => downloadedIds.contains(entry.mangaId.toInt()));
 
     return Scaffold(
       appBar: AppBar(
-        title: _isSearchOpen
+        leading: _selectionMode
+          ? IconButton(
+              icon: const Icon(Icons.close_rounded),
+              tooltip: isRu ? 'Выйти из выбора' : 'Exit selection',
+              onPressed: _exitSelectionMode,
+            )
+          : null,
+        title: _selectionMode
+          ? Text(isRu ? 'Выбрано: ${_selectedMangaIds.length}' : 'Selected: ${_selectedMangaIds.length}')
+          : _isSearchOpen
           ? TextField(
               controller: _searchController,
               autofocus: true,
@@ -314,7 +345,9 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
               onChanged: (_) => setState(() {}),
             )
           : Text(isRu ? 'Моя библиотека' : 'My Library'),
-        actions: [
+        actions: _selectionMode
+          ? _buildSelectionActions(isRu, selectedEntries, hasSelectedDownloads)
+          : [
           IconButton(
             icon: _isSyncingWithMangaLib
               ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
@@ -505,7 +538,9 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
             },
           ),
         ],
-        bottom: TabBar(
+        bottom: _selectionMode
+          ? null
+          : TabBar(
           controller: _tabController,
           isScrollable: true,
           tabAlignment: TabAlignment.start,
@@ -618,6 +653,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
           padding: const EdgeInsets.all(12),
           // ignore: deprecated_member_use
           cacheExtent: 600.0,
+          physics: const AlwaysScrollableScrollPhysics(),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: crossAxisCount,
             childAspectRatio: 0.65,
@@ -628,16 +664,26 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
           itemBuilder: (ctx, i) {
             final entry = items[i];
             final title = entry.rusName.isNotEmpty ? entry.rusName : entry.name;
+            final isSelected = _selectedMangaIds.contains(entry.mangaId.toInt());
+            final unreadLabel = _unreadLabel(entry, isRu);
 
             return Card(
               elevation: 0,
               clipBehavior: Clip.antiAlias,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
-                side: const BorderSide(color: Color(0xFF333333), width: 1),
+                side: BorderSide(
+                  color: isSelected ? const Color(0xFF8A897C) : const Color(0xFF333333),
+                  width: isSelected ? 1.8 : 1,
+                ),
               ),
               child: InkWell(
-                onTap: () => context.push('/manga/${entry.slugUrl}'),
+                onTap: _selectionMode
+                  ? () => _toggleSelection(entry)
+                  : () => context.push('/manga/${entry.slugUrl}'),
+                onLongPress: _selectionMode
+                  ? () => _toggleSelection(entry)
+                  : () => _enterSelectionMode(entry),
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
@@ -668,6 +714,11 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
                         ),
                       ),
                     ),
+                    // Dim unselected covers while picking a bulk action.
+                    if (_selectionMode && !isSelected)
+                      Positioned.fill(
+                        child: ColoredBox(color: Colors.black.withValues(alpha: 0.38)),
+                      ),
                     // Title and Progress Bar
                     Positioned(
                       bottom: 8,
@@ -721,40 +772,57 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
                               ],
                             ),
                           ],
+                          if (unreadLabel.isNotEmpty) ...[
+                            const SizedBox(height: 3),
+                            Text(
+                              unreadLabel,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(color: Color(0xFFFFB74D), fontSize: 9.5, fontWeight: FontWeight.w600),
+                            ),
+                          ],
                         ],
                       ),
                     ),
                     // Three-Dots Menu (Top-Right)
-                    Positioned(
-                      top: 4,
-                      right: 4,
-                      child: IconButton(
-                        icon: Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.6),
-                            shape: BoxShape.circle,
+                    if (!_selectionMode)
+                      Positioned(
+                        top: 4,
+                        right: 4,
+                        child: IconButton(
+                          icon: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.6),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.more_vert_rounded, size: 16, color: Colors.white),
                           ),
-                          child: const Icon(Icons.more_vert_rounded, size: 16, color: Colors.white),
+                          onPressed: () => _showMangaActionSheet(context, entry, isRu),
                         ),
-                        onPressed: () => _showMangaActionSheet(context, entry, isRu),
                       ),
-                    ),
                     // Quick Play Button (Center-Bottom)
-                    Positioned(
-                      bottom: 38,
-                      right: 8,
-                      child: IconButton.filled(
-                        onPressed: () => _startReadingEntry(entry),
-                        style: IconButton.styleFrom(
-                          backgroundColor: const Color(0xFF8A897C),
-                          foregroundColor: Colors.white,
-                          minimumSize: const Size(34, 34),
-                          padding: EdgeInsets.zero,
+                    if (!_selectionMode)
+                      Positioned(
+                        bottom: 38,
+                        right: 8,
+                        child: IconButton.filled(
+                          onPressed: () => _startReadingEntry(entry),
+                          style: IconButton.styleFrom(
+                            backgroundColor: const Color(0xFF8A897C),
+                            foregroundColor: Colors.white,
+                            minimumSize: const Size(34, 34),
+                            padding: EdgeInsets.zero,
+                          ),
+                          icon: const Icon(Icons.play_arrow_rounded, size: 20),
                         ),
-                        icon: const Icon(Icons.play_arrow_rounded, size: 20),
                       ),
-                    ),
+                    if (_selectionMode)
+                      Positioned(
+                        top: 6,
+                        left: 6,
+                        child: _selectionIndicator(isSelected),
+                      ),
                   ],
                 ),
               ),
@@ -770,6 +838,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
       padding: const EdgeInsets.all(12),
       // ignore: deprecated_member_use
       cacheExtent: 600.0,
+      physics: const AlwaysScrollableScrollPhysics(),
       itemCount: items.length,
       separatorBuilder: (_, __) => const SizedBox(height: 8),
       itemBuilder: (ctx, i) {
@@ -777,27 +846,42 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
         final title = entry.rusName.isNotEmpty ? entry.rusName : entry.name;
         final progressVal = _calculateProgress(entry);
         final progressPercent = (progressVal * 100).toInt();
+        final isSelected = _selectedMangaIds.contains(entry.mangaId.toInt());
+        final unreadLabel = _unreadLabel(entry, isRu);
+        final cover = ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: CachedNetworkImage(
+            imageUrl: entry.coverUrl,
+            memCacheWidth: 150,
+            memCacheHeight: 210,
+            httpHeaders: const {'Referer': 'https://mangalib.org/'},
+            width: 50,
+            height: 70,
+            fit: BoxFit.cover,
+            placeholder: (_, __) => Container(width: 50, height: 70, color: const Color(0xFF2C2C2C)),
+          ),
+        );
 
         return Card(
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
-            side: const BorderSide(color: Color(0xFF353535)),
+            side: BorderSide(
+              color: isSelected ? const Color(0xFF8A897C) : const Color(0xFF353535),
+              width: isSelected ? 1.8 : 1,
+            ),
           ),
           child: ListTile(
             contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            leading: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: CachedNetworkImage(
-                imageUrl: entry.coverUrl,
-                memCacheWidth: 150,
-                memCacheHeight: 210,
-                httpHeaders: const {'Referer': 'https://mangalib.org/'},
-                width: 50,
-                height: 70,
-                fit: BoxFit.cover,
-                placeholder: (_, __) => Container(width: 50, height: 70, color: const Color(0xFF2C2C2C)),
-              ),
-            ),
+            leading: _selectionMode
+              ? Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _selectionIndicator(isSelected),
+                    const SizedBox(width: 8),
+                    cover,
+                  ],
+                )
+              : cover,
             title: Text(
               title,
               maxLines: 1,
@@ -821,12 +905,23 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
                   const SizedBox(height: 2),
                   Row(
                     children: [
-                      Text(
-                        'Посл. чтение: Том ${entry.lastReadVolume ?? "1"} Гл ${entry.lastReadChapter}',
-                        style: const TextStyle(fontSize: 11, color: Color(0xFFD2D7DF)),
+                      Expanded(
+                        child: Text(
+                          'Посл. чтение: Том ${entry.lastReadVolume ?? "1"} Гл ${entry.lastReadChapter}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 11, color: Color(0xFFD2D7DF)),
+                        ),
                       ),
+                      if (entry.totalChapters > 0) ...[
+                        const SizedBox(width: 6),
+                        Text(
+                          '${entry.readChapters}/${entry.totalChapters}',
+                          style: const TextStyle(fontSize: 11, color: Color(0xFFBDBBB0)),
+                        ),
+                      ],
                       if (progressPercent > 0) ...[
-                        const Spacer(),
+                        const SizedBox(width: 6),
                         Text(
                           '$progressPercent%',
                           style: const TextStyle(fontSize: 11, color: Color(0xFF8A897C), fontWeight: FontWeight.bold),
@@ -835,35 +930,51 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
                     ],
                   ),
                 ],
+                if (unreadLabel.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    unreadLabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 11, color: Color(0xFFFFB74D), fontWeight: FontWeight.w600),
+                  ),
+                ],
                 Text(
                   _getListTypeName(entry.listType, isRu),
                   style: TextStyle(fontSize: 11, color: _getListTypeColor(entry.listType)),
                 ),
               ],
             ),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton.filledTonal(
-                  style: IconButton.styleFrom(
-                    backgroundColor: const Color(0xFF8A897C).withValues(alpha: 0.2),
-                    foregroundColor: const Color(0xFFD2D7DF),
-                  ),
-                  icon: const Icon(Icons.play_arrow_rounded, size: 20),
-                  onPressed: () => _startReadingEntry(entry),
+            trailing: _selectionMode
+              ? null
+              : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton.filledTonal(
+                      style: IconButton.styleFrom(
+                        backgroundColor: const Color(0xFF8A897C).withValues(alpha: 0.2),
+                        foregroundColor: const Color(0xFFD2D7DF),
+                      ),
+                      icon: const Icon(Icons.play_arrow_rounded, size: 20),
+                      onPressed: () => _startReadingEntry(entry),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.more_vert_rounded, size: 20),
+                      onPressed: () => _showMangaActionSheet(context, entry, isRu),
+                    ),
+                  ],
                 ),
-                IconButton(
-                  icon: const Icon(Icons.more_vert_rounded, size: 20),
-                  onPressed: () => _showMangaActionSheet(context, entry, isRu),
-                ),
-              ],
-            ),
-            onTap: () async {
-              await context.push('/manga/${entry.slugUrl}');
-              if (mounted) {
-                ref.read(libraryProvider.notifier).loadAll();
-              }
-            },
+            onTap: _selectionMode
+              ? () => _toggleSelection(entry)
+              : () async {
+                  await context.push('/manga/${entry.slugUrl}');
+                  if (mounted) {
+                    ref.read(libraryProvider.notifier).loadAll();
+                  }
+                },
+            onLongPress: _selectionMode
+              ? () => _toggleSelection(entry)
+              : () => _enterSelectionMode(entry),
           ),
         );
       },
@@ -919,6 +1030,275 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
       case ListType.onHold: return Colors.grey;
       case ListType.dropped: return Colors.redAccent;
     }
+  }
+
+  static const List<({String key, String labelRu, String labelEn, IconData icon, Color color})>
+      _listTypeOptions = [
+    (key: 'reading', labelRu: 'Читаю', labelEn: 'Reading', icon: Icons.auto_stories_rounded, color: Color(0xFF64B5F6)),
+    (key: 'plan_to_read', labelRu: 'В планах', labelEn: 'Plan to Read', icon: Icons.bookmark_rounded, color: Color(0xFFFFB74D)),
+    (key: 'completed', labelRu: 'Прочитано', labelEn: 'Completed', icon: Icons.check_circle_rounded, color: Color(0xFF81C784)),
+    (key: 'on_hold', labelRu: 'Отложено', labelEn: 'On Hold', icon: Icons.pause_circle_outline_rounded, color: Colors.grey),
+    (key: 'dropped', labelRu: 'Брошено', labelEn: 'Dropped', icon: Icons.delete_outline_rounded, color: Colors.redAccent),
+    (key: 'favorites', labelRu: 'Любимое', labelEn: 'Favorites', icon: Icons.favorite_rounded, color: Color(0xFFF06292)),
+  ];
+
+  String _unreadLabel(LibraryEntry entry, bool isRu) {
+    final unread = entry.unreadCount.toInt();
+    if (unread <= 0) return '';
+    return isRu
+        ? '${Plural.chapters(unread, 'ru')} не прочитано'
+        : '${Plural.chapters(unread, 'en')} unread';
+  }
+
+  Widget _selectionIndicator(bool selected) {
+    return Container(
+      width: 22,
+      height: 22,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: selected ? const Color(0xFF8A897C) : Colors.black.withValues(alpha: 0.55),
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white, width: 1.4),
+      ),
+      child: selected ? const Icon(Icons.check_rounded, size: 14, color: Colors.white) : null,
+    );
+  }
+
+  void _enterSelectionMode(LibraryEntry entry) {
+    // Refresh the download index so the destructive action is enabled correctly.
+    ref.invalidate(downloadedMangaIdsProvider);
+    setState(() {
+      _selectionMode = true;
+      _selectedMangaIds.add(entry.mangaId.toInt());
+    });
+  }
+
+  void _toggleSelection(LibraryEntry entry) {
+    setState(() {
+      final id = entry.mangaId.toInt();
+      if (_selectedMangaIds.remove(id)) {
+        if (_selectedMangaIds.isEmpty) _selectionMode = false;
+      } else {
+        _selectedMangaIds.add(id);
+      }
+    });
+  }
+
+  void _exitSelectionMode() {
+    setState(() {
+      _selectionMode = false;
+      _selectedMangaIds.clear();
+    });
+  }
+
+  List<LibraryEntry> _selectedEntries() {
+    final entries = ref.read(libraryProvider).valueOrNull ?? const <LibraryEntry>[];
+    return entries.where((e) => _selectedMangaIds.contains(e.mangaId.toInt())).toList();
+  }
+
+  List<Widget> _buildSelectionActions(
+    bool isRu,
+    List<LibraryEntry> selectedEntries,
+    bool hasDownloads,
+  ) {
+    final hasSelection = selectedEntries.isNotEmpty;
+    return [
+      IconButton(
+        icon: const Icon(Icons.drive_file_move_rounded),
+        tooltip: isRu ? 'Переместить в список' : 'Move to list',
+        onPressed: hasSelection ? () => _moveSelectedToList(isRu) : null,
+      ),
+      IconButton(
+        icon: const Icon(Icons.delete_sweep_rounded),
+        tooltip: isRu ? 'Удалить загрузки' : 'Delete downloads',
+        onPressed: hasSelection && hasDownloads ? () => _deleteSelectedDownloads(isRu) : null,
+      ),
+      IconButton(
+        icon: const Icon(Icons.playlist_remove_rounded),
+        tooltip: isRu ? 'Убрать из библиотеки' : 'Remove from library',
+        onPressed: hasSelection ? () => _removeSelectedFromLibrary(isRu) : null,
+      ),
+    ];
+  }
+
+  Future<String?> _showListTypeSheet(bool isRu) {
+    return showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: const Color(0xFF222222),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    isRu ? 'Переместить в список' : 'Move to list',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                ),
+              ),
+              ..._listTypeOptions.map(
+                (option) => ListTile(
+                  leading: Icon(option.icon, color: option.color),
+                  title: Text(isRu ? option.labelRu : option.labelEn),
+                  onTap: () => Navigator.pop(ctx, option.key),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<bool?> _confirmBulkAction({
+    required bool isRu,
+    required String title,
+    required String message,
+    required String confirmLabel,
+  }) {
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF242424),
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(isRu ? 'Отмена' : 'Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.redAccent.shade700),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(confirmLabel),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showBulkSnackBar(String message, {int failed = 0}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: failed > 0 ? const Color(0xFF8E2F2F) : null,
+      ),
+    );
+  }
+
+  Future<void> _moveSelectedToList(bool isRu) async {
+    final entries = _selectedEntries();
+    if (entries.isEmpty) return;
+
+    final targetListType = await _showListTypeSheet(isRu);
+    if (targetListType == null || !mounted) return;
+
+    var moved = 0;
+    var failed = 0;
+    for (final entry in entries) {
+      try {
+        await rust_storage.removeFromList(
+          mangaId: entry.mangaId,
+          listType: listTypeToStorageKey(entry.listType),
+        );
+        await rust_storage.addToList(mangaId: entry.mangaId, listType: targetListType);
+        moved++;
+      } catch (_) {
+        failed++;
+      }
+    }
+
+    await ref.read(libraryProvider.notifier).loadAll();
+    if (!mounted) return;
+    _exitSelectionMode();
+    _showBulkSnackBar(
+      failed == 0
+          ? (isRu ? 'Перемещено тайтлов: $moved' : 'Titles moved: $moved')
+          : (isRu ? 'Перемещено: $moved, ошибок: $failed' : 'Moved: $moved, failed: $failed'),
+      failed: failed,
+    );
+  }
+
+  Future<void> _deleteSelectedDownloads(bool isRu) async {
+    final entries = _selectedEntries();
+    if (entries.isEmpty) return;
+
+    final confirmed = await _confirmBulkAction(
+      isRu: isRu,
+      title: isRu ? 'Удалить загрузки?' : 'Delete downloads?',
+      message: isRu
+          ? 'Скачанные главы выбранных тайтлов (${entries.length}) будут удалены с устройства.'
+          : 'Downloaded chapters of the selected titles (${entries.length}) will be deleted from this device.',
+      confirmLabel: isRu ? 'Удалить' : 'Delete',
+    );
+    if (confirmed != true || !mounted) return;
+
+    var deleted = 0;
+    var failed = 0;
+    for (final entry in entries) {
+      try {
+        await rust_storage.deleteDownloadedManga(mangaId: entry.mangaId);
+        deleted++;
+      } catch (_) {
+        failed++;
+      }
+    }
+
+    ref.invalidate(downloadedMangaIdsProvider);
+    if (!mounted) return;
+    _exitSelectionMode();
+    _showBulkSnackBar(
+      failed == 0
+          ? (isRu ? 'Загрузки удалены у тайтлов: $deleted' : 'Downloads deleted for titles: $deleted')
+          : (isRu ? 'Удалено: $deleted, ошибок: $failed' : 'Deleted: $deleted, failed: $failed'),
+      failed: failed,
+    );
+  }
+
+  Future<void> _removeSelectedFromLibrary(bool isRu) async {
+    final entries = _selectedEntries();
+    if (entries.isEmpty) return;
+
+    final confirmed = await _confirmBulkAction(
+      isRu: isRu,
+      title: isRu ? 'Убрать из библиотеки?' : 'Remove from library?',
+      message: isRu
+          ? 'Выбранные тайтлы (${entries.length}) будут убраны из библиотеки. Скачанные главы останутся на устройстве.'
+          : 'The selected titles (${entries.length}) will be removed from your library. Downloaded chapters stay on this device.',
+      confirmLabel: isRu ? 'Убрать' : 'Remove',
+    );
+    if (confirmed != true || !mounted) return;
+
+    var removed = 0;
+    var failed = 0;
+    for (final entry in entries) {
+      try {
+        await rust_storage.removeFromList(
+          mangaId: entry.mangaId,
+          listType: listTypeToStorageKey(entry.listType),
+        );
+        removed++;
+      } catch (_) {
+        failed++;
+      }
+    }
+
+    await ref.read(libraryProvider.notifier).loadAll();
+    if (!mounted) return;
+    _exitSelectionMode();
+    _showBulkSnackBar(
+      failed == 0
+          ? (isRu ? 'Убрано из библиотеки: $removed' : 'Removed from library: $removed')
+          : (isRu ? 'Убрано: $removed, ошибок: $failed' : 'Removed: $removed, failed: $failed'),
+      failed: failed,
+    );
   }
 
   void _showMangaActionSheet(BuildContext context, LibraryEntry entry, bool isRu) {

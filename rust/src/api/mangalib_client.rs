@@ -3,6 +3,7 @@ use once_cell::sync::Lazy;
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::{Client, ClientBuilder};
 use serde_json::Value;
+use std::collections::HashMap;
 use std::sync::Mutex;
 use crate::api::models::{
     Chapter, ChapterPage, CommentItem, CommentsData, CommentVoteResult, ConstantItem, Genre, HomePageData, MangaConstants, MangaDetails,
@@ -76,10 +77,184 @@ fn get_img_headers() -> HeaderMap {
     headers
 }
 
+const RETRY_BACKOFF_MS: [u64; 3] = [300, 900, 1800];
+const JSON_CACHE_CAPACITY: usize = 64;
+const ERROR_BODY_EXCERPT_CHARS: usize = 200;
+
+struct CachedJson {
+    etag: String,
+    value: Value,
+    last_used: u64,
+}
+
+struct JsonCache {
+    entries: HashMap<String, CachedJson>,
+    tick: u64,
+}
+
+/// Conditional-request cache for JSON GETs. The full request URL is the key, so the
+/// query string (page, filters) is part of the identity and responses for different
+/// catalog pages can never overwrite each other.
+static JSON_CACHE: Lazy<Mutex<JsonCache>> = Lazy::new(|| {
+    Mutex::new(JsonCache {
+        entries: HashMap::new(),
+        tick: 0,
+    })
+});
+
+fn lock_json_cache() -> std::sync::MutexGuard<'static, JsonCache> {
+    JSON_CACHE.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+fn cache_etag(url: &str) -> Option<String> {
+    let mut cache = lock_json_cache();
+    cache.tick += 1;
+    let tick = cache.tick;
+    let entry = cache.entries.get_mut(url)?;
+    entry.last_used = tick;
+    Some(entry.etag.clone())
+}
+
+fn cache_value(url: &str) -> Option<Value> {
+    let mut cache = lock_json_cache();
+    cache.tick += 1;
+    let tick = cache.tick;
+    let entry = cache.entries.get_mut(url)?;
+    entry.last_used = tick;
+    Some(entry.value.clone())
+}
+
+fn cache_store(url: &str, etag: &str, value: &Value) {
+    let mut cache = lock_json_cache();
+    cache.tick += 1;
+    let tick = cache.tick;
+
+    if !cache.entries.contains_key(url) {
+        while cache.entries.len() >= JSON_CACHE_CAPACITY {
+            let oldest = cache
+                .entries
+                .iter()
+                .min_by_key(|(_, entry)| entry.last_used)
+                .map(|(key, _)| key.clone());
+            match oldest {
+                Some(key) => {
+                    cache.entries.remove(&key);
+                }
+                None => break,
+            }
+        }
+    }
+
+    cache.entries.insert(
+        url.to_string(),
+        CachedJson {
+            etag: etag.to_string(),
+            value: value.clone(),
+            last_used: tick,
+        },
+    );
+}
+
+fn is_retryable_status(status: reqwest::StatusCode) -> bool {
+    status == reqwest::StatusCode::TOO_MANY_REQUESTS || status.is_server_error()
+}
+
+fn response_excerpt(body: &str) -> String {
+    let condensed = body.split_whitespace().collect::<Vec<_>>().join(" ");
+    condensed.chars().take(ERROR_BODY_EXCERPT_CHARS).collect()
+}
+
+async fn get_json(url: &str) -> Result<Value> {
+    get_json_inner(url, false).await
+}
+
+async fn get_json_cached(url: &str) -> Result<Value> {
+    get_json_inner(url, true).await
+}
+
+/// Single entry point for API GETs: retries transient failures (network errors, 429
+/// and 5xx) with a fixed backoff ladder and, when enabled, revalidates the response
+/// through If-None-Match so an unchanged payload costs no parse and no allocation.
+async fn get_json_inner(url: &str, use_etag_cache: bool) -> Result<Value> {
+    let mut retries = 0usize;
+    let mut conditional = use_etag_cache;
+    let mut allow_unconditional_fallback = true;
+
+    loop {
+        let mut request = HTTP_CLIENT.get(url).headers(get_api_headers());
+        if conditional {
+            if let Some(etag) = cache_etag(url) {
+                if let Ok(header) = HeaderValue::from_str(&etag) {
+                    request = request.header(reqwest::header::IF_NONE_MATCH, header);
+                }
+            }
+        }
+
+        match request.send().await {
+            Ok(response) => {
+                let status = response.status();
+
+                if status == reqwest::StatusCode::NOT_MODIFIED {
+                    if let Some(value) = cache_value(url) {
+                        return Ok(value);
+                    }
+                    if allow_unconditional_fallback {
+                        // The entry was evicted while the request was in flight; ask
+                        // for the full body instead of returning nothing.
+                        allow_unconditional_fallback = false;
+                        conditional = false;
+                        continue;
+                    }
+                    anyhow::bail!("HTTP 304 for {} without a cached body", url);
+                }
+
+                if status.is_success() {
+                    let etag = response
+                        .headers()
+                        .get(reqwest::header::ETAG)
+                        .and_then(|value| value.to_str().ok())
+                        .map(|value| value.to_string());
+                    let value = response
+                        .json::<Value>()
+                        .await
+                        .context("Failed to parse API JSON response")?;
+                    if use_etag_cache {
+                        if let Some(etag) = etag {
+                            cache_store(url, &etag, &value);
+                        }
+                    }
+                    return Ok(value);
+                }
+
+                if retries < RETRY_BACKOFF_MS.len() && is_retryable_status(status) {
+                    tokio::time::sleep(std::time::Duration::from_millis(RETRY_BACKOFF_MS[retries])).await;
+                    retries += 1;
+                    continue;
+                }
+
+                let body = response.text().await.unwrap_or_default();
+                anyhow::bail!("HTTP {} for {}: {}", status, url, response_excerpt(&body));
+            }
+            Err(error) => {
+                if retries < RETRY_BACKOFF_MS.len() {
+                    tokio::time::sleep(std::time::Duration::from_millis(RETRY_BACKOFF_MS[retries])).await;
+                    retries += 1;
+                    continue;
+                }
+                return Err(anyhow::Error::new(error).context(format!("Request failed for {}", url)));
+            }
+        }
+    }
+}
+
 #[flutter_rust_bridge::frb(sync)]
 pub fn set_cookies(cookies: String) {
     let mut guard = COOKIES.lock().unwrap();
     *guard = Some(cookies);
+    drop(guard);
+    // Cached bodies can embed per-account fields (bookmark state, private flags), so
+    // they must not survive an identity change.
+    lock_json_cache().entries.clear();
 }
 
 fn parse_manga_item(item: &Value) -> MangaSearchResult {
@@ -176,8 +351,7 @@ pub async fn search_manga(query: String) -> Result<Vec<MangaSearchResult>> {
 }
 
 pub async fn get_homepage() -> Result<HomePageData> {
-    let url = "https://api.cdnlibs.org/api/";
-    let res = HTTP_CLIENT.get(url).headers(get_api_headers()).send().await?.json::<Value>().await?;
+    let res = get_json_cached("https://api.cdnlibs.org/api/").await?;
     
     let mut popular = Vec::new();
     let mut newest = Vec::new();
@@ -226,7 +400,7 @@ pub async fn get_homepage() -> Result<HomePageData> {
 pub async fn get_top_views(time: String) -> Result<Vec<MangaSearchResult>> {
     let time_val = if time.is_empty() { "day" } else { time.as_str() };
     let url = format!("https://api.cdnlibs.org/api/media/top-views?time={}", time_val);
-    let res = HTTP_CLIENT.get(&url).headers(get_api_headers()).send().await?.json::<Value>().await?;
+    let res = get_json(&url).await?;
 
     let mut results = Vec::new();
     if let Some(items) = res.get("data").and_then(|d| d.get("items")).and_then(|i| i.as_object()) {
@@ -246,7 +420,7 @@ pub async fn get_top_views(time: String) -> Result<Vec<MangaSearchResult>> {
 pub async fn get_latest_updates(page: i64) -> Result<Vec<MangaSearchResult>> {
     let p = if page < 1 { 1 } else { page };
     let url = format!("https://api.cdnlibs.org/api/latest-updates?page={}", p);
-    let res = HTTP_CLIENT.get(&url).headers(get_api_headers()).send().await?.json::<Value>().await?;
+    let res = get_json(&url).await?;
 
     let mut results = Vec::new();
     if let Some(data) = res.get("data").and_then(|d| d.as_array()) {
@@ -334,7 +508,7 @@ pub async fn get_catalog(
         }
     }
 
-    let res = HTTP_CLIENT.get(&url).headers(get_api_headers()).send().await?.json::<Value>().await?;
+    let res = get_json_cached(&url).await?;
 
     let mut results = Vec::new();
     if let Some(data) = res.get("data").and_then(|d| d.as_array()) {
@@ -354,7 +528,7 @@ pub async fn get_constants() -> Result<MangaConstants> {
     }
 
     let url = "https://api.cdnlibs.org/api/constants?fields[]=genres&fields[]=tags&fields[]=types&fields[]=scanlateStatus&fields[]=status&fields[]=format&fields[]=ageRestriction";
-    let res = HTTP_CLIENT.get(url).headers(get_api_headers()).send().await?.json::<Value>().await?;
+    let res = get_json_cached(url).await?;
     let data = res.get("data").context("Missing data in constants")?;
 
     let parse_items = |key: &str| -> Vec<ConstantItem> {
@@ -419,7 +593,7 @@ pub async fn get_manga_details(slug_url: String) -> Result<MangaDetails> {
         "https://api.cdnlibs.org/api/manga/{}?fields[]=summary&fields[]=genres&fields[]=tags&fields[]=authors&fields[]=artists&fields[]=views&fields[]=releaseDate&fields[]=rate_avg&fields[]=rate&fields[]=chap_count&fields[]=status_id&fields[]=format&fields[]=publisher&fields[]=eng_name&fields[]=otherNames&fields[]=background",
         slug_url
     );
-    let res = HTTP_CLIENT.get(&url).headers(get_api_headers()).send().await?.json::<Value>().await?;
+    let res = get_json_cached(&url).await?;
     let data = res.get("data").context("Missing data field in API response")?;
 
     let summary = if let Some(summary_obj) = data.get("summary").and_then(|s| s.get("content")) {
@@ -510,7 +684,7 @@ pub async fn get_manga_details(slug_url: String) -> Result<MangaDetails> {
 
 pub async fn get_chapters(slug_url: String) -> Result<Vec<Chapter>> {
     let url = format!("https://api.cdnlibs.org/api/manga/{}/chapters", slug_url);
-    let res = HTTP_CLIENT.get(&url).headers(get_api_headers()).send().await?.json::<Value>().await?;
+    let res = get_json_cached(&url).await?;
     let data_opt = res.get("data").and_then(|v| v.as_array());
     let data = match data_opt {
         Some(d) => d,
@@ -522,7 +696,7 @@ pub async fn get_chapters(slug_url: String) -> Result<Vec<Chapter>> {
         let is_paid = c.get("restricted_view")
             .or_else(|| c.get("branches").and_then(|b| b.as_array()).and_then(|arr| arr.first()).and_then(|b| b.get("restricted_view")))
             .map(|rv| {
-                rv.get("is_open").and_then(|v| v.as_bool()).unwrap_or(true) == false
+                !rv.get("is_open").and_then(|v| v.as_bool()).unwrap_or(true)
             })
             .unwrap_or(false);
         chapters.push(Chapter {
@@ -554,7 +728,7 @@ pub async fn get_chapter_pages(slug_url: String, volume: String, number: String,
     if let Some(bid) = branch_id {
         url = format!("{}&branch_id={}", url, bid);
     }
-    let res = HTTP_CLIENT.get(&url).headers(get_api_headers()).send().await?.json::<Value>().await?;
+    let res = get_json(&url).await?;
     
     // Check if the chapter is restricted / paid / early access
     if let Some(rv) = res.get("data").and_then(|d| d.get("restricted_view")) {
@@ -854,7 +1028,7 @@ pub async fn add_comment(relation_type: String, relation_id: i64, comment: Strin
 pub async fn get_collections(page: i64, _sort_by: String) -> Result<Vec<MangaCollectionItem>> {
     let p = if page < 1 { 1 } else { page };
     let url = format!("https://api.cdnlibs.org/api/collections?site_id[]=1&page={}", p);
-    let res = HTTP_CLIENT.get(&url).headers(get_api_headers()).send().await?.json::<Value>().await?;
+    let res = get_json(&url).await?;
     let mut results = Vec::new();
     if let Some(arr) = res.get("data").and_then(|d| d.as_array()) {
         for c in arr {
@@ -909,7 +1083,7 @@ pub async fn get_collections(page: i64, _sort_by: String) -> Result<Vec<MangaCol
 
 pub async fn get_collection_details(collection_id: i64) -> Result<MangaCollectionDetails> {
     let url = format!("https://api.cdnlibs.org/api/collections/{}", collection_id);
-    let res = HTTP_CLIENT.get(&url).headers(get_api_headers()).send().await?.json::<Value>().await?;
+    let res = get_json(&url).await?;
     let data = res.get("data").context("Missing data in collection response")?;
 
     let id = data.get("id").and_then(|v| v.as_i64()).unwrap_or(collection_id);
@@ -937,7 +1111,7 @@ pub async fn get_collection_details(collection_id: i64) -> Result<MangaCollectio
     let mut items = Vec::new();
     if let Some(arr) = data.get("items").or_else(|| data.get("manga")).and_then(|v| v.as_array()) {
         for m in arr {
-            let media = m.get("media").or(Some(m)).unwrap();
+            let media = m.get("media").unwrap_or(m);
             items.push(parse_manga_item(media));
         }
     }

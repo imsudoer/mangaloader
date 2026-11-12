@@ -4,9 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:mangaloader/providers/download_provider.dart';
+import 'package:mangaloader/providers/settings_provider.dart';
 import 'package:mangaloader/src/rust/api/storage.dart' as rust_storage;
 import 'package:mangaloader/src/rust/api/models.dart';
 import 'package:mangaloader/services/content_filter.dart';
+import 'package:mangaloader/services/download_queue_service.dart';
 import 'package:mangaloader/services/update_checker.dart';
 
 class DownloadsPage extends ConsumerStatefulWidget {
@@ -22,15 +24,33 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
   String _searchQuery = '';
   String _sortBy = 'title'; // 'title', 'chapters', 'size', 'recent'
   final Map<int, bool> _groupAscending = {};
+  List<DownloadQueueItem> _queueItems = DownloadQueueService.instance.items;
 
   @override
   void initState() {
     super.initState();
+    DownloadQueueService.instance.queue.addListener(_syncQueueItems);
     _loadDownloaded();
   }
 
-  Future<void> _loadDownloaded() async {
-    setState(() => _loading = true);
+  @override
+  void dispose() {
+    DownloadQueueService.instance.queue.removeListener(_syncQueueItems);
+    super.dispose();
+  }
+
+  void _syncQueueItems() {
+    if (!mounted) return;
+    final next = DownloadQueueService.instance.items;
+    if (identical(next, _queueItems)) return;
+    setState(() => _queueItems = next);
+  }
+
+  int get _usedBytes =>
+      _mangaGroups.fold<int>(0, (sum, group) => sum + group.totalSizeBytes.toInt());
+
+  Future<void> _loadDownloaded({bool silent = false}) async {
+    if (!silent) setState(() => _loading = true);
     try {
       final list = await rust_storage.getDownloadedMangaGroups();
       final filtered = !isRuStoreBuild
@@ -129,10 +149,278 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
     }
   }
 
+  Future<void> _freeUpSpace(bool isRu) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF2C2C2C),
+        title: Text(
+          isRu ? 'Освободить место?' : 'Free up space?',
+          style: const TextStyle(color: Colors.white),
+        ),
+        content: Text(
+          isRu
+              ? 'Будут удалены скачанные главы, отмеченные как прочитанные.'
+              : 'Downloaded chapters marked as read will be deleted.',
+          style: const TextStyle(color: Color(0xFFD2D7DF)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(isRu ? 'Отмена' : 'Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF8A897C)),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(isRu ? 'Очистить' : 'Clean up'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    final result = await DownloadQueueService.instance.freeUpSpace();
+    await _loadDownloaded(silent: true);
+    if (!mounted) return;
+
+    final message = result.deletedChapters == 0
+        ? (isRu ? 'Прочитанных глав для удаления нет' : 'No read chapters to delete')
+        : (isRu
+            ? 'Удалено глав: ${result.deletedChapters} · ${_formatBytes(result.freedBytes)}'
+            : 'Deleted ${result.deletedChapters} chapters · ${_formatBytes(result.freedBytes)}');
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _cancelQueue() async {
+    ref.read(downloadProvider.notifier).cancelAll();
+    final pending = [
+      ...DownloadQueueService.instance.pendingItems,
+      ...DownloadQueueService.instance.waitingForWifiItems,
+    ];
+    for (final item in pending) {
+      await DownloadQueueService.instance.remove(item);
+    }
+  }
+
+  String _queueStatusLabel(DownloadQueueItem item, bool isRu) {
+    final attemptsSuffix = item.attempts > 1
+        ? (isRu ? ' · попытка ${item.attempts}' : ' · attempt ${item.attempts}')
+        : '';
+    switch (item.status) {
+      case DownloadQueueStatus.queued:
+        return isRu ? 'В очереди$attemptsSuffix' : 'Queued$attemptsSuffix';
+      case DownloadQueueStatus.downloading:
+        return isRu ? 'Загружается$attemptsSuffix' : 'Downloading$attemptsSuffix';
+      case DownloadQueueStatus.waitingForWifi:
+        return isRu ? 'Ожидает Wi-Fi$attemptsSuffix' : 'Waiting for Wi-Fi$attemptsSuffix';
+      case DownloadQueueStatus.failed:
+        final error = item.error;
+        if (error == null || error.isEmpty) {
+          return isRu ? 'Ошибка загрузки$attemptsSuffix' : 'Download failed$attemptsSuffix';
+        }
+        return isRu ? 'Ошибка: $error' : 'Failed: $error';
+      case DownloadQueueStatus.completed:
+        return isRu ? 'Готово' : 'Done';
+    }
+  }
+
+  String _downloadStateLabel(DownloadState state, bool isRu) {
+    switch (state) {
+      case DownloadState.queued:
+        return isRu ? 'в очереди' : 'queued';
+      case DownloadState.downloading:
+        return isRu ? 'загрузка' : 'downloading';
+      case DownloadState.waitingForNetwork:
+        return isRu ? 'ожидание сети' : 'waiting for network';
+      case DownloadState.paused:
+        return isRu ? 'пауза' : 'paused';
+      case DownloadState.completed:
+        return isRu ? 'готово' : 'done';
+      case DownloadState.failed:
+        return isRu ? 'ошибка' : 'failed';
+    }
+  }
+
+  Widget _buildStorageCard(bool isRu, int limitMb) {
+    final limitBytes = limitMb * 1024 * 1024;
+    final usage = limitMb > 0
+        ? (_usedBytes / limitBytes).clamp(0.0, 1.0)
+        : null;
+    final nearLimit = usage != null && usage >= 0.9;
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 16),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: const BorderSide(color: Color(0xFF3E3E3E), width: 1),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.sd_storage_rounded, size: 18, color: Color(0xFFD2D7DF)),
+                const SizedBox(width: 8),
+                Text(
+                  isRu ? 'Хранилище' : 'Storage',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white),
+                ),
+                const Spacer(),
+                Text(
+                  limitMb > 0
+                      ? '${_formatBytes(_usedBytes)} / $limitMb MB'
+                      : '${_formatBytes(_usedBytes)} · ${isRu ? "без лимита" : "no limit"}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: nearLimit ? Colors.amberAccent : const Color(0xFFBDBBB0),
+                  ),
+                ),
+              ],
+            ),
+            if (usage != null) ...[
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: usage,
+                  minHeight: 6,
+                  backgroundColor: const Color(0xFF353535),
+                  color: nearLimit ? Colors.amberAccent : const Color(0xFF8A897C),
+                ),
+              ),
+            ],
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                onPressed: () => _freeUpSpace(isRu),
+                icon: const Icon(Icons.cleaning_services_rounded, size: 16),
+                label: Text(
+                  isRu ? 'Освободить место' : 'Free up space',
+                  style: const TextStyle(fontSize: 12),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _buildQueueSection(bool isRu) {
+    if (_queueItems.isEmpty) return const [];
+
+    final hasCompleted = _queueItems
+        .any((item) => item.status == DownloadQueueStatus.completed);
+
+    return [
+      Row(
+        children: [
+          Expanded(
+            child: Text(
+              isRu ? 'Очередь загрузок' : 'Download queue',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+            ),
+          ),
+          if (hasCompleted)
+            TextButton(
+              style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+              onPressed: () => DownloadQueueService.instance.clearCompleted(),
+              child: Text(
+                isRu ? 'Очистить готовые' : 'Clear finished',
+                style: const TextStyle(fontSize: 11),
+              ),
+            ),
+        ],
+      ),
+      const SizedBox(height: 8),
+      for (final item in _queueItems) _buildQueueTile(item, isRu),
+      const Divider(height: 32),
+    ];
+  }
+
+  Widget _buildQueueTile(DownloadQueueItem item, bool isRu) {
+    final IconData icon;
+    final Color color;
+    switch (item.status) {
+      case DownloadQueueStatus.queued:
+        icon = Icons.schedule_rounded;
+        color = const Color(0xFFBDBBB0);
+      case DownloadQueueStatus.downloading:
+        icon = Icons.downloading_rounded;
+        color = const Color(0xFF8A897C);
+      case DownloadQueueStatus.waitingForWifi:
+        icon = Icons.wifi_off_rounded;
+        color = Colors.amberAccent;
+      case DownloadQueueStatus.failed:
+        icon = Icons.error_outline_rounded;
+        color = Colors.redAccent;
+      case DownloadQueueStatus.completed:
+        icon = Icons.check_circle_outline_rounded;
+        color = const Color(0xFF8A897C);
+    }
+
+    final isFailed = item.status == DownloadQueueStatus.failed;
+    final isDownloading = item.status == DownloadQueueStatus.downloading;
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: isFailed ? Colors.redAccent.withValues(alpha: 0.5) : const Color(0xFF353535),
+          width: 1,
+        ),
+      ),
+      child: ListTile(
+        dense: true,
+        leading: Icon(icon, size: 20, color: color),
+        title: Text(
+          '${item.slugUrl} · ${isRu ? "Том" : "Vol"} ${item.volume} ${isRu ? "Гл" : "Ch"} ${item.number}',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+        ),
+        subtitle: Text(
+          _queueStatusLabel(item, isRu),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 11,
+            color: isFailed ? Colors.redAccent.shade100 : const Color(0xFFBDBBB0),
+          ),
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (isFailed)
+              IconButton(
+                icon: const Icon(Icons.refresh_rounded, size: 20),
+                tooltip: isRu ? 'Повторить' : 'Retry',
+                onPressed: () => DownloadQueueService.instance.retry(item),
+              ),
+            if (!isDownloading)
+              IconButton(
+                icon: const Icon(Icons.close_rounded, size: 18),
+                tooltip: isRu ? 'Убрать из очереди' : 'Remove from queue',
+                onPressed: () => DownloadQueueService.instance.remove(item),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final downloads = ref.watch(downloadProvider);
     final isRu = Localizations.localeOf(context).languageCode == 'ru';
+    final storageLimitMb = ref.watch(downloadsStorageLimitProvider);
+
+    ref.listen<int>(downloadCompletionTickProvider, (_, __) => _loadDownloaded(silent: true));
 
     // Filter & Sort manga groups
     var filteredGroups = _mangaGroups.where((g) {
@@ -186,6 +474,12 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
               }
             },
           ),
+          if (_queueItems.any((item) => item.status == DownloadQueueStatus.failed))
+            IconButton(
+              icon: const Icon(Icons.restart_alt_rounded),
+              tooltip: isRu ? 'Повторить все ошибки' : 'Retry all failed',
+              onPressed: () => DownloadQueueService.instance.retryAllFailed(),
+            ),
           if (downloads.isNotEmpty) ...[
             IconButton(
               icon: const Icon(Icons.pause_rounded),
@@ -197,12 +491,17 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
               tooltip: isRu ? 'Продолжить' : 'Resume',
               onPressed: () => ref.read(downloadProvider.notifier).resumeAll(),
             ),
+          ],
+          if (downloads.isNotEmpty ||
+              _queueItems.any((item) =>
+                  item.status == DownloadQueueStatus.queued ||
+                  item.status == DownloadQueueStatus.downloading ||
+                  item.status == DownloadQueueStatus.waitingForWifi))
             IconButton(
               icon: const Icon(Icons.cancel_rounded),
               tooltip: isRu ? 'Отмена' : 'Cancel',
-              onPressed: () => ref.read(downloadProvider.notifier).cancelAll(),
+              onPressed: _cancelQueue,
             ),
-          ],
         ],
       ),
       body: RefreshIndicator(
@@ -210,6 +509,11 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            _buildStorageCard(isRu, storageLimitMb),
+
+            // Persistent queue: queued, waiting for Wi-Fi, failed and finished rows
+            ..._buildQueueSection(isRu),
+
             // Active downloads section
             if (downloads.isNotEmpty) ...[
               Text(
@@ -220,14 +524,17 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
               ...downloads.map((d) => Card(
                 margin: const EdgeInsets.only(bottom: 8),
                 child: ListTile(
-                  title: Text('${d.mangaSlug} - Vol ${d.chapterVolume} Ch ${d.chapterNumber}'),
+                  title: Text('${d.mangaSlug} · ${isRu ? "Том" : "Vol"} ${d.chapterVolume} ${isRu ? "Гл" : "Ch"} ${d.chapterNumber}'),
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const SizedBox(height: 6),
                       LinearProgressIndicator(value: d.totalPages > 0 ? d.currentPage / d.totalPages : null),
                       const SizedBox(height: 6),
-                      Text('${d.currentPage} / ${d.totalPages} стр. (${d.state.name})', style: const TextStyle(fontSize: 12)),
+                      Text(
+                        '${d.currentPage} / ${d.totalPages} ${isRu ? "стр." : "p."} (${_downloadStateLabel(d.state, isRu)})',
+                        style: const TextStyle(fontSize: 12),
+                      ),
                     ],
                   ),
                 ),

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:mangaloader/src/rust/api/models.dart';
 import 'package:mangaloader/providers/streak_provider.dart';
+import 'package:mangaloader/utils/plural.dart';
 
 class StreakDetailsModal extends ConsumerWidget {
   final ReadingStreakInfo streak;
@@ -60,8 +61,8 @@ class StreakDetailsModal extends ConsumerWidget {
     final days = streak.currentStreak.toInt();
     final rank = _getRankTitle(days, isRu);
     final text = isRu
-        ? 'Мой стрик в MangaLoader: $days ${days == 1 ? "день" : (days < 5 ? "дня" : "дней")} подряд! Ранг: $rank. Читаю каждый день!'
-        : 'My reading streak in MangaLoader is $days days! Rank: $rank. Reading every day!';
+        ? 'Мой стрик в MangaLoader: ${Plural.days(days, 'ru')} подряд! Ранг: $rank. Читаю каждый день!'
+        : 'My reading streak in MangaLoader is ${Plural.days(days, 'en')}! Rank: $rank. Reading every day!';
     SharePlus.instance.share(ShareParams(text: text));
   }
 
@@ -183,7 +184,7 @@ class StreakDetailsModal extends ConsumerWidget {
 
               // Streak Count & Rank
               Text(
-                '$currentStreak ${isRu ? (currentStreak == 1 ? "день" : (currentStreak < 5 && currentStreak > 1 ? "дня" : "дней")) : "days"}',
+                Plural.days(currentStreak, isRu ? 'ru' : 'en'),
                 style: const TextStyle(
                   fontSize: 26,
                   fontWeight: FontWeight.bold,

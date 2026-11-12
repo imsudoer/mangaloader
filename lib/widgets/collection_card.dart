@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:mangaloader/src/rust/api/models.dart';
+import 'package:mangaloader/services/content_filter.dart';
 import 'package:mangaloader/widgets/collection_details_modal.dart';
 
 class CollectionCard extends StatelessWidget {
@@ -14,6 +15,13 @@ class CollectionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isRu = Localizations.localeOf(context).languageCode == 'ru';
+
+    // A user collection may be titled after prohibited media, so it is hidden in
+    // builds that are subject to the local content regulations.
+    if (ContentFilter.isBlockedText(collection.name) ||
+        ContentFilter.isBlockedText(collection.description)) {
+      return const SizedBox.shrink();
+    }
 
     return Card(
       clipBehavior: Clip.antiAlias,
