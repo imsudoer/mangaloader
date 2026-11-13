@@ -51,52 +51,87 @@ class AppTheme {
     'sans-serif',
   ];
 
+  /// Tabular figures keep numeric columns (counters, chapter numbers, ratings)
+  /// from shifting sideways when a digit changes width.
+  static const List<FontFeature> tabularFigures = [
+    FontFeature.tabularFigures(),
+  ];
+
+  /// Deliberate five-step scale: display 22 / headline 18 / title 15 /
+  /// body 13 / label 11, each step carrying its own weight and line height so
+  /// hierarchy comes from the type itself instead of ad-hoc font sizes.
   static TextTheme _buildTextTheme(Color onSurface, Color onSurfaceVariant) {
     return TextTheme(
       displayLarge: TextStyle(
         fontFamilyFallback: _fontFallbacks,
-        fontSize: 28,
+        fontSize: 22,
         fontWeight: FontWeight.w800,
         color: onSurface,
         letterSpacing: -0.6,
+        height: 1.15,
+        fontFeatures: tabularFigures,
       ),
       displayMedium: TextStyle(
-        fontFamilyFallback: _fontFallbacks,
-        fontSize: 24,
-        fontWeight: FontWeight.w700,
-        color: onSurface,
-        letterSpacing: -0.4,
-      ),
-      headlineLarge: TextStyle(
         fontFamilyFallback: _fontFallbacks,
         fontSize: 20,
         fontWeight: FontWeight.w700,
         color: onSurface,
+        letterSpacing: -0.4,
+        height: 1.2,
+        fontFeatures: tabularFigures,
+      ),
+      displaySmall: TextStyle(
+        fontFamilyFallback: _fontFallbacks,
+        fontSize: 19,
+        fontWeight: FontWeight.w700,
+        color: onSurface,
+        letterSpacing: -0.3,
+        height: 1.2,
+        fontFeatures: tabularFigures,
+      ),
+      headlineLarge: TextStyle(
+        fontFamilyFallback: _fontFallbacks,
+        fontSize: 18,
+        fontWeight: FontWeight.w700,
+        color: onSurface,
         letterSpacing: -0.2,
+        height: 1.25,
+        fontFeatures: tabularFigures,
       ),
       headlineMedium: TextStyle(
         fontFamilyFallback: _fontFallbacks,
-        fontSize: 18,
+        fontSize: 17,
         fontWeight: FontWeight.w600,
         color: onSurface,
+        height: 1.25,
       ),
-      titleLarge: TextStyle(
+      headlineSmall: TextStyle(
         fontFamilyFallback: _fontFallbacks,
         fontSize: 16,
         fontWeight: FontWeight.w600,
         color: onSurface,
+        height: 1.25,
+      ),
+      titleLarge: TextStyle(
+        fontFamilyFallback: _fontFallbacks,
+        fontSize: 15,
+        fontWeight: FontWeight.w600,
+        color: onSurface,
+        height: 1.3,
       ),
       titleMedium: TextStyle(
         fontFamilyFallback: _fontFallbacks,
         fontSize: 14,
         fontWeight: FontWeight.w600,
         color: onSurface,
+        height: 1.35,
       ),
       titleSmall: TextStyle(
         fontFamilyFallback: _fontFallbacks,
         fontSize: 13,
-        fontWeight: FontWeight.w500,
+        fontWeight: FontWeight.w600,
         color: onSurfaceVariant,
+        height: 1.35,
       ),
       bodyLarge: TextStyle(
         fontFamilyFallback: _fontFallbacks,
@@ -114,24 +149,26 @@ class AppTheme {
       ),
       bodySmall: TextStyle(
         fontFamilyFallback: _fontFallbacks,
-        fontSize: 12,
+        fontSize: 11.5,
         fontWeight: FontWeight.w400,
         color: onSurfaceVariant,
-        height: 1.4,
+        height: 1.45,
       ),
       labelLarge: TextStyle(
         fontFamilyFallback: _fontFallbacks,
-        fontSize: 13,
+        fontSize: 12,
         fontWeight: FontWeight.w700,
         color: onSurface,
         letterSpacing: 0.3,
+        height: 1.2,
       ),
       labelMedium: TextStyle(
         fontFamilyFallback: _fontFallbacks,
-        fontSize: 11.5,
+        fontSize: 11,
         fontWeight: FontWeight.w600,
         color: onSurfaceVariant,
         letterSpacing: 0.2,
+        height: 1.2,
       ),
       labelSmall: TextStyle(
         fontFamilyFallback: _fontFallbacks,
@@ -139,6 +176,7 @@ class AppTheme {
         fontWeight: FontWeight.w500,
         color: onSurfaceVariant,
         letterSpacing: 0.4,
+        height: 1.2,
       ),
     );
   }
@@ -170,7 +208,7 @@ class AppTheme {
         backgroundColor: _darkBackground,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
-        titleTextStyle: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+        titleTextStyle: textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
         iconTheme: const IconThemeData(color: _darkOnSurface, size: 22),
       ),
       navigationBarTheme: NavigationBarThemeData(
@@ -317,7 +355,7 @@ class AppTheme {
         backgroundColor: _lightBackground,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
-        titleTextStyle: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+        titleTextStyle: textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
         iconTheme: const IconThemeData(color: _lightOnSurface, size: 22),
       ),
       navigationBarTheme: NavigationBarThemeData(
@@ -411,7 +449,7 @@ class AppTheme {
         backgroundColor: const Color(0xFF000000),
         surfaceTintColor: Colors.transparent,
         elevation: 0,
-        titleTextStyle: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+        titleTextStyle: textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
         iconTheme: const IconThemeData(color: _darkOnSurface, size: 22),
       ),
       navigationBarTheme: NavigationBarThemeData(

@@ -11,6 +11,7 @@ import 'package:mangaloader/providers/streak_provider.dart';
 import 'package:mangaloader/providers/continue_reading_provider.dart';
 import 'package:mangaloader/services/download_queue_service.dart';
 import 'package:mangaloader/widgets/download_button.dart';
+import 'package:mangaloader/widgets/manga_card.dart' show coverHeroTag;
 import 'package:mangaloader/widgets/manga_share_modal.dart';
 import 'package:mangaloader/widgets/manga_comments_modal.dart';
 import 'package:go_router/go_router.dart';
@@ -292,7 +293,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                           ],
                         ),
                         child: Hero(
-                          tag: 'cover_${manga.slugUrl}',
+                          tag: coverHeroTag(manga.slugUrl),
                           child: CachedNetworkImage(
                             imageUrl: manga.coverUrl,
                             httpHeaders: const {'Referer': 'https://mangalib.org/'},

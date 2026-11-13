@@ -6,6 +6,7 @@ import 'package:mangaloader/providers/search_provider.dart';
 import 'package:mangaloader/providers/manga_provider.dart';
 import 'package:mangaloader/widgets/manga_card.dart';
 import 'package:mangaloader/widgets/collection_card.dart';
+import 'package:mangaloader/widgets/skeleton.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mangaloader/src/rust/api/mangalib_client.dart' as rust_api;
 import 'package:mangaloader/src/rust/api/models.dart';
@@ -571,7 +572,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                   },
                 );
               },
-              loading: () => const Center(child: CircularProgressIndicator()),
+              loading: () => const SkeletonMangaGrid(),
               error: (err, _) => Center(
                 child: Padding(
                   padding: const EdgeInsets.all(24),

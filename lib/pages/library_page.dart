@@ -16,6 +16,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:mangaloader/utils/plural.dart';
 import 'package:mangaloader/theme/app_tokens.dart';
+import 'package:mangaloader/widgets/skeleton.dart';
 
 enum LibrarySortMode { recent, title, rating, progress, chapters }
 
@@ -640,7 +641,9 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
             }).toList(),
           );
         },
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => _isGridView
+            ? const SkeletonMangaGrid()
+            : const SkeletonList(),
         error: (e, _) => Center(child: Text('Ошибка загрузки библиотеки: $e')),
       ),
     );

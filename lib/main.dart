@@ -23,6 +23,7 @@ import 'pages/achievements_page.dart';
 import 'pages/statistics_page.dart';
 import 'pages/history_page.dart';
 import 'widgets/offline_banner.dart';
+import 'widgets/manga_card.dart' show CoverHeroScope;
 import 'providers/settings_provider.dart';
 
 import 'services/streak_notification_service.dart';
@@ -153,7 +154,7 @@ class _MangaLoaderAppState extends ConsumerState<MangaLoaderApp> {
 final _router = GoRouter(
   routes: [
     ShellRoute(
-      builder: (context, state, child) => AppShell(child: child),
+      builder: (context, state, child) => AppShell(location: state.uri.path),
       routes: [
         GoRoute(
           path: '/',
@@ -319,19 +320,34 @@ final _router = GoRouter(
 );
 
 class AppShell extends StatefulWidget {
-  final Widget child;
-  const AppShell({super.key, required this.child});
+  /// Current router location. Tab selection is derived from it, so back,
+  /// forward and deep links all land on the matching tab.
+  final String location;
+
+  const AppShell({super.key, required this.location});
 
   @override
   State<AppShell> createState() => _AppShellState();
 }
 
 class _AppShellState extends State<AppShell> {
-  int _previousIndex = 0;
+  static const List<String> _tabRoutes = [
+    '/',
+    '/search',
+    '/library',
+    '/downloads',
+    '/profile',
+  ];
 
-  int _calculateSelectedIndex(BuildContext context) {
-    final location = GoRouterState.of(context).uri.path;
-    if (location == '/') return 0;
+  /// Tab widgets are created on first visit and then kept alive by the
+  /// IndexedStack, which is what preserves scroll offsets, loaded pages and
+  /// active filters across tab switches. Mounting all five up front would fire
+  /// five independent network loads at startup.
+  final List<Widget?> _tabs = List<Widget?>.filled(_tabRoutes.length, null);
+
+  int get _selectedIndex => _indexForLocation(widget.location);
+
+  static int _indexForLocation(String location) {
     if (location.startsWith('/search')) return 1;
     if (location.startsWith('/library')) return 2;
     if (location.startsWith('/downloads')) return 3;
@@ -339,62 +355,46 @@ class _AppShellState extends State<AppShell> {
     return 0;
   }
 
+  Widget _tabFor(int index) {
+    return _tabs[index] ??= switch (index) {
+      1 => const SearchPage(),
+      2 => const LibraryPage(),
+      3 => const DownloadsPage(),
+      4 => const ProfilePage(),
+      _ => const HomePage(),
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     final isRu = Localizations.localeOf(context).languageCode == 'ru';
-    final selectedIndex = _calculateSelectedIndex(context);
-    final prevIndex = _previousIndex;
-    if (selectedIndex != _previousIndex) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) setState(() => _previousIndex = selectedIndex);
-      });
-    }
-
-    final isForward = selectedIndex >= prevIndex;
-    final beginOffset = isForward ? const Offset(0.20, 0.0) : const Offset(-0.20, 0.0);
+    final selectedIndex = _selectedIndex;
 
     return Scaffold(
       body: Column(
         children: [
           const OfflineBanner(),
           Expanded(
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 260),
-              switchInCurve: Curves.easeOutCubic,
-              switchOutCurve: Curves.easeInCubic,
-              layoutBuilder: (currentChild, previousChildren) {
-                return Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    ...previousChildren,
-                    if (currentChild != null) currentChild,
-                  ],
-                );
-              },
-              transitionBuilder: (child, animation) {
-                final isCurrent = (child.key as ValueKey<int>?)?.value == selectedIndex;
-                final slideTween = isCurrent
-                    ? Tween<Offset>(begin: beginOffset, end: Offset.zero)
-                    : Tween<Offset>(begin: Offset.zero, end: -beginOffset);
-
-                return SlideTransition(
-                  position: slideTween.animate(CurvedAnimation(
-                    parent: animation,
-                    curve: Curves.easeOutCubic,
-                  )),
-                  child: FadeTransition(
-                    opacity: CurvedAnimation(
-                      parent: animation,
-                      curve: Curves.easeOut,
+            child: IndexedStack(
+              index: selectedIndex,
+              sizing: StackFit.expand,
+              children: [
+                for (var index = 0; index < _tabRoutes.length; index++)
+                  // Hidden tabs stay mounted so their state survives, but they
+                  // must not join the current Hero flight (duplicate cover tags
+                  // would throw) and must not tick animations offscreen.
+                  CoverHeroScope(
+                    child: HeroMode(
+                      enabled: index == selectedIndex,
+                      child: TickerMode(
+                        enabled: index == selectedIndex,
+                        child: (_tabs[index] != null || index == selectedIndex)
+                            ? _tabFor(index)
+                            : const SizedBox.shrink(),
+                      ),
                     ),
-                    child: child,
                   ),
-                );
-              },
-              child: KeyedSubtree(
-                key: ValueKey<int>(selectedIndex),
-                child: widget.child,
-              ),
+              ],
             ),
           ),
         ],
@@ -465,10 +465,7 @@ class _AppShellState extends State<AppShell> {
   }
 
   void _navigateTo(int index, String route) {
-    if (index == _previousIndex) return;
-    setState(() {
-      _previousIndex = index;
-    });
+    if (index == _selectedIndex) return;
     context.go(route);
   }
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mangaloader/providers/statistics_provider.dart';
 import 'package:mangaloader/src/rust/api/models.dart';
+import 'package:mangaloader/theme/app_theme.dart';
 import 'package:mangaloader/theme/app_tokens.dart';
 
 class StatisticsPage extends ConsumerWidget {
@@ -112,7 +113,12 @@ class StatisticsPage extends ConsumerWidget {
             const SizedBox(height: 10),
             Text(
               value,
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+                fontFeatures: AppTheme.tabularFigures,
+              ),
             ),
             const SizedBox(height: 2),
             Text(
@@ -168,7 +174,7 @@ class StatisticsPage extends ConsumerWidget {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(g.name, style: const TextStyle(fontSize: 13, color: Colors.white, fontWeight: FontWeight.w500)),
-                          Text('${g.percentage}% (${g.count})', style: const TextStyle(fontSize: 11.5, color: AppTokens.accent)),
+                          Text('${g.percentage}% (${g.count})', style: const TextStyle(fontSize: 11.5, color: AppTokens.accent, fontFeatures: AppTheme.tabularFigures)),
                         ],
                       ),
                       const SizedBox(height: 5),
@@ -245,7 +251,7 @@ class StatisticsPage extends ConsumerWidget {
         ),
         const SizedBox(height: 6),
         Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white)),
-        Text(pct, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color)),
+        Text(pct, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color, fontFeatures: AppTheme.tabularFigures)),
         const SizedBox(height: 2),
         Text(timeRange, style: const TextStyle(fontSize: 9, color: AppTokens.accent)),
       ],
@@ -281,21 +287,21 @@ class StatisticsPage extends ConsumerWidget {
               children: [
                 Column(
                   children: [
-                    Text('${stats.currentStreakDays}', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)),
+                    Text('${stats.currentStreakDays}', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white, fontFeatures: AppTheme.tabularFigures)),
                     Text(isRu ? 'Текущий стрик' : 'Current Streak', style: const TextStyle(fontSize: 11, color: AppTokens.textSecondary)),
                   ],
                 ),
                 Container(width: 1, height: 30, color: AppTokens.border),
                 Column(
                   children: [
-                    Text('${stats.maxStreakDays}', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFFFFD700))),
+                    Text('${stats.maxStreakDays}', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFFFFD700), fontFeatures: AppTheme.tabularFigures)),
                     Text(isRu ? 'Лучший рекорд' : 'Best Record', style: const TextStyle(fontSize: 11, color: AppTokens.textSecondary)),
                   ],
                 ),
                 Container(width: 1, height: 30, color: AppTokens.border),
                 Column(
                   children: [
-                    Text('${stats.totalActiveDays}', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF81C784))),
+                    Text('${stats.totalActiveDays}', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF81C784), fontFeatures: AppTheme.tabularFigures)),
                     Text(isRu ? 'Дней в приложении' : 'Active Days', style: const TextStyle(fontSize: 11, color: AppTokens.textSecondary)),
                   ],
                 ),
@@ -350,21 +356,21 @@ class StatisticsPage extends ConsumerWidget {
                   children: [
                     Column(
                       children: [
-                        Text(formatSecs(sessions.todayReadingSeconds), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
+                        Text(formatSecs(sessions.todayReadingSeconds), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white, fontFeatures: AppTheme.tabularFigures)),
                         Text(isRu ? 'Сегодня' : 'Today', style: const TextStyle(fontSize: 11, color: AppTokens.textSecondary)),
                       ],
                     ),
                     Container(width: 1, height: 28, color: AppTokens.border),
                     Column(
                       children: [
-                        Text(formatSecs(sessions.weekReadingSeconds), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF81C784))),
+                        Text(formatSecs(sessions.weekReadingSeconds), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF81C784), fontFeatures: AppTheme.tabularFigures)),
                         Text(isRu ? 'За 7 дней' : 'Last 7 Days', style: const TextStyle(fontSize: 11, color: AppTokens.textSecondary)),
                       ],
                     ),
                     Container(width: 1, height: 28, color: AppTokens.border),
                     Column(
                       children: [
-                        Text(formatSecs(sessions.totalReadingSeconds), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFFFFB74D))),
+                        Text(formatSecs(sessions.totalReadingSeconds), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFFFFB74D), fontFeatures: AppTheme.tabularFigures)),
                         Text(isRu ? 'Всего' : 'All Time', style: const TextStyle(fontSize: 11, color: AppTokens.textSecondary)),
                       ],
                     ),

@@ -5,6 +5,123 @@ import 'package:mangaloader/src/rust/api/models.dart';
 import 'package:mangaloader/providers/library_provider.dart';
 import 'package:mangaloader/theme/app_tokens.dart';
 
+/// Tag shared by a cover thumbnail and the large cover on the details header.
+String coverHeroTag(String slugUrl) => 'cover-$slugUrl';
+
+/// Declares a cover-hero namespace. The shell keeps several screens mounted at
+/// once, and a tag may only be claimed by one live Hero per namespace, so each
+/// tab gets its own scope while a flight to the details page still matches on
+/// the plain [coverHeroTag] string.
+class CoverHeroScope extends InheritedWidget {
+  const CoverHeroScope({super.key, required super.child});
+
+  @override
+  bool updateShouldNotify(CoverHeroScope oldWidget) => false;
+}
+
+/// Claims a hero tag for its subtree. The first card of a given title inside a
+/// scope owns the tag; duplicates stay static instead of throwing
+/// "multiple heroes share the same tag" when a flight starts.
+class _CoverHero extends StatefulWidget {
+  const _CoverHero({required this.tag, required this.child});
+
+  final String tag;
+  final Widget child;
+
+  @override
+  State<_CoverHero> createState() => _CoverHeroState();
+}
+
+class _CoverHeroState extends State<_CoverHero> {
+  static final Object _globalScope = Object();
+
+  Object? _scope;
+  String? _claimedTag;
+  bool _ownsTag = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _syncClaim();
+  }
+
+  @override
+  void didUpdateWidget(covariant _CoverHero oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.tag != widget.tag) _syncClaim();
+  }
+
+  @override
+  void dispose() {
+    _releaseClaim();
+    super.dispose();
+  }
+
+  void _syncClaim() {
+    final scope = context.getElementForInheritedWidgetOfExactType<CoverHeroScope>() ??
+        ModalRoute.of(context) ??
+        _globalScope;
+    if (_claimedTag == widget.tag && identical(_scope, scope)) return;
+    _releaseClaim();
+    _scope = scope;
+    _claimedTag = widget.tag;
+    _ownsTag = _CoverHeroRegistry.claim(scope, widget.tag, this);
+  }
+
+  void _releaseClaim() {
+    final scope = _scope;
+    final tag = _claimedTag;
+    if (scope == null || tag == null) return;
+    _CoverHeroRegistry.release(scope, tag, this);
+    _scope = null;
+    _claimedTag = null;
+    _ownsTag = false;
+  }
+
+  void _promote() {
+    if (!mounted || _ownsTag) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() => _ownsTag = true);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return HeroMode(
+      enabled: _ownsTag,
+      child: Hero(tag: widget.tag, child: widget.child),
+    );
+  }
+}
+
+class _CoverHeroRegistry {
+  static final Map<Object, Map<String, List<_CoverHeroState>>> _owners = {};
+
+  static bool claim(Object scope, String tag, _CoverHeroState hero) {
+    final byTag = _owners.putIfAbsent(
+      scope,
+      () => <String, List<_CoverHeroState>>{},
+    );
+    final queue = byTag.putIfAbsent(tag, () => <_CoverHeroState>[]);
+    queue.add(hero);
+    return identical(queue.first, hero);
+  }
+
+  static void release(Object scope, String tag, _CoverHeroState hero) {
+    final byTag = _owners[scope];
+    final queue = byTag?[tag];
+    if (byTag == null || queue == null) return;
+    final wasOwner = queue.isNotEmpty && identical(queue.first, hero);
+    queue.remove(hero);
+    if (queue.isEmpty) {
+      byTag.remove(tag);
+      if (byTag.isEmpty) _owners.remove(scope);
+      return;
+    }
+    if (wasOwner) queue.first._promote();
+  }
+}
+
 class MangaCard extends ConsumerWidget {
   final MangaSearchResult manga;
   final VoidCallback onTap;
@@ -113,8 +230,8 @@ class MangaCard extends ConsumerWidget {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              Hero(
-                tag: 'cover_${manga.slugUrl}',
+              _CoverHero(
+                tag: coverHeroTag(manga.slugUrl),
                 child: CachedNetworkImage(
                   imageUrl: manga.coverUrl,
                   httpHeaders: const {'Referer': 'https://mangalib.org/'},
