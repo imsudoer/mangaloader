@@ -133,6 +133,10 @@ class _MangaLoaderAppState extends ConsumerState<MangaLoaderApp> {
           darkTheme: darkThemeToUse,
           themeMode: themeMode,
           locale: locale,
+          // Keeps the navigation stack when Android recreates the activity after
+          // the user spends time in another app; without it the process restart
+          // always lands on the home tab.
+          restorationScopeId: 'manga-loader',
           localizationsDelegates: const [
             GlobalMaterialLocalizations.delegate,
             GlobalWidgetsLocalizations.delegate,
@@ -153,6 +157,7 @@ class _MangaLoaderAppState extends ConsumerState<MangaLoaderApp> {
 }
 
 final _router = GoRouter(
+  restorationScopeId: 'manga-loader-router',
   routes: [
     ShellRoute(
       builder: (context, state, child) => AppShell(location: state.uri.path),
