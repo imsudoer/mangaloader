@@ -1044,12 +1044,15 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 children: [
                   const Text('Manga Loader', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
                   const SizedBox(height: 4),
-                  Text('Версия $currentVersionStr (Flutter + Rust Core Engine)', style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF))),
+                  Text(
+                    isRu ? 'Версия $currentVersionStr' : 'Version $currentVersionStr',
+                    style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
+                  ),
                   const SizedBox(height: 8),
                   Text(
                     isRu
                       ? 'Современный загрузчик и ридер манги с аппаратным декодированием, масштабированием, автоскроллом и оффлайн-режимом CBZ.'
-                      : 'Modern manga reader and downloader powered by Flutter and Rust.',
+                      : 'Modern manga reader and downloader with hardware decoding, scaling, auto-scroll and offline CBZ mode.',
                     style: const TextStyle(fontSize: 12, color: Color(0xFFBDBBB0), height: 1.4),
                   ),
                 ],
