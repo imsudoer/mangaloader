@@ -7,89 +7,112 @@ import 'package:mangaloader/src/rust/api/storage.dart' as rust_storage;
 import 'package:mangaloader/src/rust/api/mangalib_client.dart' as rust_api;
 import 'package:mangaloader/src/rust/api/models.dart';
 
+/// Single-value notifier that mirrors its state into the Rust settings store.
+///
+/// [set] updates [state] and, unless `persist: false` is passed, writes
+/// [encode] of the new value under [storageKey]. [load] restores a value
+/// without writing it back, which is what [loadPersistentSettings] needs.
+class PersistedSetting<T> extends StateNotifier<T> {
+  PersistedSetting({
+    required this.defaultValue,
+    required this.storageKey,
+    required this.encode,
+  }) : super(defaultValue);
+
+  final T defaultValue;
+  final String storageKey;
+  final String Function(T value) encode;
+
+  void set(T value, {bool persist = true}) {
+    state = value;
+    if (persist) {
+      rust_storage.setSetting(key: storageKey, value: encode(state));
+    }
+  }
+
+  void load(T value) {
+    state = value;
+  }
+}
+
+String _boolText(bool value) => value.toString();
+
+String _intText(int value) => value.toString();
+
+String _themeModeText(ThemeMode mode) => switch (mode) {
+      ThemeMode.light => 'light',
+      ThemeMode.system => 'system',
+      _ => 'dark',
+    };
+
+String _updateChannelText(UpdateChannel channel) =>
+    channel == UpdateChannel.beta ? 'beta' : 'stable';
+
 // Helper function to load all settings into providers upon app launch
 Future<void> loadPersistentSettings(WidgetRef ref) async {
   try {
     final settings = await rust_storage.getAllSettings();
     final map = {for (var item in settings) item.key: item.value};
 
+    bool flag(String key) => map[key] == 'true';
+    int intOr(String key, int fallback) => int.tryParse(map[key] ?? '') ?? fallback;
+
+    bool has(String key) => map.containsKey(key);
+    void restoreBool(String key, StateNotifierProvider<PersistedSetting<bool>, bool> provider) {
+      if (has(key)) ref.read(provider.notifier).set(flag(key), persist: false);
+    }
+
+    void restoreInt(String key, int fallback, StateNotifierProvider<PersistedSetting<int>, int> provider) {
+      if (has(key)) ref.read(provider.notifier).set(intOr(key, fallback), persist: false);
+    }
+
     // 1. Theme mode
-    if (map.containsKey('theme_mode')) {
-      final val = map['theme_mode']!;
-      if (val == 'light') {
-        ref.read(themeModeProvider.notifier).setThemeMode(ThemeMode.light, persist: false);
-      } else if (val == 'system') {
-        ref.read(themeModeProvider.notifier).setThemeMode(ThemeMode.system, persist: false);
-      } else {
-        ref.read(themeModeProvider.notifier).setThemeMode(ThemeMode.dark, persist: false);
-      }
+    if (has('theme_mode')) {
+      final mode = switch (map['theme_mode']) {
+        'light' => ThemeMode.light,
+        'system' => ThemeMode.system,
+        _ => ThemeMode.dark,
+      };
+      ref.read(themeModeProvider.notifier).setThemeMode(mode, persist: false);
     }
 
     // 2. AMOLED Mode
-    if (map.containsKey('amoled_mode')) {
-      ref.read(amoledModeProvider.notifier).setAmoled(map['amoled_mode'] == 'true', persist: false);
-    }
+    restoreBool('amoled_mode', amoledModeProvider);
 
     // 3. Locale
-    if (map.containsKey('locale')) {
+    if (has('locale')) {
       final code = map['locale']!;
-      if (code == 'ru' || code == 'en') {
-        ref.read(localeProvider.notifier).setLocale(Locale(code), persist: false);
-      } else {
-        ref.read(localeProvider.notifier).setLocale(null, persist: false);
-      }
+      final locale = code == 'ru' || code == 'en' ? Locale(code) : null;
+      ref.read(localeProvider.notifier).setLocale(locale, persist: false);
     }
 
     // 4. Auto check updates
-    if (map.containsKey('auto_check_updates')) {
-      ref.read(autoCheckUpdatesProvider.notifier).setAutoCheck(map['auto_check_updates'] == 'true', persist: false);
-    }
+    restoreBool('auto_check_updates', autoCheckUpdatesProvider);
 
     // 4.1 Update channel
-    if (map.containsKey('update_channel')) {
-      final ch = map['update_channel'] == 'beta' ? UpdateChannel.beta : UpdateChannel.stable;
-      ref.read(updateChannelProvider.notifier).setChannel(ch, persist: false);
+    if (has('update_channel')) {
+      final channel = map['update_channel'] == 'beta' ? UpdateChannel.beta : UpdateChannel.stable;
+      ref.read(updateChannelProvider.notifier).setChannel(channel, persist: false);
     }
 
     // 5. Download Concurrency
-    if (map.containsKey('download_concurrency_images')) {
-      ref.read(downloadConcurrencyImagesProvider.notifier).setConcurrency(
-          int.tryParse(map['download_concurrency_images']!) ?? 10, persist: false);
-    }
-    if (map.containsKey('download_concurrency_chapters')) {
-      ref.read(downloadConcurrencyChaptersProvider.notifier).setConcurrency(
-          int.tryParse(map['download_concurrency_chapters']!) ?? 3, persist: false);
-    }
+    restoreInt('download_concurrency_images', 10, downloadConcurrencyImagesProvider);
+    restoreInt('download_concurrency_chapters', 3, downloadConcurrencyChaptersProvider);
 
     // 6. Auto clear cache days
-    if (map.containsKey('auto_clear_cache_days')) {
-      ref.read(autoClearCacheDaysProvider.notifier).setDays(
-          int.tryParse(map['auto_clear_cache_days']!) ?? 7, persist: false);
-    }
+    restoreInt('auto_clear_cache_days', 7, autoClearCacheDaysProvider);
 
     // 7. Streak notifications
-    if (map.containsKey('streak_notifications_enabled')) {
-      ref.read(streakNotificationsEnabledProvider.notifier).setEnabled(
-          map['streak_notifications_enabled'] == 'true', persist: false);
-    }
+    restoreBool('streak_notifications_enabled', streakNotificationsEnabledProvider);
 
     // 8. Smart auto download count
-    if (map.containsKey('smart_auto_download_count')) {
-      ref.read(smartAutoDownloadCountProvider.notifier).setCount(
-          int.tryParse(map['smart_auto_download_count']!) ?? 0, persist: false);
-    }
+    restoreInt('smart_auto_download_count', 0, smartAutoDownloadCountProvider);
 
     // 9. Auto delete read chapters
-    if (map.containsKey('auto_delete_read_chapters')) {
-      ref.read(autoDeleteReadChaptersProvider.notifier).setAutoDelete(
-          map['auto_delete_read_chapters'] == 'true', persist: false);
-    }
+    restoreBool('auto_delete_read_chapters', autoDeleteReadChaptersProvider);
 
     // 10. Chapter notifications
-    if (map.containsKey('chapter_notifications_enabled')) {
-      ref.read(chapterNotificationsEnabledProvider.notifier).setEnabled(
-          map['chapter_notifications_enabled'] == 'true', persist: false);
-    }
+    restoreBool('chapter_notifications_enabled', chapterNotificationsEnabledProvider);
 
     // 11. Search history
     if (map.containsKey('search_history')) {
@@ -128,21 +151,16 @@ Future<void> loadPersistentSettings(WidgetRef ref) async {
     }
 
     // 12.2 Downloads
-    if (map.containsKey('downloads_wifi_only')) {
-      ref.read(wifiOnlyDownloadsProvider.notifier).setEnabled(
-            map['downloads_wifi_only'] == 'true',
-            persist: false,
-          );
-    }
-    if (map.containsKey('downloads_storage_limit_mb')) {
+    restoreBool('downloads_wifi_only', wifiOnlyDownloadsProvider);
+    if (has('downloads_storage_limit_mb')) {
       ref.read(downloadsStorageLimitProvider.notifier).setLimitMb(
-            int.tryParse(map['downloads_storage_limit_mb']!) ?? 0,
+            intOr('downloads_storage_limit_mb', 0),
             persist: false,
           );
     }
 
     // 12.3 Notifications digest and quiet hours
-    if (map.containsKey('quiet_hours')) {
+    if (has('quiet_hours')) {
       try {
         final raw = map['quiet_hours']!;
         if (raw.isNotEmpty) {
@@ -152,17 +170,12 @@ Future<void> loadPersistentSettings(WidgetRef ref) async {
         }
       } catch (_) {}
     }
-    if (map.containsKey('chapter_digest')) {
-      ref.read(chapterDigestProvider.notifier).setEnabled(
-            map['chapter_digest'] == 'true',
-            persist: false,
-          );
-    }
+    restoreBool('chapter_digest', chapterDigestProvider);
 
     // 12.4 Automatic backup interval
     if (map.containsKey('auto_backup_interval_days')) {
       ref.read(autoBackupIntervalProvider.notifier).setDays(
-            int.tryParse(map['auto_backup_interval_days']!) ?? 0,
+            intOr('auto_backup_interval_days', 0),
             persist: false,
           );
     }
@@ -198,16 +211,10 @@ final themeModeProvider = StateNotifierProvider<ThemeModeNotifier, ThemeMode>(
   (ref) => ThemeModeNotifier(),
 );
 
-class ThemeModeNotifier extends StateNotifier<ThemeMode> {
-  ThemeModeNotifier() : super(ThemeMode.dark);
+class ThemeModeNotifier extends PersistedSetting<ThemeMode> {
+  ThemeModeNotifier() : super(defaultValue: ThemeMode.dark, storageKey: 'theme_mode', encode: _themeModeText);
 
-  void setThemeMode(ThemeMode mode, {bool persist = true}) {
-    state = mode;
-    if (persist) {
-      final val = mode == ThemeMode.light ? 'light' : (mode == ThemeMode.system ? 'system' : 'dark');
-      rust_storage.setSetting(key: 'theme_mode', value: val);
-    }
-  }
+  void setThemeMode(ThemeMode mode, {bool persist = true}) => set(mode, persist: persist);
 
   void toggle() {
     final next = state == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
@@ -220,15 +227,10 @@ final amoledModeProvider = StateNotifierProvider<AmoledModeNotifier, bool>(
   (ref) => AmoledModeNotifier(),
 );
 
-class AmoledModeNotifier extends StateNotifier<bool> {
-  AmoledModeNotifier() : super(false);
+class AmoledModeNotifier extends PersistedSetting<bool> {
+  AmoledModeNotifier() : super(defaultValue: false, storageKey: 'amoled_mode', encode: _boolText);
 
-  void setAmoled(bool value, {bool persist = true}) {
-    state = value;
-    if (persist) {
-      rust_storage.setSetting(key: 'amoled_mode', value: value.toString());
-    }
-  }
+  void setAmoled(bool value, {bool persist = true}) => set(value, persist: persist);
 }
 
 // 3. Locale provider with persistence
@@ -252,15 +254,10 @@ final autoCheckUpdatesProvider = StateNotifierProvider<AutoCheckUpdatesNotifier,
   (ref) => AutoCheckUpdatesNotifier(),
 );
 
-class AutoCheckUpdatesNotifier extends StateNotifier<bool> {
-  AutoCheckUpdatesNotifier() : super(true);
+class AutoCheckUpdatesNotifier extends PersistedSetting<bool> {
+  AutoCheckUpdatesNotifier() : super(defaultValue: true, storageKey: 'auto_check_updates', encode: _boolText);
 
-  void setAutoCheck(bool val, {bool persist = true}) {
-    state = val;
-    if (persist) {
-      rust_storage.setSetting(key: 'auto_check_updates', value: val.toString());
-    }
-  }
+  void setAutoCheck(bool val, {bool persist = true}) => set(val, persist: persist);
 }
 
 // 4.1. Update channel provider (Stable / Beta/Dev)
@@ -268,18 +265,11 @@ final updateChannelProvider = StateNotifierProvider<UpdateChannelNotifier, Updat
   (ref) => UpdateChannelNotifier(),
 );
 
-class UpdateChannelNotifier extends StateNotifier<UpdateChannel> {
-  UpdateChannelNotifier() : super(UpdateChannel.stable);
+class UpdateChannelNotifier extends PersistedSetting<UpdateChannel> {
+  UpdateChannelNotifier()
+      : super(defaultValue: UpdateChannel.stable, storageKey: 'update_channel', encode: _updateChannelText);
 
-  void setChannel(UpdateChannel channel, {bool persist = true}) {
-    state = channel;
-    if (persist) {
-      rust_storage.setSetting(
-        key: 'update_channel',
-        value: channel == UpdateChannel.beta ? 'beta' : 'stable',
-      );
-    }
-  }
+  void setChannel(UpdateChannel channel, {bool persist = true}) => set(channel, persist: persist);
 }
 
 final availableUpdateProvider = StateProvider<AppUpdateInfo?>((ref) => null);
@@ -293,30 +283,22 @@ final downloadConcurrencyImagesProvider = StateNotifierProvider<ConcurrencyImage
   (ref) => ConcurrencyImagesNotifier(),
 );
 
-class ConcurrencyImagesNotifier extends StateNotifier<int> {
-  ConcurrencyImagesNotifier() : super(10);
+class ConcurrencyImagesNotifier extends PersistedSetting<int> {
+  ConcurrencyImagesNotifier()
+      : super(defaultValue: 10, storageKey: 'download_concurrency_images', encode: _intText);
 
-  void setConcurrency(int val, {bool persist = true}) {
-    state = val;
-    if (persist) {
-      rust_storage.setSetting(key: 'download_concurrency_images', value: val.toString());
-    }
-  }
+  void setConcurrency(int val, {bool persist = true}) => set(val, persist: persist);
 }
 
 final downloadConcurrencyChaptersProvider = StateNotifierProvider<ConcurrencyChaptersNotifier, int>(
   (ref) => ConcurrencyChaptersNotifier(),
 );
 
-class ConcurrencyChaptersNotifier extends StateNotifier<int> {
-  ConcurrencyChaptersNotifier() : super(3);
+class ConcurrencyChaptersNotifier extends PersistedSetting<int> {
+  ConcurrencyChaptersNotifier()
+      : super(defaultValue: 3, storageKey: 'download_concurrency_chapters', encode: _intText);
 
-  void setConcurrency(int val, {bool persist = true}) {
-    state = val;
-    if (persist) {
-      rust_storage.setSetting(key: 'download_concurrency_chapters', value: val.toString());
-    }
-  }
+  void setConcurrency(int val, {bool persist = true}) => set(val, persist: persist);
 }
 
 // 6. Auto clear cache duration in days with persistence
@@ -324,15 +306,10 @@ final autoClearCacheDaysProvider = StateNotifierProvider<AutoClearCacheNotifier,
   (ref) => AutoClearCacheNotifier(),
 );
 
-class AutoClearCacheNotifier extends StateNotifier<int> {
-  AutoClearCacheNotifier() : super(7);
+class AutoClearCacheNotifier extends PersistedSetting<int> {
+  AutoClearCacheNotifier() : super(defaultValue: 7, storageKey: 'auto_clear_cache_days', encode: _intText);
 
-  void setDays(int val, {bool persist = true}) {
-    state = val;
-    if (persist) {
-      rust_storage.setSetting(key: 'auto_clear_cache_days', value: val.toString());
-    }
-  }
+  void setDays(int val, {bool persist = true}) => set(val, persist: persist);
 }
 
 // 7. Streak push notifications toggle with persistence
@@ -340,15 +317,11 @@ final streakNotificationsEnabledProvider = StateNotifierProvider<StreakNotificat
   (ref) => StreakNotificationsNotifier(),
 );
 
-class StreakNotificationsNotifier extends StateNotifier<bool> {
-  StreakNotificationsNotifier() : super(true);
+class StreakNotificationsNotifier extends PersistedSetting<bool> {
+  StreakNotificationsNotifier()
+      : super(defaultValue: true, storageKey: 'streak_notifications_enabled', encode: _boolText);
 
-  void setEnabled(bool val, {bool persist = true}) {
-    state = val;
-    if (persist) {
-      rust_storage.setSetting(key: 'streak_notifications_enabled', value: val.toString());
-    }
-  }
+  void setEnabled(bool val, {bool persist = true}) => set(val, persist: persist);
 }
 
 // 8. Smart Offline Auto-Download count with persistence
@@ -356,15 +329,10 @@ final smartAutoDownloadCountProvider = StateNotifierProvider<SmartAutoDownloadNo
   (ref) => SmartAutoDownloadNotifier(),
 );
 
-class SmartAutoDownloadNotifier extends StateNotifier<int> {
-  SmartAutoDownloadNotifier() : super(0);
+class SmartAutoDownloadNotifier extends PersistedSetting<int> {
+  SmartAutoDownloadNotifier() : super(defaultValue: 0, storageKey: 'smart_auto_download_count', encode: _intText);
 
-  void setCount(int val, {bool persist = true}) {
-    state = val;
-    if (persist) {
-      rust_storage.setSetting(key: 'smart_auto_download_count', value: val.toString());
-    }
-  }
+  void setCount(int val, {bool persist = true}) => set(val, persist: persist);
 }
 
 // 9. Auto-delete read downloaded chapters toggle with persistence
@@ -372,15 +340,10 @@ final autoDeleteReadChaptersProvider = StateNotifierProvider<AutoDeleteReadNotif
   (ref) => AutoDeleteReadNotifier(),
 );
 
-class AutoDeleteReadNotifier extends StateNotifier<bool> {
-  AutoDeleteReadNotifier() : super(false);
+class AutoDeleteReadNotifier extends PersistedSetting<bool> {
+  AutoDeleteReadNotifier() : super(defaultValue: false, storageKey: 'auto_delete_read_chapters', encode: _boolText);
 
-  void setAutoDelete(bool val, {bool persist = true}) {
-    state = val;
-    if (persist) {
-      rust_storage.setSetting(key: 'auto_delete_read_chapters', value: val.toString());
-    }
-  }
+  void setAutoDelete(bool val, {bool persist = true}) => set(val, persist: persist);
 }
 
 // 10. Background Chapter Updates Notifications toggle with persistence
@@ -388,15 +351,11 @@ final chapterNotificationsEnabledProvider = StateNotifierProvider<ChapterNotific
   (ref) => ChapterNotificationsNotifier(),
 );
 
-class ChapterNotificationsNotifier extends StateNotifier<bool> {
-  ChapterNotificationsNotifier() : super(true);
+class ChapterNotificationsNotifier extends PersistedSetting<bool> {
+  ChapterNotificationsNotifier()
+      : super(defaultValue: true, storageKey: 'chapter_notifications_enabled', encode: _boolText);
 
-  void setEnabled(bool val, {bool persist = true}) {
-    state = val;
-    if (persist) {
-      rust_storage.setSetting(key: 'chapter_notifications_enabled', value: val.toString());
-    }
-  }
+  void setEnabled(bool val, {bool persist = true}) => set(val, persist: persist);
 }
 
 // 11. Search History Provider with persistence
@@ -607,15 +566,10 @@ final wifiOnlyDownloadsProvider =
   (ref) => WifiOnlyDownloadsNotifier(),
 );
 
-class WifiOnlyDownloadsNotifier extends StateNotifier<bool> {
-  WifiOnlyDownloadsNotifier() : super(false);
+class WifiOnlyDownloadsNotifier extends PersistedSetting<bool> {
+  WifiOnlyDownloadsNotifier() : super(defaultValue: false, storageKey: 'downloads_wifi_only', encode: _boolText);
 
-  void setEnabled(bool value, {bool persist = true}) {
-    state = value;
-    if (persist) {
-      rust_storage.setSetting(key: 'downloads_wifi_only', value: value.toString());
-    }
-  }
+  void setEnabled(bool value, {bool persist = true}) => set(value, persist: persist);
 }
 
 /// Storage cap for downloaded chapters in megabytes (0 = unlimited).
@@ -624,18 +578,11 @@ final downloadsStorageLimitProvider =
   (ref) => DownloadsStorageLimitNotifier(),
 );
 
-class DownloadsStorageLimitNotifier extends StateNotifier<int> {
-  DownloadsStorageLimitNotifier() : super(0);
+class DownloadsStorageLimitNotifier extends PersistedSetting<int> {
+  DownloadsStorageLimitNotifier()
+      : super(defaultValue: 0, storageKey: 'downloads_storage_limit_mb', encode: _intText);
 
-  void setLimitMb(int value, {bool persist = true}) {
-    state = value < 0 ? 0 : value;
-    if (persist) {
-      rust_storage.setSetting(
-        key: 'downloads_storage_limit_mb',
-        value: state.toString(),
-      );
-    }
-  }
+  void setLimitMb(int value, {bool persist = true}) => set(value < 0 ? 0 : value, persist: persist);
 }
 
 /// Quiet hours suppress per-chapter notifications during the night.
@@ -708,15 +655,10 @@ final chapterDigestProvider =
   (ref) => ChapterDigestNotifier(),
 );
 
-class ChapterDigestNotifier extends StateNotifier<bool> {
-  ChapterDigestNotifier() : super(false);
+class ChapterDigestNotifier extends PersistedSetting<bool> {
+  ChapterDigestNotifier() : super(defaultValue: false, storageKey: 'chapter_digest', encode: _boolText);
 
-  void setEnabled(bool value, {bool persist = true}) {
-    state = value;
-    if (persist) {
-      rust_storage.setSetting(key: 'chapter_digest', value: value.toString());
-    }
-  }
+  void setEnabled(bool value, {bool persist = true}) => set(value, persist: persist);
 }
 
 /// Automatic JSON backup interval in days (0 = disabled).
@@ -725,18 +667,11 @@ final autoBackupIntervalProvider =
   (ref) => AutoBackupIntervalNotifier(),
 );
 
-class AutoBackupIntervalNotifier extends StateNotifier<int> {
-  AutoBackupIntervalNotifier() : super(0);
+class AutoBackupIntervalNotifier extends PersistedSetting<int> {
+  AutoBackupIntervalNotifier()
+      : super(defaultValue: 0, storageKey: 'auto_backup_interval_days', encode: _intText);
 
-  void setDays(int value, {bool persist = true}) {
-    state = value < 0 ? 0 : value;
-    if (persist) {
-      rust_storage.setSetting(
-        key: 'auto_backup_interval_days',
-        value: state.toString(),
-      );
-    }
-  }
+  void setDays(int value, {bool persist = true}) => set(value < 0 ? 0 : value, persist: persist);
 }
 
 // 12. Cookies & User Profile with persistence
@@ -781,4 +716,3 @@ class UserProfileNotifier extends StateNotifier<UserProfile?> {
     }
   }
 }
-
