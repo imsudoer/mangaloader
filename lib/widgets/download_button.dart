@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mangaloader/theme/app_tokens.dart';
+import 'package:mangaloader/l10n/strings/download_button_strings.dart';
 
 class DownloadButton extends StatefulWidget {
   /// 0.0 to 1.0 for an active download, -1 for idle, -2 for waiting.
@@ -24,7 +25,7 @@ class DownloadButton extends StatefulWidget {
 class _DownloadButtonState extends State<DownloadButton> {
   @override
   Widget build(BuildContext context) {
-    final isRu = Localizations.localeOf(context).languageCode == 'ru';
+    final s = DownloadButtonStrings.of(context);
     final isIdle = widget.progress == -1;
     final isWaiting = widget.progress == -2;
     final isComplete = widget.progress >= 1.0 && !widget.failed;
@@ -59,13 +60,13 @@ class _DownloadButtonState extends State<DownloadButton> {
     }
 
     final label = widget.failed
-        ? (isRu ? 'Повтор' : 'Retry')
+        ? (s.retry)
         : isComplete
             ? 'CBZ'
             : isWaiting
-                ? (isRu ? 'Ожидание' : 'Wait...')
+                ? (s.waiting)
                 : isIdle
-                    ? (isRu ? 'Скачать' : 'Load')
+                    ? (s.download)
                     : '${(widget.progress * 100).toInt()}%';
 
     final icon = widget.failed

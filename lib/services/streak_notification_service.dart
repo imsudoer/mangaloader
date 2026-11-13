@@ -7,6 +7,7 @@ import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import 'package:path_provider/path_provider.dart';
 import 'package:mangaloader/providers/settings_provider.dart' show QuietHours;
+import 'package:mangaloader/l10n/strings/notification_strings.dart';
 import 'package:mangaloader/services/notification_navigation.dart';
 import 'package:mangaloader/src/rust/api/storage.dart' as rust_storage;
 import 'package:mangaloader/services/update_checker.dart';
@@ -109,14 +110,13 @@ class StreakNotificationService {
       }
 
       final days = streak.currentStreak.toInt();
-      final title = isRu ? 'Твой огонёк может погаснуть!' : 'Your reading flame might go out!';
+      final s = NotificationStrings(isRu);
+      final title = s.streakTitle;
       final body = days > 0
           ? (isRu
-              ? 'Сохрани свой стрик в ${Plural.days(days, 'ru')} — прочитай главу прямо сейчас.'
-              : 'Keep your $days-day streak burning — read a chapter now.')
-          : (isRu
-              ? 'Зажги свой ежедневный огонёк чтения! Прочитай 1 главу.'
-              : 'Ignite your daily reading flame! Read 1 chapter.');
+              ? s.streakBodyWithDays(Plural.days(days, 'ru'))
+              : s.streakBodyWithDays('$days'))
+          : s.streakBodyNoDays;
 
       const androidDetails = AndroidNotificationDetails(
         'streak_reminders',
@@ -236,7 +236,7 @@ class StreakNotificationService {
         return;
       }
 
-      final title = isRu ? 'Вышла новая глава!' : 'New Chapter Released!';
+      final title = NotificationStrings(isRu).newChapterTitle;
       final body = '$mangaTitle — $chapterInfo';
 
       const androidDetails = AndroidNotificationDetails(
@@ -294,10 +294,11 @@ class StreakNotificationService {
       final total = state.entries.length;
       final preview = state.entries.take(3).map((e) => '${e.title} — ${e.chapter}').join('\n');
       final remaining = total - 3;
+      final s = NotificationStrings(isRu);
       final body = remaining > 0
-          ? '$preview\n${isRu ? 'и ещё $remaining' : 'and $remaining more'}'
+          ? '$preview\n${s.digestMore('$remaining')}'
           : preview;
-      final title = isRu ? 'Новые главы: $total' : 'New chapters: $total';
+      final title = s.digestTitle('$total');
       final firstSlug = state.entries.first.slug;
 
       final androidDetails = AndroidNotificationDetails(

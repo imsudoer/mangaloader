@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:mangaloader/l10n/strings/notification_strings.dart';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
@@ -955,16 +956,15 @@ class _DownloadProgressNotification {
 
     _lastShownAt = now;
     _lastSignature = signature;
+    final notificationStrings = NotificationStrings(isRu);
 
     try {
       if (!await _ensureInitialized()) return;
 
       final androidDetails = AndroidNotificationDetails(
         'downloads',
-        isRu ? 'Загрузки манги' : 'Manga downloads',
-        channelDescription: isRu
-            ? 'Прогресс скачивания глав манги'
-            : 'Progress of chapter downloads',
+        notificationStrings.downloadChannelName,
+        channelDescription: notificationStrings.downloadChannelDescription,
         importance: Importance.low,
         priority: Priority.low,
         showProgress: true,
@@ -979,13 +979,11 @@ class _DownloadProgressNotification {
         color: AppTokens.accent,
       );
 
-      final body = isRu
-          ? 'Том $volume Гл $number · стр. $progress из $maxProgress'
-          : 'Vol $volume Ch $number · page $progress of $maxProgress';
+      final body = notificationStrings.downloadBody(volume, number, progress, maxProgress);
 
       await _plugin.show(
         _notificationId,
-        isRu ? 'Загрузка глав' : 'Downloading chapters',
+        notificationStrings.downloadTitle,
         body,
         NotificationDetails(
           android: androidDetails,

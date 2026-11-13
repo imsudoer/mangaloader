@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:mangaloader/l10n/strings/login_strings.dart';
 import 'package:mangaloader/providers/settings_provider.dart';
 import 'package:mangaloader/src/rust/api/mangalib_client.dart' as rust_api;
 import 'package:mangaloader/theme/app_tokens.dart';
@@ -234,10 +235,9 @@ class _LoginWebviewPageState extends ConsumerState<LoginWebviewPage> {
       }
 
       if (mounted) {
-        final isRu = Localizations.localeOf(context).languageCode == 'ru';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(isRu ? 'Успешный вход в аккаунт MangaLib!' : 'MangaLib login successful!'),
+            content: Text(LoginStrings.of(context).loginSuccess),
             backgroundColor: Colors.green.shade800,
           ),
         );
@@ -260,14 +260,15 @@ class _LoginWebviewPageState extends ConsumerState<LoginWebviewPage> {
   Widget build(BuildContext context) {
     final isMobile = Platform.isAndroid || Platform.isIOS;
     final isRu = Localizations.localeOf(context).languageCode == 'ru';
+    final s = LoginStrings(isRu);
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(isRu ? 'Вход в MangaLib' : 'MangaLib Login'),
+        title: Text(s.title),
         actions: [
           IconButton(
             icon: const Icon(Icons.paste_rounded),
-            tooltip: isRu ? 'Вставить Cookie вручную' : 'Paste Cookie manually',
+            tooltip: s.pasteCookieTooltip,
             onPressed: () => _showManualCookieDialog(context, isRu),
           ),
           if (isMobile)
@@ -319,16 +320,14 @@ class _LoginWebviewPageState extends ConsumerState<LoginWebviewPage> {
                             ),
                             const SizedBox(width: 14),
                             Text(
-                              isRu ? 'Авторизация MangaLib' : 'MangaLib Authorization',
+                              s.authorization,
                               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
                             ),
                           ],
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          isRu 
-                            ? 'Для входа на десктопе откройте страницу авторизации в браузере, пройдите капчу и вставьте сюда Cookie-строку (mangalib_session=...; XSRF-TOKEN=...) или JSON-экспорт cookie:'
-                            : 'Open login in browser, solve captcha, then paste the Cookie header or the JSON cookie export below:',
+                          s.desktopInstructions,
                           style: const TextStyle(color: AppTokens.textSecondary, fontSize: 13, height: 1.4),
                         ),
                         const SizedBox(height: 16),
@@ -345,7 +344,7 @@ class _LoginWebviewPageState extends ConsumerState<LoginWebviewPage> {
                             }
                           },
                           icon: const Icon(Icons.open_in_browser_rounded, size: 18),
-                          label: Text(isRu ? 'Открыть mangalib.org/ru/front/auth' : 'Open in Browser'),
+                          label: Text(s.openInBrowser),
                         ),
                         const SizedBox(height: 16),
                         TextField(
@@ -372,7 +371,7 @@ class _LoginWebviewPageState extends ConsumerState<LoginWebviewPage> {
                             }
                           },
                           icon: const Icon(Icons.check_circle_outline_rounded, size: 18),
-                          label: Text(isRu ? 'Сохранить и войти' : 'Save & Login'),
+                          label: Text(s.saveAndLogin),
                         ),
                       ],
                     ),
@@ -385,12 +384,13 @@ class _LoginWebviewPageState extends ConsumerState<LoginWebviewPage> {
   }
 
   void _showManualCookieDialog(BuildContext context, bool isRu) {
+    final s = LoginStrings(isRu);
     final textController = TextEditingController();
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppTokens.surfaceRaised,
-        title: Text(isRu ? 'Вставить Cookie' : 'Paste Cookie', style: const TextStyle(color: Colors.white)),
+        title: Text(s.pasteCookie, style: const TextStyle(color: Colors.white)),
         content: TextField(
           controller: textController,
           maxLines: 4,
@@ -401,7 +401,7 @@ class _LoginWebviewPageState extends ConsumerState<LoginWebviewPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text(isRu ? 'Отмена' : 'Cancel'),
+            child: Text(s.cancel),
           ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: AppTokens.accent),
@@ -411,7 +411,7 @@ class _LoginWebviewPageState extends ConsumerState<LoginWebviewPage> {
                 _applyCookies(textController.text.trim());
               }
             },
-            child: Text(isRu ? 'Применить' : 'Apply'),
+            child: Text(s.apply),
           ),
         ],
       ),

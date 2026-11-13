@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mangaloader/l10n/strings/update_strings.dart';
 import 'package:mangaloader/providers/settings_provider.dart';
 import 'package:mangaloader/services/update_checker.dart';
 import 'package:mangaloader/services/update_downloader.dart';
@@ -31,6 +32,7 @@ class AppUpdateBottomSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isAmoled = ref.watch(amoledModeProvider);
+    final s = UpdateStrings(isRu);
 
     String archInfo = '';
     try {
@@ -117,7 +119,7 @@ class AppUpdateBottomSheet extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          isRu ? 'Доступно обновление' : 'Update Available',
+                          s.updateAvailable,
                           style: const TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
@@ -175,7 +177,7 @@ class AppUpdateBottomSheet extends ConsumerWidget {
                   ),
                   IconButton(
                     icon: const Icon(Icons.close_rounded, color: AppTokens.textSecondary),
-                    tooltip: isRu ? 'Закрыть' : 'Close',
+                    tooltip: s.close,
                     onPressed: () => Navigator.pop(context),
                   ),
                 ],
@@ -241,7 +243,7 @@ class AppUpdateBottomSheet extends ConsumerWidget {
                     const Icon(Icons.receipt_long_rounded, size: 16, color: AppTokens.accent),
                     const SizedBox(width: 6),
                     Text(
-                      isRu ? 'Список изменений:' : 'What\'s new:',
+                      s.whatsNew,
                       style: const TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.bold,
@@ -282,6 +284,7 @@ class AppUpdateBottomSheet extends ConsumerWidget {
 
   Widget _buildActionPanel(BuildContext context, WidgetRef ref, ReleaseAsset? asset) {
     final downloadState = ref.watch(updateDownloadStateProvider);
+    final s = UpdateStrings(isRu);
 
     if (downloadState.status == UpdateDownloadStatus.downloading) {
       final percentStr = (downloadState.progress * 100).toStringAsFixed(0);
@@ -295,7 +298,7 @@ class AppUpdateBottomSheet extends ConsumerWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                isRu ? 'Загрузка обновления...' : 'Downloading update...',
+                s.downloading,
                 style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white),
               ),
               Container(
@@ -335,7 +338,7 @@ class AppUpdateBottomSheet extends ConsumerWidget {
                   ref.read(updateDownloadStateProvider.notifier).state = const UpdateDownloadState();
                 },
                 child: Text(
-                  isRu ? 'Отмена' : 'Cancel',
+                  s.cancel,
                   style: const TextStyle(color: Colors.redAccent, fontSize: 12, fontWeight: FontWeight.w600),
                 ),
               ),
@@ -363,7 +366,7 @@ class AppUpdateBottomSheet extends ConsumerWidget {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    isRu ? 'Файл обновления успешно загружен' : 'Update file downloaded successfully',
+                    s.downloaded,
                     style: const TextStyle(fontSize: 12.5, color: Colors.greenAccent, fontWeight: FontWeight.w600),
                   ),
                 ),
@@ -382,13 +385,13 @@ class AppUpdateBottomSheet extends ConsumerWidget {
               final ok = await AppUpdateDownloader.installOrOpen(downloadState.downloadedFile!);
               if (!ok && context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(isRu ? 'Не удалось запустить установщик' : 'Failed to launch installer')),
+                  SnackBar(content: Text(s.installFailed)),
                 );
               }
             },
             icon: const Icon(Icons.install_mobile_rounded, size: 20),
             label: Text(
-              isRu ? 'Установить обновление' : 'Install Update',
+              s.installUpdate,
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
             ),
           ),
@@ -414,7 +417,7 @@ class AppUpdateBottomSheet extends ConsumerWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    '${isRu ? "Ошибка загрузки:" : "Download failed:"} ${downloadState.error ?? ""}',
+                    s.downloadFailed(downloadState.error ?? ''),
                     style: const TextStyle(fontSize: 12, color: Colors.redAccent),
                   ),
                 ),
@@ -440,7 +443,7 @@ class AppUpdateBottomSheet extends ConsumerWidget {
               }
             },
             icon: const Icon(Icons.refresh_rounded, size: 20),
-            label: Text(isRu ? 'Повторить загрузку' : 'Retry Download'),
+            label: Text(s.retryDownload),
           ),
         ],
       );
@@ -475,7 +478,7 @@ class AppUpdateBottomSheet extends ConsumerWidget {
           },
           icon: const Icon(Icons.download_rounded, size: 20),
           label: Text(
-            isRu ? 'Скачать и установить$sizeLabel' : 'Download and Install$sizeLabel',
+            s.downloadAndInstall(sizeLabel),
             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
           ),
         ),
@@ -497,14 +500,14 @@ class AppUpdateBottomSheet extends ConsumerWidget {
                   }
                 },
                 icon: const Icon(Icons.open_in_browser_rounded, size: 16),
-                label: Text(isRu ? 'GitHub релиз' : 'GitHub Release', style: const TextStyle(fontSize: 12)),
+                label: Text(s.githubRelease, style: const TextStyle(fontSize: 12)),
               ),
             ),
             const SizedBox(width: 8),
             TextButton(
               onPressed: () => Navigator.pop(context),
               child: Text(
-                isRu ? 'Позже' : 'Later',
+                s.later,
                 style: const TextStyle(color: AppTokens.textSecondary, fontSize: 12),
               ),
             ),

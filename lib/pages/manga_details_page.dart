@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart' hide DownloadProgress;
 import 'package:window_manager/window_manager.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:mangaloader/l10n/strings/details_strings.dart';
 import 'package:mangaloader/providers/manga_provider.dart';
 import 'package:mangaloader/providers/download_provider.dart';
 import 'package:mangaloader/providers/library_provider.dart';
@@ -75,6 +76,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
     final chaptersAsync = ref.watch(mangaChaptersProvider(widget.slugUrl));
     final downloadList = ref.watch(downloadProvider);
     final isRu = Localizations.localeOf(context).languageCode == 'ru';
+    final s = DetailsStrings(isRu);
 
     ref.listen<int>(downloadCompletionTickProvider, (_, __) {
       ref.invalidate(mangaDownloadedChaptersProvider);
@@ -121,9 +123,9 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                       unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.normal, fontSize: 13),
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                       tabs: [
-                        Tab(text: isRu ? 'О тайтле' : 'About'),
-                        Tab(text: isRu ? 'Главы' : 'Chapters'),
-                        Tab(text: isRu ? 'Комментарии' : 'Comments'),
+                        Tab(text: s.tabAbout),
+                        Tab(text: s.tabChapters),
+                        Tab(text: s.comments),
                       ],
                     ),
                   ),
@@ -148,12 +150,11 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
         },
         loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
         error: (e, _) {
-          final isRu = Localizations.localeOf(context).languageCode == 'ru';
           final cleanError = e.toString().replaceAll('Exception: ', '');
           final isBlocked = cleanError.contains('законодательства РФ') || cleanError.contains('regulations');
           if (isBlocked) {
             return Scaffold(
-              appBar: AppBar(title: Text(isRu ? 'Контент недоступен' : 'Content Unavailable')),
+              appBar: AppBar(title: Text(s.contentUnavailable)),
               body: Center(
                 child: Padding(
                   padding: const EdgeInsets.all(32),
@@ -174,7 +175,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
             );
           }
           return Scaffold(
-            appBar: AppBar(title: Text(isRu ? 'Ошибка' : 'Error')),
+            appBar: AppBar(title: Text(s.errorTitle)),
             body: Center(
               child: Padding(
                 padding: const EdgeInsets.all(24),
@@ -183,12 +184,12 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                   children: [
                     const Icon(Icons.error_outline_rounded, size: 48, color: Colors.grey),
                     const SizedBox(height: 12),
-                    Text(isRu ? 'Не удалось загрузить информацию: $e' : 'Failed to load info: $e', textAlign: TextAlign.center),
+                    Text(s.loadFailed('$e'), textAlign: TextAlign.center),
                     const SizedBox(height: 16),
                     ElevatedButton.icon(
                       onPressed: () => ref.invalidate(mangaDetailsProvider(widget.slugUrl)),
                       icon: const Icon(Icons.refresh_rounded),
-                      label: Text(isRu ? 'Повторить' : 'Retry'),
+                      label: Text(s.retry),
                     ),
                   ],
                 ),
@@ -219,6 +220,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
     bool isInLibrary,
     Color dynamicAccent,
   ) {
+    final s = DetailsStrings(isRu);
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -255,18 +257,18 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                   children: [
                     IconButton(
                       icon: const Icon(Icons.arrow_back_rounded, color: Colors.white, size: 22),
-                      tooltip: isRu ? 'Назад' : 'Back',
+                      tooltip: s.back,
                       onPressed: () => context.pop(),
                     ),
                     const Spacer(),
                     IconButton(
                       icon: const Icon(Icons.share_rounded, color: AppTokens.textPrimary, size: 20),
-                      tooltip: isRu ? 'Поделиться' : 'Share',
+                      tooltip: s.share,
                       onPressed: () => MangaShareModal.show(context, manga, dynamicAccent),
                     ),
                     IconButton(
                       icon: const Icon(Icons.open_in_browser_rounded, color: AppTokens.textPrimary, size: 20),
-                      tooltip: isRu ? 'Открыть на MangaLib' : 'Open on MangaLib',
+                      tooltip: s.openOnMangalib,
                       onPressed: () async {
                         final uri = Uri.parse('https://mangalib.org/ru/manga/${manga.slugUrl}');
                         if (await canLaunchUrl(uri)) {
@@ -406,7 +408,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                               const Icon(Icons.menu_book_rounded, color: AppTokens.textSecondary, size: 13),
                               const SizedBox(width: 3),
                               Text(
-                                '${manga.chaptersCount} ${isRu ? "глав" : "chapters"}',
+                                s.chaptersCount('${manga.chaptersCount}'),
                                 style: const TextStyle(color: AppTokens.textSecondary, fontSize: 11),
                               ),
                             ],
@@ -476,14 +478,14 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                             final lastProg = history.firstOrNull;
                             if (lastProg != null) {
                               return Text(
-                                isRu ? 'Продолжить (Т.${lastProg.volume} Гл.${lastProg.number})' : 'Continue (V.${lastProg.volume} C.${lastProg.number})',
+                                s.continueReading(lastProg.volume, lastProg.number),
                                 style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               );
                             }
                             return Text(
-                              isRu ? 'Начать чтение' : 'Start Reading',
+                              s.startReading,
                               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                             );
                           },
@@ -513,7 +515,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                             setState(() {});
                             if (context.mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text(isRu ? 'Добавлено в библиотеку (Читаю)' : 'Added to library (Reading)')),
+                                SnackBar(content: Text(s.addedToLibrary)),
                               );
                             }
                           } else {
@@ -526,7 +528,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                           color: isInLibrary ? AppTokens.textPrimary : AppTokens.textSecondary,
                         ),
                         label: Text(
-                          isInLibrary ? (isRu ? 'В списке' : 'In list') : (isRu ? 'В библиотеку' : 'Bookmark'),
+                          isInLibrary ? s.inList : s.bookmark,
                           style: const TextStyle(fontSize: 12),
                         ),
                       ),
@@ -539,7 +541,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                         padding: const EdgeInsets.all(10),
                       ),
                       icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18, color: AppTokens.textPrimary),
-                      tooltip: isRu ? 'Комментарии' : 'Comments',
+                      tooltip: s.comments,
                       onPressed: () {
                         MangaCommentsModal.show(
                           context,
@@ -571,6 +573,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
     final downloadedAsync = ref.watch(mangaDownloadedChaptersProvider(manga.id));
     final downloadedChapters = downloadedAsync.value ?? [];
     final history = historyAsync.value ?? [];
+    final s = DetailsStrings(isRu);
 
     return chaptersAsync.when(
       data: (rawChapters) {
@@ -602,18 +605,18 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                   const SizedBox(height: 12),
                   Text(
                     isLicensed
-                      ? (isRu ? 'Тайтл лицензирован правообладателем' : 'Title is officially licensed')
-                      : (isRu ? 'Список глав пуст' : 'No chapters available'),
+                      ? s.licensed
+                      : s.emptyChapters,
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 8),
                   Text(
                     isLicensed
-                      ? (isRu
-                          ? 'Главы удалены из открытого доступа MangaLib по требованию правообладателя${manga.publisherName != null && manga.publisherName!.isNotEmpty ? " (${manga.publisherName})" : ""}.'
-                          : 'Chapters have been removed from MangaLib by the copyright holder${manga.publisherName != null && manga.publisherName!.isNotEmpty ? " (${manga.publisherName})" : ""}.')
-                      : (isRu ? 'На сервере MangaLib пока нет загруженных глав для этого тайтла.' : 'No chapters uploaded on MangaLib yet.'),
+                      ? s.licensedDescription(
+                          manga.publisherName != null && manga.publisherName!.isNotEmpty ? ' (${manga.publisherName})' : '',
+                        )
+                      : s.noChaptersUploaded,
                     style: const TextStyle(color: AppTokens.textSecondary, fontSize: 13, height: 1.4),
                     textAlign: TextAlign.center,
                   ),
@@ -633,7 +636,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                           }
                         },
                         icon: const Icon(Icons.open_in_browser_rounded, size: 16),
-                        label: Text(isRu ? 'Открыть на MangaLib' : 'Open on MangaLib'),
+                        label: Text(s.openOnMangalib),
                       ),
                       const SizedBox(width: 8),
                       FilledButton.icon(
@@ -642,7 +645,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                           ref.invalidate(mangaChaptersProvider(widget.slugUrl));
                         },
                         icon: const Icon(Icons.refresh_rounded, size: 16),
-                        label: Text(isRu ? 'Обновить' : 'Refresh'),
+                        label: Text(s.refresh),
                       ),
                     ],
                   ),
@@ -694,7 +697,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                 Expanded(
                   child: TextField(
                     decoration: InputDecoration(
-                      hintText: isRu ? 'Номер тома или главы...' : 'Chapter number...',
+                      hintText: s.chapterSearchHint,
                       prefixIcon: const Icon(Icons.search_rounded, size: 18),
                       isDense: true,
                       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -707,7 +710,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                 ),
                 const SizedBox(width: 6),
                 IconButton(
-                  tooltip: _isBatchMode ? (isRu ? 'Обычный режим' : 'Exit batch') : (isRu ? 'Выбрать несколько глав' : 'Batch select'),
+                  tooltip: _isBatchMode ? s.exitBatch : s.batchSelect,
                   icon: Icon(_isBatchMode ? Icons.checklist_rtl_rounded : Icons.checklist_rounded, size: 20, color: _isBatchMode ? AppTokens.accent : null),
                   onPressed: () => setState(() {
                     _isBatchMode = !_isBatchMode;
@@ -715,7 +718,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                   }),
                 ),
                 IconButton(
-                  tooltip: _isAscending ? (isRu ? 'Сначала старые' : 'Oldest first') : (isRu ? 'Сначала новые' : 'Newest first'),
+                  tooltip: _isAscending ? s.oldestFirst : s.newestFirst,
                   icon: Icon(_isAscending ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded, size: 20),
                   onPressed: () => setState(() => _isAscending = !_isAscending),
                 ),
@@ -730,7 +733,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
               child: Row(
                 children: [
                   ChoiceChip(
-                    label: Text(isRu ? 'Все (${chapters.length})' : 'All (${chapters.length})'),
+                    label: Text(s.allFilter('${chapters.length}')),
                     selected: _chapterFilter == 'all',
                     selectedColor: AppTokens.accent,
                     backgroundColor: AppTokens.surfaceRaised,
@@ -749,7 +752,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                   ),
                   const SizedBox(width: 6),
                   ChoiceChip(
-                    label: Text(isRu ? 'Скачанные (${downloadedChapters.length})' : 'Downloaded (${downloadedChapters.length})'),
+                    label: Text(s.downloadedFilter('${downloadedChapters.length}')),
                     selected: _chapterFilter == 'downloaded',
                     selectedColor: AppTokens.accent,
                     backgroundColor: AppTokens.surfaceRaised,
@@ -768,7 +771,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                   ),
                   const SizedBox(width: 6),
                   ChoiceChip(
-                    label: Text(isRu ? 'Непрочитанные' : 'Unread'),
+                    label: Text(s.unread),
                     selected: _chapterFilter == 'unread',
                     selectedColor: AppTokens.accent,
                     backgroundColor: AppTokens.surfaceRaised,
@@ -822,8 +825,8 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                       ),
                       label: Text(
                         _selectedChapters.length == list.where((c) => !c.isPaid).length && list.isNotEmpty
-                            ? (isRu ? 'Снять выбор' : 'Deselect')
-                            : (isRu ? 'Все (${list.where((c) => !c.isPaid).length})' : 'All (${list.where((c) => !c.isPaid).length})'),
+                            ? s.deselect
+                            : s.allFilter('${list.where((c) => !c.isPaid).length}'),
                         style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
                       ),
                     ),
@@ -865,9 +868,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text(
-                                isRu
-                                  ? 'В очереди на загрузку: ${toDownload.length} глав'
-                                  : 'Queued ${toDownload.length} chapters for download',
+                                s.queuedForDownload('${toDownload.length}'),
                               ),
                             ),
                           );
@@ -879,7 +880,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                       },
                       icon: const Icon(Icons.download_rounded, size: 16),
                       label: Text(
-                        isRu ? 'Скачать (${_selectedChapters.length})' : 'Download (${_selectedChapters.length})',
+                        s.downloadCount('${_selectedChapters.length}'),
                         style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                       ),
                     ),
@@ -989,7 +990,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                   title: Row(
                     children: [
                       Text(
-                        isRu ? 'Том ${ch.volume} Глава ${ch.number}' : 'Vol. ${ch.volume} Ch. ${ch.number}',
+                        s.volumeChapter(ch.volume, ch.number),
                         style: TextStyle(
                           fontWeight: FontWeight.w600,
                           color: isRead ? AppTokens.textSecondary : Colors.white,
@@ -998,15 +999,15 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                       if (localChapter != null && localChapter.pageCount > 0) ...[
                         const SizedBox(width: 6),
                         Text(
-                          isRu ? '• ${localChapter.pageCount} стр.' : '• ${localChapter.pageCount} p.',
+                          s.pages('${localChapter.pageCount}'),
                           style: const TextStyle(fontSize: 11, color: AppTokens.textSecondary),
                         ),
                       ] else if (history.any((h) => h.volume == ch.volume && h.number == ch.number && h.totalPages > 0)) ...[
                         const SizedBox(width: 6),
                         Text(
-                          isRu
-                              ? '• ${history.firstWhere((h) => h.volume == ch.volume && h.number == ch.number).totalPages} стр.'
-                              : '• ${history.firstWhere((h) => h.volume == ch.volume && h.number == ch.number).totalPages} p.',
+                          s.pages(
+                            '${history.firstWhere((h) => h.volume == ch.volume && h.number == ch.number).totalPages}',
+                          ),
                           style: const TextStyle(fontSize: 11, color: AppTokens.textSecondary),
                         ),
                       ],
@@ -1039,7 +1040,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                               const Icon(Icons.lock_rounded, size: 11, color: Colors.amberAccent),
                               const SizedBox(width: 4),
                               Text(
-                                isRu ? 'Платно' : 'Locked',
+                                s.locked,
                                 style: const TextStyle(fontSize: 10, color: Colors.amberAccent, fontWeight: FontWeight.bold),
                               ),
                             ],
@@ -1058,10 +1059,10 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                       IconButton.filledTonal(
                         icon: Icon(ch.isPaid ? Icons.lock_outline_rounded : (isDownloadedLocally ? Icons.folder_zip_rounded : Icons.play_arrow_rounded), size: 18),
                         tooltip: ch.isPaid 
-                          ? (isRu ? 'Платный доступ' : 'Paid access') 
+                          ? s.paidAccess
                           : (isDownloadedLocally 
-                              ? (isRu ? 'Читать оффлайн (CBZ)' : 'Read offline (CBZ)')
-                              : (isRu ? 'Читать онлайн' : 'Read online')),
+                              ? s.readOffline
+                              : s.readOnline),
                         style: IconButton.styleFrom(
                           backgroundColor: ch.isPaid 
                             ? Colors.amber.shade900.withValues(alpha: 0.2) 
@@ -1101,7 +1102,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                               await DownloadQueueService.instance.retry(queueItem);
                               if (context.mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text(isRu ? 'Повторная попытка: Том ${ch.volume} Гл ${ch.number}' : 'Retrying Vol ${ch.volume} Ch ${ch.number}')),
+                                  SnackBar(content: Text(s.retryChapter(ch.volume, ch.number))),
                                 );
                               }
                               return;
@@ -1109,7 +1110,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                             if (localChapter != null) {
                               if (context.mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text(isRu ? 'Глава уже скачана' : 'Chapter is already downloaded')),
+                                  SnackBar(content: Text(s.alreadyDownloaded)),
                                 );
                               }
                               return;
@@ -1128,7 +1129,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                             );
                             if (context.mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text(isRu ? 'В очереди: Том ${ch.volume} Гл ${ch.number}' : 'Queued Vol ${ch.volume} Ch ${ch.number}')),
+                                SnackBar(content: Text(s.queuedChapter(ch.volume, ch.number))),
                               );
                             }
                           },
@@ -1172,7 +1173,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
               const Icon(Icons.cloud_off_rounded, size: 48, color: Colors.amber),
               const SizedBox(height: 12),
               Text(
-                isRu ? 'Не удалось загрузить список глав: $e' : 'Failed to load chapters: $e',
+                s.chaptersLoadFailed('$e'),
                 style: const TextStyle(color: AppTokens.textSecondary, fontSize: 13),
                 textAlign: TextAlign.center,
               ),
@@ -1181,7 +1182,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                 style: FilledButton.styleFrom(backgroundColor: AppTokens.accent),
                 onPressed: () => ref.refresh(mangaChaptersProvider(widget.slugUrl)),
                 icon: const Icon(Icons.refresh_rounded, size: 18),
-                label: Text(isRu ? 'Повторить попытку' : 'Retry'),
+                label: Text(s.retryAttempt),
               ),
             ],
           ),
@@ -1191,6 +1192,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
   }
 
   Widget _buildAboutTab(MangaDetails manga, bool isRu) {
+    final s = DetailsStrings(isRu);
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -1214,7 +1216,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                       children: [
                         const Icon(Icons.edit_note_rounded, size: 18, color: AppTokens.textPrimary),
                         const SizedBox(width: 8),
-                        Text(isRu ? 'Автор(ы):' : 'Author(s):', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                        Text(s.authors, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
@@ -1231,7 +1233,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                       children: [
                         const Icon(Icons.brush_rounded, size: 18, color: AppTokens.textPrimary),
                         const SizedBox(width: 8),
-                        Text(isRu ? 'Художник(и):' : 'Artist(s):', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                        Text(s.artists, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
@@ -1258,12 +1260,12 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  isRu ? 'Описание' : 'Synopsis',
+                  s.synopsis,
                   style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.white),
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  manga.summary.isNotEmpty ? manga.summary : (isRu ? 'Описание отсутствует' : 'No synopsis available'),
+                  manga.summary.isNotEmpty ? manga.summary : s.noSynopsis,
                   style: const TextStyle(color: AppTokens.textPrimary, fontSize: 13, height: 1.5),
                 ),
               ],
@@ -1281,7 +1283,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(isRu ? 'Жанры' : 'Genres', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                  Text(s.genres, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                   const SizedBox(height: 8),
                   Wrap(
                     spacing: 6,
@@ -1310,7 +1312,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(isRu ? 'Теги' : 'Tags', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                  Text(s.tags, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                   const SizedBox(height: 8),
                   Wrap(
                     spacing: 6,
@@ -1395,6 +1397,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
   /// Orders the franchise around the current title, so a reader who opened a
   /// sequel by accident sees what to read first.
   Widget _buildReadingOrderSection(MangaDetails manga, bool isRu) {
+    final s = DetailsStrings(isRu);
     final relations = _relations(manga.slugUrl);
     final order = buildReadingOrder(
       current: manga,
@@ -1428,7 +1431,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    isRu ? 'Порядок чтения' : 'Reading order',
+                    s.readingOrder,
                     style: const TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
@@ -1440,9 +1443,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
             ),
             const SizedBox(height: 4),
             Text(
-              isRu
-                  ? 'Франшиза целиком: от первой части к последней.'
-                  : 'The whole franchise, from the first entry to the last.',
+              s.readingOrderSubtitle,
               style: const TextStyle(fontSize: 11, color: AppTokens.textSecondary),
             ),
             const SizedBox(height: 10),
@@ -1455,8 +1456,9 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
   }
 
   Widget _buildReadingOrderRow(ReadingStep step, int index, bool isRu) {
+    final s = DetailsStrings(isRu);
     final label = step.isCurrent
-        ? (isRu ? 'вы здесь' : 'you are here')
+        ? s.youAreHere
         : (step.relationLabel.isNotEmpty ? step.relationLabel : step.formatLabel);
     final highlight = step.isCurrent ? AppTokens.accent : AppTokens.textSecondary;
 
@@ -1536,6 +1538,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
   /// Suggests the same story published in another format (manga next to a light novel).
   /// Relations catch the officially linked ones; a title lookup covers the rest.
   Widget _buildAlternateEditionsSection(MangaDetails manga, bool isRu) {
+    final s = DetailsStrings(isRu);
     final relations = _relations(manga.slugUrl);
     final editions = _otherFormats(manga, relations);
     if (editions.isEmpty) return const SizedBox.shrink();
@@ -1565,9 +1568,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    isRu
-                        ? 'Другая версия этой истории'
-                        : 'Another version of this story',
+                    s.anotherVersion,
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 13.5,
@@ -1580,7 +1581,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
             if (formats.isNotEmpty) ...[
               const SizedBox(height: 2),
               Text(
-                isRu ? 'Доступно в формате: $formats' : 'Available as: $formats',
+                s.availableAs(formats),
                 style: const TextStyle(fontSize: 11.5, color: AppTokens.textSecondary),
               ),
             ],
@@ -1684,6 +1685,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
   }
 
   Widget _buildRelationsSection(String slugUrl, bool isRu) {
+    final s = DetailsStrings(isRu);
     final relationsAsync = ref.watch(mangaRelationsProvider(slugUrl));
 
     return relationsAsync.when(
@@ -1701,7 +1703,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                   const Icon(Icons.hub_rounded, size: 18, color: AppTokens.accent),
                   const SizedBox(width: 8),
                   Text(
-                    isRu ? 'Связанное' : 'Relations',
+                    s.relations,
                     style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
                   ),
                 ],
@@ -1782,6 +1784,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
   }
 
   Widget _buildSimilarSection(String slugUrl, bool isRu) {
+    final s = DetailsStrings(isRu);
     final similarAsync = ref.watch(mangaSimilarProvider(slugUrl));
 
     return similarAsync.when(
@@ -1798,7 +1801,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                   const Icon(Icons.auto_awesome_rounded, size: 18, color: AppTokens.accent),
                   const SizedBox(width: 8),
                   Text(
-                    isRu ? 'Похожие тайтлы' : 'Similar Manga',
+                    s.similar,
                     style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
                   ),
                 ],
@@ -1890,6 +1893,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
   }
 
   Widget _buildCommentsTab(int mangaId, bool isRu) {
+    final s = DetailsStrings(isRu);
     final commentsAsync = ref.watch(mangaCommentsProvider(mangaId));
 
     return commentsAsync.when(
@@ -1907,7 +1911,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                   const Icon(Icons.forum_outlined, size: 48, color: AppTokens.accent),
                   const SizedBox(height: 12),
                   Text(
-                    isRu ? 'Пока нет комментариев' : 'No comments yet',
+                    s.noComments,
                     style: const TextStyle(color: AppTokens.textSecondary, fontSize: 14),
                   ),
                 ],
@@ -2046,18 +2050,30 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
     );
   }
 
+  String _libraryCategoryLabel(String key, DetailsStrings s) {
+    switch (key) {
+      case 'reading': return s.categoryReading;
+      case 'plan_to_read': return s.categoryPlanToRead;
+      case 'completed': return s.categoryCompleted;
+      case 'favorites': return s.categoryFavorites;
+      case 'on_hold': return s.categoryOnHold;
+      default: return s.categoryDropped;
+    }
+  }
+
   void _showLibrarySheet(BuildContext context, WidgetRef ref, MangaDetails manga, bool isRu) async {
     final currentListType = await rust_storage.getMangaListType(mangaId: manga.id);
 
     if (!context.mounted) return;
 
+    final s = DetailsStrings(isRu);
     final categories = [
-      {'key': 'reading', 'titleRu': 'Читаю', 'titleEn': 'Reading', 'icon': Icons.auto_stories_rounded},
-      {'key': 'plan_to_read', 'titleRu': 'В планах', 'titleEn': 'Plan to Read', 'icon': Icons.bookmark_outline_rounded},
-      {'key': 'completed', 'titleRu': 'Прочитано', 'titleEn': 'Completed', 'icon': Icons.check_circle_outline_rounded},
-      {'key': 'favorites', 'titleRu': 'Любимое', 'titleEn': 'Favorites', 'icon': Icons.favorite_outline_rounded},
-      {'key': 'on_hold', 'titleRu': 'Отложено', 'titleEn': 'On Hold', 'icon': Icons.pause_circle_outline_rounded},
-      {'key': 'dropped', 'titleRu': 'Брошено', 'titleEn': 'Dropped', 'icon': Icons.cancel_outlined},
+      (key: 'reading', icon: Icons.auto_stories_rounded),
+      (key: 'plan_to_read', icon: Icons.bookmark_outline_rounded),
+      (key: 'completed', icon: Icons.check_circle_outline_rounded),
+      (key: 'favorites', icon: Icons.favorite_outline_rounded),
+      (key: 'on_hold', icon: Icons.pause_circle_outline_rounded),
+      (key: 'dropped', icon: Icons.cancel_outlined),
     ];
 
     showModalBottomSheet(
@@ -2071,19 +2087,19 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                isRu ? 'Категория в библиотеке' : 'Library Category',
+                s.libraryCategory,
                 style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
               ),
               const Divider(height: 20),
               ...categories.map((cat) {
-                final isSelected = currentListType == cat['key'];
+                final isSelected = currentListType == cat.key;
                 return ListTile(
                   leading: Icon(
-                    cat['icon'] as IconData, 
+                    cat.icon, 
                     color: isSelected ? AppTokens.accent : AppTokens.textSecondary,
                   ),
                   title: Text(
-                    isRu ? (cat['titleRu'] as String) : (cat['titleEn'] as String),
+                    _libraryCategoryLabel(cat.key, s),
                     style: TextStyle(
                       color: isSelected ? Colors.white : AppTokens.textPrimary,
                       fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
@@ -2093,13 +2109,13 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                   onTap: () async {
                     Navigator.pop(ctx);
                     await rust_storage.saveManga(manga: manga);
-                    await ref.read(libraryProvider.notifier).addToList(manga.id, cat['key'] as String);
+                    await ref.read(libraryProvider.notifier).addToList(manga.id, cat.key);
                     ref.invalidate(libraryProvider);
                     setState(() {});
                     if (context.mounted) {
-                      final name = isRu ? cat['titleRu'] : cat['titleEn'];
+                      final name = _libraryCategoryLabel(cat.key, s);
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(isRu ? 'Перенесено в: $name' : 'Moved to: $name')),
+                        SnackBar(content: Text(s.movedTo(name))),
                       );
                     }
                   },
@@ -2108,7 +2124,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
               const Divider(),
               ListTile(
                 leading: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
-                title: Text(isRu ? 'Удалить из библиотеки' : 'Remove from library', style: const TextStyle(color: Colors.redAccent)),
+                title: Text(s.removeFromLibrary, style: const TextStyle(color: Colors.redAccent)),
                 onTap: () async {
                   Navigator.pop(ctx);
                   await ref.read(libraryProvider.notifier).removeFromList(manga.id, 'all');
@@ -2116,7 +2132,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                   setState(() {});
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(isRu ? 'Удалено из библиотеки' : 'Removed from library')),
+                      SnackBar(content: Text(s.removedFromLibrary)),
                     );
                   }
                 },

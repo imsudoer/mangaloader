@@ -24,6 +24,7 @@ import 'pages/statistics_page.dart';
 import 'pages/history_page.dart';
 import 'widgets/offline_banner.dart';
 import 'widgets/manga_card.dart' show CoverHeroScope;
+import 'l10n/strings/shell_strings.dart';
 import 'providers/settings_provider.dart';
 
 import 'services/streak_notification_service.dart';
@@ -367,7 +368,7 @@ class _AppShellState extends State<AppShell> {
 
   @override
   Widget build(BuildContext context) {
-    final isRu = Localizations.localeOf(context).languageCode == 'ru';
+    final s = ShellStrings.of(context);
     final selectedIndex = _selectedIndex;
 
     return Scaffold(
@@ -419,7 +420,7 @@ class _AppShellState extends State<AppShell> {
                 _buildNavItem(
                   index: 0,
                   selectedIndex: selectedIndex,
-                  label: isRu ? 'Главная' : 'Home',
+                  label: s.home,
                   icon: Icons.home_outlined,
                   selectedIcon: Icons.home_rounded,
                   onTap: () => _navigateTo(0, '/'),
@@ -427,7 +428,7 @@ class _AppShellState extends State<AppShell> {
                 _buildNavItem(
                   index: 1,
                   selectedIndex: selectedIndex,
-                  label: isRu ? 'Каталог' : 'Catalog',
+                  label: s.catalog,
                   icon: Icons.explore_outlined,
                   selectedIcon: Icons.explore_rounded,
                   onTap: () => _navigateTo(1, '/search'),
@@ -435,7 +436,7 @@ class _AppShellState extends State<AppShell> {
                 _buildNavItem(
                   index: 2,
                   selectedIndex: selectedIndex,
-                  label: isRu ? 'Библиотека' : 'Library',
+                  label: s.library,
                   icon: Icons.collections_bookmark_outlined,
                   selectedIcon: Icons.collections_bookmark_rounded,
                   onTap: () => _navigateTo(2, '/library'),
@@ -443,7 +444,7 @@ class _AppShellState extends State<AppShell> {
                 _buildNavItem(
                   index: 3,
                   selectedIndex: selectedIndex,
-                  label: isRu ? 'Загрузки' : 'Downloads',
+                  label: s.downloads,
                   icon: Icons.download_outlined,
                   selectedIcon: Icons.download_rounded,
                   onTap: () => _navigateTo(3, '/downloads'),
@@ -451,7 +452,7 @@ class _AppShellState extends State<AppShell> {
                 _buildNavItem(
                   index: 4,
                   selectedIndex: selectedIndex,
-                  label: isRu ? 'Профиль' : 'Profile',
+                  label: s.profile,
                   icon: Icons.person_outline_rounded,
                   selectedIcon: Icons.person_rounded,
                   onTap: () => _navigateTo(4, '/profile'),

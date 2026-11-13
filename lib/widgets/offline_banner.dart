@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mangaloader/providers/connectivity_provider.dart';
+import 'package:mangaloader/l10n/strings/shell_strings.dart';
 import 'package:mangaloader/theme/app_tokens.dart';
 
 class OfflineBanner extends ConsumerWidget {
@@ -11,7 +12,7 @@ class OfflineBanner extends ConsumerWidget {
     final isOnline = ref.watch(isOnlineProvider);
     if (isOnline) return const SizedBox.shrink();
 
-    final isRu = Localizations.localeOf(context).languageCode == 'ru';
+    final s = ShellStrings.of(context);
     // The shell has no app bar of its own, so the banner starts at the very top of
     // the screen and must keep its text below the system status bar.
     final topInset = MediaQuery.paddingOf(context).top;
@@ -30,9 +31,7 @@ class OfflineBanner extends ConsumerWidget {
           const SizedBox(width: 8),
           Flexible(
             child: Text(
-              isRu
-                  ? 'Оффлайн-режим — доступны скачанные тайтлы и кэш'
-                  : 'Offline Mode — downloaded manga and cache available',
+              s.offlineBanner,
               style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
               textAlign: TextAlign.center,
               maxLines: 1,

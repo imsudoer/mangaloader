@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mangaloader/l10n/strings/custom_lists_strings.dart';
 import 'package:mangaloader/providers/custom_lists_provider.dart';
 import 'package:mangaloader/src/rust/api/storage.dart' as rust_storage;
 import 'package:mangaloader/theme/app_tokens.dart';
@@ -41,23 +42,24 @@ class _MangaCustomListsModalState extends ConsumerState<MangaCustomListsModal> {
   }
 
   void _showCreateListDialog() {
+    final s = CustomListsStrings(widget.isRu);
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppTokens.surfaceCard,
-        title: Text(widget.isRu ? 'Новый список' : 'New List'),
+        title: Text(s.newList),
         content: TextField(
           controller: _newListController,
           autofocus: true,
           decoration: InputDecoration(
-            hintText: widget.isRu ? 'Название списка (напр. Шедевры)' : 'List name (e.g. Masterpieces)',
+            hintText: s.listNameHint,
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text(widget.isRu ? 'Отмена' : 'Cancel'),
+            child: Text(s.cancel),
           ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: AppTokens.accent),
@@ -73,7 +75,7 @@ class _MangaCustomListsModalState extends ConsumerState<MangaCustomListsModal> {
                 if (ctx.mounted) Navigator.pop(ctx);
               }
             },
-            child: Text(widget.isRu ? 'Создать' : 'Create'),
+            child: Text(s.create),
           ),
         ],
       ),
@@ -89,6 +91,7 @@ class _MangaCustomListsModalState extends ConsumerState<MangaCustomListsModal> {
 
   @override
   Widget build(BuildContext context) {
+    final s = CustomListsStrings(widget.isRu);
     final customListsAsync = ref.watch(customListsProvider);
     final mangaListsAsync = ref.watch(mangaCustomListsProvider(widget.mangaId));
     final tagsAsync = ref.watch(mangaCustomTagsProvider(widget.mangaId));
@@ -126,12 +129,12 @@ class _MangaCustomListsModalState extends ConsumerState<MangaCustomListsModal> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    widget.isRu ? 'Пользовательские списки и теги' : 'Custom Lists & Tags',
+                    s.title,
                     style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
                   ),
                   IconButton(
                     icon: const Icon(Icons.add_rounded, color: AppTokens.accent),
-                    tooltip: widget.isRu ? 'Создать список' : 'New List',
+                    tooltip: s.createListTooltip,
                     onPressed: _showCreateListDialog,
                   ),
                 ],
@@ -140,7 +143,7 @@ class _MangaCustomListsModalState extends ConsumerState<MangaCustomListsModal> {
 
               // Custom Lists Section
               Text(
-                widget.isRu ? 'Персональные списки:' : 'Personal Lists:',
+                s.personalLists,
                 style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: AppTokens.textSecondary),
               ),
               const SizedBox(height: 6),
@@ -151,7 +154,7 @@ class _MangaCustomListsModalState extends ConsumerState<MangaCustomListsModal> {
                     return Padding(
                       padding: const EdgeInsets.symmetric(vertical: 8),
                       child: Text(
-                        widget.isRu ? 'Списков пока нет. Нажмите + чтобы создать!' : 'No custom lists yet. Tap + to create one!',
+                        s.emptyLists,
                         style: const TextStyle(fontSize: 12, color: AppTokens.accent),
                       ),
                     );
@@ -204,7 +207,7 @@ class _MangaCustomListsModalState extends ConsumerState<MangaCustomListsModal> {
 
               // Custom Tags Section
               Text(
-                widget.isRu ? 'Персональные теги:' : 'Personal Tags:',
+                s.personalTags,
                 style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: AppTokens.textSecondary),
               ),
               const SizedBox(height: 8),
@@ -234,7 +237,7 @@ class _MangaCustomListsModalState extends ConsumerState<MangaCustomListsModal> {
                           controller: _tagController,
                           style: const TextStyle(fontSize: 12, color: Colors.white),
                           decoration: InputDecoration(
-                            hintText: widget.isRu ? '+ Добавить тег' : '+ Add tag',
+                            hintText: s.addTag,
                             hintStyle: const TextStyle(fontSize: 11.5, color: AppTokens.accent),
                             contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: AppTokens.borderStrong)),

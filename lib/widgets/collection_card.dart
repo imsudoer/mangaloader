@@ -4,6 +4,7 @@ import 'package:mangaloader/src/rust/api/models.dart';
 import 'package:mangaloader/services/content_filter.dart';
 import 'package:mangaloader/widgets/collection_details_modal.dart';
 import 'package:mangaloader/theme/app_tokens.dart';
+import 'package:mangaloader/l10n/strings/collection_strings.dart';
 
 class CollectionCard extends StatelessWidget {
   final MangaCollectionItem collection;
@@ -15,7 +16,7 @@ class CollectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isRu = Localizations.localeOf(context).languageCode == 'ru';
+    final s = CollectionStrings.of(context);
 
     // A user collection may be titled after prohibited media, so it is hidden in
     // builds that are subject to the local content regulations.
@@ -65,7 +66,7 @@ class CollectionCard extends StatelessWidget {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      collection.username.isNotEmpty ? collection.username : (isRu ? 'Пользователь' : 'User'),
+                      collection.username.isNotEmpty ? collection.username : (s.user),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(fontSize: 11, color: AppTokens.textPrimary, fontWeight: FontWeight.w500),
@@ -134,7 +135,7 @@ class CollectionCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
-                      isRu ? 'Открыть' : 'View',
+                      s.view,
                       style: const TextStyle(fontSize: 10, color: AppTokens.textPrimary, fontWeight: FontWeight.bold),
                     ),
                   ),

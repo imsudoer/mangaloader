@@ -5,6 +5,7 @@ import 'package:flutter/rendering.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:mangaloader/l10n/strings/share_strings.dart';
 import 'package:mangaloader/src/rust/api/models.dart';
 import 'package:mangaloader/theme/app_tokens.dart';
 
@@ -52,9 +53,8 @@ class _MangaShareModalState extends State<MangaShareModal> {
       final file = File('${tempDir.path}/manga_card_${widget.manga.id}_${DateTime.now().millisecondsSinceEpoch}.png');
       await file.writeAsBytes(pngBytes);
       if (!mounted) return;
-      final isRu = Localizations.localeOf(context).languageCode == 'ru';
       final title = widget.manga.rusName.isNotEmpty ? widget.manga.rusName : widget.manga.name;
-      final shareText = '$title\nhttps://mangalib.org/ru/manga/${widget.manga.slugUrl}\n${isRu ? "Читайте в MangaLoader!" : "Read on MangaLoader!"}';
+      final shareText = '$title\nhttps://mangalib.org/ru/manga/${widget.manga.slugUrl}\n${ShareStrings.of(context).shareText}';
 
       await SharePlus.instance.share(
         ShareParams(
@@ -64,9 +64,8 @@ class _MangaShareModalState extends State<MangaShareModal> {
       );
     } catch (e) {
       if (mounted) {
-        final isRu = Localizations.localeOf(context).languageCode == 'ru';
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(isRu ? 'Ошибка создания карточки: $e' : 'Failed to create card: $e')),
+          SnackBar(content: Text(ShareStrings.of(context).createFailed('$e'))),
         );
       }
     } finally {
@@ -79,6 +78,7 @@ class _MangaShareModalState extends State<MangaShareModal> {
   @override
   Widget build(BuildContext context) {
     final isRu = Localizations.localeOf(context).languageCode == 'ru';
+    final s = ShareStrings(isRu);
     final title = widget.manga.rusName.isNotEmpty ? widget.manga.rusName : widget.manga.name;
     final ratingNum = double.tryParse(widget.manga.ratingAverage) ?? 0.0;
 
@@ -108,7 +108,7 @@ class _MangaShareModalState extends State<MangaShareModal> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                isRu ? 'Поделиться тайтлом' : 'Share Title Card',
+                s.shareTitle,
                 style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
               ),
               IconButton(
@@ -251,7 +251,7 @@ class _MangaShareModalState extends State<MangaShareModal> {
                                     const Icon(Icons.library_books_rounded, size: 14, color: Color(0xFF81C784)),
                                     const SizedBox(width: 4),
                                     Text(
-                                      isRu ? '${widget.manga.chaptersCount} глав' : '${widget.manga.chaptersCount} chapters',
+                                      s.chaptersCount('${widget.manga.chaptersCount}'),
                                       style: const TextStyle(fontSize: 12, color: Color(0xFF81C784), fontWeight: FontWeight.w600),
                                     ),
                                   ],
@@ -334,7 +334,7 @@ class _MangaShareModalState extends State<MangaShareModal> {
                     );
                   },
                   icon: const Icon(Icons.link_rounded, size: 18),
-                  label: Text(isRu ? 'Только ссылка' : 'Link only'),
+                  label: Text(s.linkOnly),
                 ),
               ),
               const SizedBox(width: 12),
@@ -350,7 +350,7 @@ class _MangaShareModalState extends State<MangaShareModal> {
                   icon: _isExporting
                       ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                       : const Icon(Icons.image_rounded, size: 18),
-                  label: Text(isRu ? 'Поделиться карточкой' : 'Share Card'),
+                  label: Text(s.shareCard),
                 ),
               ),
             ],

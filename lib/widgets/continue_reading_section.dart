@@ -5,6 +5,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:mangaloader/providers/continue_reading_provider.dart';
 import 'package:mangaloader/src/rust/api/models.dart';
 import 'package:mangaloader/theme/app_tokens.dart';
+import 'package:mangaloader/l10n/strings/continue_reading_strings.dart';
 
 class ContinueReadingSection extends ConsumerWidget {
   final bool isRu;
@@ -25,6 +26,7 @@ class ContinueReadingSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final s = ContinueReadingStrings(isRu);
     final continueAsync = ref.watch(continueReadingProvider);
 
     return continueAsync.when(
@@ -52,11 +54,11 @@ class ContinueReadingSection extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          isRu ? 'Продолжить чтение' : 'Continue Reading',
+                          s.title,
                           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
                         ),
                         Text(
-                          isRu ? 'Ваш текущий прогресс' : 'Your recent reading progress',
+                          s.subtitle,
                           style: const TextStyle(color: AppTokens.textSecondary, fontSize: 11),
                         ),
                       ],
@@ -64,7 +66,7 @@ class ContinueReadingSection extends ConsumerWidget {
                   ),
                   TextButton(
                     onPressed: () => context.go('/library'),
-                    child: Text(isRu ? 'Библиотека' : 'Library', style: const TextStyle(fontSize: 12, color: AppTokens.accent)),
+                    child: Text(s.library, style: const TextStyle(fontSize: 12, color: AppTokens.accent)),
                   ),
                 ],
               ),
@@ -142,7 +144,7 @@ class ContinueReadingSection extends ConsumerWidget {
                                       const Icon(Icons.menu_book_rounded, size: 12, color: AppTokens.textPrimary),
                                       const SizedBox(width: 3),
                                       Text(
-                                        '${item.unreadCount} ${isRu ? "не прочит." : "unread"}',
+                                        s.unread('${item.unreadCount}'),
                                         style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: AppTokens.textPrimary),
                                       ),
                                     ],

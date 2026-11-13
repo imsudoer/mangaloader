@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:go_router/go_router.dart';
+import 'package:mangaloader/l10n/strings/user_search_strings.dart';
 import 'package:mangaloader/src/rust/api/mangalib_client.dart' as rust_api;
 import 'package:mangaloader/src/rust/api/models.dart';
 import 'package:mangaloader/theme/app_tokens.dart';
@@ -61,6 +62,7 @@ class _UserSearchModalState extends State<UserSearchModal> {
   }
 
   void _showUserProfileDialog(UserProfile user, bool isRu) async {
+    final s = UserSearchStrings(isRu);
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -92,7 +94,7 @@ class _UserSearchModalState extends State<UserSearchModal> {
             if (user.createdAt != null && user.createdAt!.isNotEmpty) ...[
               const SizedBox(height: 6),
               Text(
-                '${isRu ? "Регистрация" : "Joined"}: ${user.createdAt!.split("T").first}',
+                s.joined(user.createdAt!.split("T").first),
                 style: const TextStyle(color: AppTokens.textSecondary, fontSize: 12),
               ),
             ],
@@ -102,7 +104,7 @@ class _UserSearchModalState extends State<UserSearchModal> {
                 const Icon(Icons.local_fire_department_rounded, color: Colors.orange, size: 16),
                 const SizedBox(width: 4),
                 Text(
-                  '${isRu ? "Стрик входа" : "Login Streak"}: ${user.loginStreak} ${isRu ? "дн." : "days"}',
+                  s.loginStreak('${user.loginStreak}'),
                   style: const TextStyle(color: AppTokens.textPrimary, fontSize: 13),
                 ),
               ],
@@ -112,7 +114,7 @@ class _UserSearchModalState extends State<UserSearchModal> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text(isRu ? 'Закрыть' : 'Close'),
+            child: Text(s.close),
           ),
           FilledButton.icon(
             style: FilledButton.styleFrom(backgroundColor: AppTokens.accent),
@@ -121,7 +123,7 @@ class _UserSearchModalState extends State<UserSearchModal> {
               _viewUserBookmarks(user, isRu);
             },
             icon: const Icon(Icons.bookmarks_rounded, size: 16),
-            label: Text(isRu ? 'Закладки' : 'Bookmarks'),
+            label: Text(s.bookmarks),
           ),
         ],
       ),
@@ -129,6 +131,7 @@ class _UserSearchModalState extends State<UserSearchModal> {
   }
 
   void _viewUserBookmarks(UserProfile user, bool isRu) async {
+    final s = UserSearchStrings(isRu);
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -155,7 +158,7 @@ class _UserSearchModalState extends State<UserSearchModal> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            '${isRu ? "Закладки" : "Bookmarks"}: ${user.username}',
+                            s.bookmarksOf(user.username),
                             style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                           ),
                           IconButton(
@@ -171,7 +174,7 @@ class _UserSearchModalState extends State<UserSearchModal> {
                         Expanded(
                           child: Center(
                             child: Text(
-                              isRu ? 'Закладки пользователя скрыты или пусты' : 'No public bookmarks found',
+                              s.noBookmarks,
                               style: const TextStyle(color: AppTokens.textSecondary),
                             ),
                           ),
@@ -224,6 +227,7 @@ class _UserSearchModalState extends State<UserSearchModal> {
   @override
   Widget build(BuildContext context) {
     final isRu = Localizations.localeOf(context).languageCode == 'ru';
+    final s = UserSearchStrings(isRu);
 
     return Container(
       height: MediaQuery.of(context).size.height * 0.75,
@@ -256,7 +260,7 @@ class _UserSearchModalState extends State<UserSearchModal> {
               const Icon(Icons.people_alt_rounded, color: AppTokens.accent),
               const SizedBox(width: 8),
               Text(
-                isRu ? 'Поиск пользователей MangaLib' : 'Search MangaLib Users',
+                s.title,
                 style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
               ),
             ],
@@ -265,7 +269,7 @@ class _UserSearchModalState extends State<UserSearchModal> {
           TextField(
             controller: _searchController,
             decoration: InputDecoration(
-              hintText: isRu ? 'Введите никнейм...' : 'Enter username...',
+              hintText: s.searchHint,
               prefixIcon: const Icon(Icons.search_rounded),
               suffixIcon: IconButton(
                 icon: const Icon(Icons.arrow_forward_rounded),
@@ -290,7 +294,7 @@ class _UserSearchModalState extends State<UserSearchModal> {
             Expanded(
               child: Center(
                 child: Text(
-                  isRu ? 'Введите никнейм для поиска пользователей' : 'Search for users by username',
+                  s.emptyPrompt,
                   style: const TextStyle(color: AppTokens.textSecondary),
                 ),
               ),

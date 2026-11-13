@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:battery_plus/battery_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mangaloader/l10n/strings/reader_strings.dart';
 import 'package:mangaloader/providers/settings_provider.dart';
 import 'package:mangaloader/providers/download_provider.dart';
 import 'package:mangaloader/src/rust/api/download_engine.dart' as rust_download;
@@ -133,7 +134,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         _sessionStartTime = now;
       }
       if (_continuousReadingMinutes == 120 && mounted) {
-        final isRu = Localizations.localeOf(context).languageCode == 'ru';
+        final s = ReaderStrings.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             backgroundColor: AppTokens.surfaceRaised,
@@ -143,14 +144,14 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    isRu ? 'Вы читаете уже 2 часа. Сделайте перерыв для отдыха глаз.' : 'You have been reading for 2 hours. Take a break to rest your eyes.',
+                    s.breakReminder,
                     style: const TextStyle(color: Colors.white),
                   ),
                 ),
               ],
             ),
             action: SnackBarAction(
-              label: isRu ? 'Отложить' : 'Snooze',
+              label: s.snooze,
               textColor: AppTokens.accent,
               onPressed: () {
                 _continuousReadingMinutes = 90;
@@ -169,9 +170,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
             .last
             .replaceAll(RegExp(r'\.(cbz|zip)$', caseSensitive: false), '')
             .replaceAll('_', ' ')
-        : (ref.read(localeProvider)?.languageCode != 'en'
-            ? 'Том ${widget.volume} Гл. ${widget.number}'
-            : 'Vol. ${widget.volume} Ch. ${widget.number}');
+        : ReaderStrings(ref.read(localeProvider)?.languageCode != 'en')
+            .chapterTitle(widget.volume, widget.number);
     _updateWindowTitle();
     _loadChapter();
   }
@@ -389,9 +389,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         (widget.localCbzPath != null && ContentFilter.isBlockedText(widget.localCbzPath))) {
       setState(() {
         _isLoading = false;
-        _errorMessage = ref.read(localeProvider)?.languageCode != 'en'
-            ? 'Контент недоступен в соответствии с требованиями законодательства РФ'
-            : 'Content is unavailable in compliance with local regulations';
+        _errorMessage = ReaderStrings(
+          ref.read(localeProvider)?.languageCode != 'en',
+        ).contentBlocked;
       });
       return;
     }
@@ -409,9 +409,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         _isDownloaded = true;
         _totalPages = await rust_cbz.getCbzPageCount(cbzPath: _cbzPath);
         if (_totalPages == 0) {
-          throw Exception(isRu
-              ? 'Не удалось прочитать страницы из локального CBZ файла'
-              : 'Could not read pages from the local CBZ file');
+          throw Exception(ReaderStrings(isRu).cbzReadFailed);
         }
       } else {
         if (widget.slugUrl.isNotEmpty) {
@@ -975,15 +973,13 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
   void _showEndOfChapter() {
     _stopAutoScroll();
-    final isRu = Localizations.localeOf(context).languageCode == 'ru';
+    final s = ReaderStrings.of(context);
     if (_nextChapter != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(isRu
-              ? 'Перейти к следующей главе: Том ${_nextChapter!.volume} Гл. ${_nextChapter!.number}?'
-              : 'Continue with volume ${_nextChapter!.volume} chapter ${_nextChapter!.number}?'),
+          content: Text(s.nextChapterPrompt(_nextChapter!.volume, _nextChapter!.number)),
           action: SnackBarAction(
-            label: isRu ? 'Читать' : 'Read',
+            label: s.read,
             onPressed: () {
               final branchQ = _nextChapter!.branchId != null ? "?branchId=${_nextChapter!.branchId}" : "";
               context.pushReplacement('/read/${widget.slugUrl}/${_nextChapter!.volume}/${_nextChapter!.number}$branchQ');
@@ -994,7 +990,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(isRu ? 'Вы дочитали главу.' : 'You reached the end of this chapter.')),
+        SnackBar(content: Text(s.endOfChapter)),
       );
     }
   }
@@ -1061,11 +1057,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     }
 
     if (_readMode != ReadMode.vertical) {
-      final isRu = Localizations.localeOf(context).languageCode == 'ru';
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(isRu
-            ? 'Автопрокрутка доступна только в режиме ленты'
-            : 'Auto-scroll is available in webtoon mode only')),
+        SnackBar(content: Text(ReaderStrings.of(context).autoScrollWebtoonOnly)),
       );
       return;
     }
@@ -1119,11 +1112,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     }
     if (mounted) {
       setState(() {});
-      final isRu = Localizations.localeOf(context).languageCode == 'ru';
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(isRu
-            ? 'Кэш изображений главы сброшен, перезагрузка...'
-            : 'Chapter image cache cleared, reloading...')),
+        SnackBar(content: Text(ReaderStrings.of(context).cacheCleared)),
       );
     }
   }
@@ -1261,13 +1251,13 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   }
 
   void _showPageJumperDialog() {
-    final isRu = Localizations.localeOf(context).languageCode == 'ru';
+    final s = ReaderStrings.of(context);
     showDialog(
       context: context,
       builder: (ctx) {
         return AlertDialog(
           backgroundColor: const Color(0xFF222222),
-          title: Text(isRu ? 'Перейти на страницу' : 'Jump to page', style: const TextStyle(color: Colors.white)),
+          title: Text(s.jumpToPage, style: const TextStyle(color: Colors.white)),
           content: SizedBox(
             width: double.maxFinite,
             height: 350,
@@ -1308,7 +1298,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: Text(isRu ? 'Закрыть' : 'Close', style: const TextStyle(color: AppTokens.textPrimary)),
+              child: Text(s.close, style: const TextStyle(color: AppTokens.textPrimary)),
             ),
           ],
         );
@@ -1319,6 +1309,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   @override
   Widget build(BuildContext context) {
     final isRu = Localizations.localeOf(context).languageCode == 'ru';
+    final s = ReaderStrings(isRu);
 
     if (_isLoading) {
       return Scaffold(
@@ -1331,7 +1322,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
             onPressed: () => context.pop(),
           ),
           title: Text(
-            _chapterTitle.isNotEmpty ? _chapterTitle : (isRu ? 'Загрузка главы...' : 'Loading chapter...'),
+            _chapterTitle.isNotEmpty ? _chapterTitle : s.loadingChapter,
             style: const TextStyle(fontSize: 15, color: Colors.white),
           ),
         ),
@@ -1356,7 +1347,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                 ),
                 const SizedBox(width: 12),
                 Text(
-                  isRu ? 'Загрузка страниц...' : 'Loading pages...',
+                  s.loadingPages,
                   style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
                 ),
               ],
@@ -1516,45 +1507,45 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                         if (hasPrev)
                           IconButton(
                             icon: const Icon(Icons.skip_previous_rounded),
-                            tooltip: isRu ? 'Предыдущая глава' : 'Previous Chapter',
+                            tooltip: s.previousChapter,
                             onPressed: _navigateToPrevChapter,
                           ),
                         if (hasNext)
                           IconButton(
                             icon: const Icon(Icons.skip_next_rounded),
-                            tooltip: isRu ? 'Следующая глава' : 'Next Chapter',
+                            tooltip: s.nextChapter,
                             onPressed: _navigateToNextChapter,
                           ),
                         if (_allChapters.isNotEmpty)
                           IconButton(
                             icon: const Icon(Icons.format_list_bulleted_rounded),
-                            tooltip: isRu ? 'Список глав' : 'Chapter list',
+                            tooltip: s.chapterList,
                             onPressed: _showChapterListDialog,
                           ),
                         IconButton(
                           icon: const Icon(Icons.grid_view_rounded),
-                          tooltip: isRu ? 'Сетка страниц' : 'Page Grid',
+                          tooltip: s.pageGrid,
                           onPressed: _showPageJumperDialog,
                         ),
                         if (_readMode == ReadMode.vertical)
                           IconButton(
                             icon: Icon(_isAutoScrolling ? Icons.pause_circle_filled_rounded : Icons.play_circle_fill_rounded, color: _isAutoScrolling ? Colors.orange : Colors.white),
-                            tooltip: _isAutoScrolling ? (isRu ? 'Остановить автопрокрутку (A)' : 'Stop autoscroll (A)') : (isRu ? 'Автопрокрутка (A)' : 'Autoscroll (A)'),
+                            tooltip: _isAutoScrolling ? s.stopAutoScroll : s.autoScroll,
                             onPressed: _toggleAutoScroll,
                           ),
                         IconButton(
                           icon: Icon(_isFullscreen ? Icons.fullscreen_exit_rounded : Icons.fullscreen_rounded),
-                          tooltip: isRu ? 'Полноэкранный режим (F11)' : 'Fullscreen (F11)',
+                          tooltip: s.fullscreen,
                           onPressed: _toggleFullscreen,
                         ),
                         IconButton(
                           icon: const Icon(Icons.refresh_rounded),
-                          tooltip: isRu ? 'Сбросить кэш и перезагрузить главу' : 'Reload chapter',
+                          tooltip: s.reloadChapter,
                           onPressed: _reloadCurrentChapter,
                         ),
                         IconButton(
                           icon: const Icon(Icons.chat_bubble_outline_rounded),
-                          tooltip: isRu ? 'Комментарии к главе' : 'Chapter comments',
+                          tooltip: s.chapterComments,
                           onPressed: () {
                             final currentChap = _allChapters.firstWhere(
                               (c) => c.volume == widget.volume && c.number == widget.number,
@@ -1572,11 +1563,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                               context,
                               relationType: currentChap.id > 0 ? 'chapter' : 'media',
                               relationId: currentChap.id > 0 ? currentChap.id : _mangaId,
-                              title: '${widget.slugUrl} - ${isRu ? "Том" : "Vol."} ${widget.volume} ${isRu ? "Гл." : "Ch."} ${widget.number}',
+                              title: s.commentsTitle(widget.slugUrl, widget.volume, widget.number),
                             );
                           },
                         ),
-                        IconButton(icon: const Icon(Icons.tune_rounded), tooltip: isRu ? 'Настройки' : 'Settings', onPressed: _showSettingsSheet),
+                        IconButton(icon: const Icon(Icons.tune_rounded), tooltip: s.settings, onPressed: _showSettingsSheet),
                       ],
                     ),
                   ),
@@ -1597,7 +1588,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                         children: [
                           IconButton(
                             icon: const Icon(Icons.zoom_in_rounded, color: Colors.white),
-                            tooltip: isRu ? 'Приблизить (+)' : 'Zoom In (+)',
+                            tooltip: s.zoomIn,
                             onPressed: _zoomIn,
                           ),
                           TextButton(
@@ -1614,7 +1605,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                           ),
                           IconButton(
                             icon: const Icon(Icons.zoom_out_rounded, color: Colors.white),
-                            tooltip: isRu ? 'Отдалить (-)' : 'Zoom Out (-)',
+                            tooltip: s.zoomOut,
                             onPressed: _zoomOut,
                           ),
                         ],
@@ -1665,12 +1656,12 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                                           TextButton.icon(
                                             onPressed: _showPageJumperDialog,
                                             icon: const Icon(Icons.menu_book_rounded, size: 16, color: Colors.white70),
-                                            label: Text('${pageIndex + 1} / $_totalPages ${isRu ? "стр." : "p."}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                            label: Text(s.pageIndicator('${pageIndex + 1}', '$_totalPages'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                                           ),
                                           if (_allChapters.isNotEmpty)
                                             IconButton(
                                               icon: const Icon(Icons.format_list_bulleted_rounded, size: 18, color: AppTokens.accent),
-                                              tooltip: isRu ? 'Выбрать главу' : 'Select chapter',
+                                              tooltip: s.selectChapter,
                                               onPressed: _showChapterListDialog,
                                             ),
                                         ],
@@ -1680,7 +1671,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                                           if (hasPrev)
                                             IconButton(
                                               icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 16, color: Colors.white70),
-                                              tooltip: isRu ? 'Предыдущая глава' : 'Previous chapter',
+                                              tooltip: s.previousChapterInline,
                                               onPressed: _navigateToPrevChapter,
                                             ),
                                           if (hasNext) ...[
@@ -1694,7 +1685,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                                               onPressed: _navigateToNextChapter,
                                               icon: const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Colors.white),
                                               label: Text(
-                                                _nextChapter != null ? 'Гл. ${_nextChapter!.number}' : (isRu ? 'След. глава' : 'Next Ch.'),
+                                                _nextChapter != null ? 'Гл. ${_nextChapter!.number}' : s.nextChapterShort,
                                                 style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
                                               ),
                                             ),
@@ -1737,7 +1728,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                         children: [
                           const Icon(Icons.play_circle_fill_rounded, size: 16, color: AppTokens.accent),
                           const SizedBox(width: 6),
-                          Text(isRu ? 'Автоскролл' : 'Auto-scroll', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                          Text(s.autoScrollLabel, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
                           const SizedBox(width: 8),
                           IconButton(
                             icon: const Icon(Icons.remove_rounded, size: 16, color: AppTokens.textPrimary),
@@ -1792,6 +1783,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   }
 
   Widget _buildReaderContent(bool isRu) {
+    final s = ReaderStrings(isRu);
     if (_totalPages == 0) {
       return Center(
         child: Column(
@@ -1800,14 +1792,14 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
             const Icon(Icons.menu_book_rounded, color: Colors.grey, size: 48),
             const SizedBox(height: 16),
             Text(
-              isRu ? 'Страницы не найдены.' : 'No pages found.',
+              s.noPages,
               style: TextStyle(color: _bgColor == ReadBgColor.white ? Colors.black : Colors.white),
             ),
             const SizedBox(height: 24),
             ElevatedButton.icon(
               onPressed: () => context.pop(),
               icon: const Icon(Icons.arrow_back),
-              label: Text(isRu ? 'Назад' : 'Go Back'),
+              label: Text(s.goBack),
             ),
           ],
         ),
@@ -1969,7 +1961,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
   void _showChapterListDialog() {
     if (_allChapters.isEmpty) return;
-    final isRu = Localizations.localeOf(context).languageCode == 'ru';
+    final s = ReaderStrings.of(context);
     String filterQuery = '';
 
     showModalBottomSheet(
@@ -2010,7 +2002,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                       const Icon(Icons.format_list_bulleted_rounded, color: AppTokens.accent, size: 20),
                       const SizedBox(width: 8),
                       Text(
-                        isRu ? 'Список глав (${_allChapters.length})' : 'Chapters (${_allChapters.length})',
+                        s.chapterListTitle('${_allChapters.length}'),
                         style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
                       ),
                       const Spacer(),
@@ -2025,7 +2017,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   child: TextField(
                     decoration: InputDecoration(
-                      hintText: isRu ? 'Поиск главы...' : 'Search chapter...',
+                      hintText: s.searchChapter,
                       prefixIcon: const Icon(Icons.search_rounded, size: 18),
                       isDense: true,
                       filled: true,
@@ -2060,7 +2052,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                           ),
                         ),
                         title: Text(
-                          isRu ? 'Том ${c.volume} Глава ${c.number}' : 'Volume ${c.volume} Chapter ${c.number}',
+                          s.volumeChapter(c.volume, c.number),
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
@@ -2095,7 +2087,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   }
 
   void _showSettingsSheet() {
-    final isRu = Localizations.localeOf(context).languageCode == 'ru';
+    final s = ReaderStrings.of(context);
 
     showModalBottomSheet(
       context: context,
@@ -2111,16 +2103,16 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(isRu ? 'Настройки читалки' : 'Reader Settings', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                    Text(s.readerSettings, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 16),
                     
-                    Text(isRu ? 'Режим чтения' : 'Reading Mode', style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
+                    Text(s.readingMode, style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
                     const SizedBox(height: 8),
                     SegmentedButton<ReadMode>(
                       segments: [
-                        ButtonSegment(value: ReadMode.vertical, label: Text(isRu ? 'Лента' : 'Webtoon')),
-                        ButtonSegment(value: ReadMode.ltr, label: Text(isRu ? 'Слева' : 'LTR')),
-                        ButtonSegment(value: ReadMode.rtl, label: Text(isRu ? 'Справа (Манга)' : 'RTL (Manga)')),
+                        ButtonSegment(value: ReadMode.vertical, label: Text(s.modeWebtoon)),
+                        ButtonSegment(value: ReadMode.ltr, label: Text(s.modeLtr)),
+                        ButtonSegment(value: ReadMode.rtl, label: Text(s.modeRtl)),
                       ],
                       selected: {_readMode},
                       onSelectionChanged: (val) {
@@ -2148,13 +2140,13 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                     const SizedBox(height: 16),
 
                     if (_readMode != ReadMode.vertical) ...[
-                      Text(isRu ? 'Отображение страниц' : 'Page Layout', style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
+                      Text(s.pageLayout, style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
                       const SizedBox(height: 8),
                       SegmentedButton<DualPageMode>(
                         segments: [
-                          ButtonSegment(value: DualPageMode.auto, label: Text(isRu ? 'Авто' : 'Auto')),
-                          ButtonSegment(value: DualPageMode.single, label: Text(isRu ? '1 страница' : '1 Page')),
-                          ButtonSegment(value: DualPageMode.dual, label: Text(isRu ? '2 страницы' : '2 Pages')),
+                          ButtonSegment(value: DualPageMode.auto, label: Text(s.layoutAuto)),
+                          ButtonSegment(value: DualPageMode.single, label: Text(s.layoutSingle)),
+                          ButtonSegment(value: DualPageMode.dual, label: Text(s.layoutDual)),
                         ],
                         selected: {_dualPageMode},
                         onSelectionChanged: (val) {
@@ -2165,13 +2157,13 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                       ),
                       const SizedBox(height: 16),
 
-                      Text(isRu ? 'Масштабирование страниц' : 'Page Scale', style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
+                      Text(s.pageScale, style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
                       const SizedBox(height: 8),
                       SegmentedButton<ReadBoxFit>(
                         segments: [
-                          ButtonSegment(value: ReadBoxFit.contain, label: Text(isRu ? 'По экрану' : 'Fit Screen')),
-                          ButtonSegment(value: ReadBoxFit.fitWidth, label: Text(isRu ? 'По ширине' : 'Fit Width')),
-                          ButtonSegment(value: ReadBoxFit.cover, label: Text(isRu ? 'Заполнить' : 'Cover')),
+                          ButtonSegment(value: ReadBoxFit.contain, label: Text(s.scaleFitScreen)),
+                          ButtonSegment(value: ReadBoxFit.fitWidth, label: Text(s.scaleFitWidth)),
+                          ButtonSegment(value: ReadBoxFit.cover, label: Text(s.scaleCover)),
                         ],
                         selected: {_boxFit},
                         onSelectionChanged: (val) {
@@ -2183,13 +2175,13 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                       const SizedBox(height: 16),
                     ],
 
-                    Text(isRu ? 'Зоны нажатия (тапы)' : 'Tap Zones', style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
+                    Text(s.tapZones, style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
                     const SizedBox(height: 8),
                     SegmentedButton<TapZoneLayout>(
                       segments: [
-                        ButtonSegment(value: TapZoneLayout.standard, label: Text(isRu ? 'Стандарт' : 'Standard')),
-                        ButtonSegment(value: TapZoneLayout.inverted, label: Text(isRu ? 'Инверсия' : 'Inverted')),
-                        ButtonSegment(value: TapZoneLayout.edgesOnly, label: Text(isRu ? 'По краям' : 'Edges')),
+                        ButtonSegment(value: TapZoneLayout.standard, label: Text(s.tapStandard)),
+                        ButtonSegment(value: TapZoneLayout.inverted, label: Text(s.tapInverted)),
+                        ButtonSegment(value: TapZoneLayout.edgesOnly, label: Text(s.tapEdges)),
                       ],
                       selected: {_tapZoneLayout},
                       onSelectionChanged: (val) {
@@ -2200,13 +2192,13 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                     ),
                     const SizedBox(height: 16),
 
-                    Text(isRu ? 'Цвет фона' : 'Background Color', style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
+                    Text(s.backgroundColor, style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
                     const SizedBox(height: 8),
                     SegmentedButton<ReadBgColor>(
                       segments: [
-                        ButtonSegment(value: ReadBgColor.black, label: Text(isRu ? 'Черный' : 'Black')),
-                        ButtonSegment(value: ReadBgColor.darkGrey, label: Text(isRu ? 'Серый' : 'Grey')),
-                        ButtonSegment(value: ReadBgColor.white, label: Text(isRu ? 'Белый' : 'White')),
+                        ButtonSegment(value: ReadBgColor.black, label: Text(s.bgBlack)),
+                        ButtonSegment(value: ReadBgColor.darkGrey, label: Text(s.bgGrey)),
+                        ButtonSegment(value: ReadBgColor.white, label: Text(s.bgWhite)),
                       ],
                       selected: {_bgColor},
                       onSelectionChanged: (val) {
@@ -2218,13 +2210,13 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                     const SizedBox(height: 16),
 
                     // Filter mode
-                    Text(isRu ? 'Цветовой фильтр' : 'Color Filter', style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
+                    Text(s.colorFilter, style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
                     const SizedBox(height: 8),
                     SegmentedButton<ReadColorFilter>(
                       segments: [
-                        ButtonSegment(value: ReadColorFilter.none, label: Text(isRu ? 'Обычный' : 'Normal')),
-                        ButtonSegment(value: ReadColorFilter.invert, label: Text(isRu ? 'Инверсия' : 'Invert')),
-                        ButtonSegment(value: ReadColorFilter.sepia, label: Text(isRu ? 'Сепия' : 'Sepia')),
+                        ButtonSegment(value: ReadColorFilter.none, label: Text(s.filterNormal)),
+                        ButtonSegment(value: ReadColorFilter.invert, label: Text(s.filterInvert)),
+                        ButtonSegment(value: ReadColorFilter.sepia, label: Text(s.filterSepia)),
                       ],
                       selected: {_filterMode},
                       onSelectionChanged: (val) {
@@ -2236,13 +2228,13 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                     const SizedBox(height: 16),
 
                     // Sharpening Mode
-                    Text(isRu ? 'Фильтр резкости' : 'Sharpening Filter', style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
+                    Text(s.sharpeningFilter, style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
                     const SizedBox(height: 8),
                     SegmentedButton<ReadSharpenMode>(
                       segments: [
-                        ButtonSegment(value: ReadSharpenMode.off, label: Text(isRu ? 'Выкл' : 'Off')),
-                        ButtonSegment(value: ReadSharpenMode.subtle, label: Text(isRu ? 'Мягкий' : 'Subtle')),
-                        ButtonSegment(value: ReadSharpenMode.high, label: Text(isRu ? 'Четкий' : 'High')),
+                        ButtonSegment(value: ReadSharpenMode.off, label: Text(s.sharpeningOff)),
+                        ButtonSegment(value: ReadSharpenMode.subtle, label: Text(s.sharpeningSubtle)),
+                        ButtonSegment(value: ReadSharpenMode.high, label: Text(s.sharpeningHigh)),
                       ],
                       selected: {_sharpenMode},
                       onSelectionChanged: (val) {
@@ -2256,9 +2248,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                     // Auto crop borders switch
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
-                      title: Text(isRu ? 'Обрезка белых полей' : 'Crop White Borders', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                      title: Text(s.cropBorders, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
                       subtitle: Text(
-                        isRu ? 'Автоматически увеличивает страницу для удаления пустых полей' : 'Automatically crops empty borders',
+                        s.cropBordersSubtitle,
                         style: const TextStyle(color: Colors.white60, fontSize: 12),
                       ),
                       value: _cropBorders,
@@ -2272,7 +2264,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(isRu ? 'Степень обрезки' : 'Crop margin', style: const TextStyle(color: Colors.white70)),
+                          Text(s.cropMargin, style: const TextStyle(color: Colors.white70)),
                           Text('${_cropPercent.toInt()}%', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                         ],
                       ),
@@ -2293,7 +2285,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(isRu ? 'Яркость страниц' : 'Page Brightness', style: const TextStyle(color: Colors.white70)),
+                        Text(s.pageBrightness, style: const TextStyle(color: Colors.white70)),
                         Text('${(_brightness * 100).toInt()}%', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                       ],
                     ),
@@ -2313,7 +2305,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(isRu ? 'Предзагрузка страниц' : 'Page preload', style: const TextStyle(color: Colors.white70)),
+                        Text(s.pagePreload, style: const TextStyle(color: Colors.white70)),
                         Text('${_preloadRadius.clamp(1, 10)}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                       ],
                     ),
@@ -2358,7 +2350,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                         },
                         icon: const Icon(Icons.restart_alt_rounded, size: 18),
                         label: Text(
-                          isRu ? 'Сбросить настройки для этого тайтла' : 'Reset settings for this title',
+                          s.resetTitleSettings,
                           style: const TextStyle(fontSize: 13),
                         ),
                       ),
@@ -2374,6 +2366,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   }
 
   Widget _buildNextChapterSwipeCard(bool isRu) {
+    final s = ReaderStrings(isRu);
     if (_nextChapter == null && _nextLocalCbzPath == null) {
       return Container(
         margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 36),
@@ -2388,13 +2381,13 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
             const Icon(Icons.check_circle_outline_rounded, size: 40, color: AppTokens.accent),
             const SizedBox(height: 12),
             Text(
-              isRu ? 'Вы прочитали последнюю главу!' : 'You reached the latest chapter!',
+              s.latestChapterReached,
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 6),
             Text(
-              isRu ? 'Ожидайте выхода новых глав от переводчиков' : 'Stay tuned for upcoming releases',
+              s.stayTuned,
               style: const TextStyle(fontSize: 12, color: AppTokens.textSecondary),
               textAlign: TextAlign.center,
             ),
@@ -2410,8 +2403,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                 icon: const Icon(Icons.arrow_back_rounded, size: 18),
                 label: Text(
                   _prevChapter != null 
-                    ? (isRu ? 'Предыдущая: Том ${_prevChapter!.volume} Гл. ${_prevChapter!.number}' : 'Previous Chapter')
-                    : (isRu ? 'Предыдущая глава' : 'Previous Chapter'),
+                    ? s.previousWithNumber(_prevChapter!.volume, _prevChapter!.number)
+                    : s.previousChapter,
                 ),
               ),
               const SizedBox(height: 10),
@@ -2425,7 +2418,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                 ),
                 onPressed: _showChapterListDialog,
                 icon: const Icon(Icons.format_list_bulleted_rounded, size: 18),
-                label: Text(isRu ? 'Список всех глав' : 'All Chapters'),
+                label: Text(s.allChapters),
               ),
               const SizedBox(height: 10),
             ],
@@ -2441,15 +2434,15 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text(_nextChapter != null
-                          ? (isRu ? 'Найдена следующая глава: Том ${_nextChapter!.volume} Гл ${_nextChapter!.number}' : 'Next chapter found!')
-                          : (isRu ? 'Новых глав пока нет' : 'No new chapters yet')),
+                          ? s.nextChapterFound(_nextChapter!.volume, _nextChapter!.number)
+                          : s.noNewChapters),
                       duration: const Duration(seconds: 2),
                     ),
                   );
                 }
               },
               icon: const Icon(Icons.refresh_rounded, size: 18),
-              label: Text(isRu ? 'Проверить новые главы' : 'Check for new chapters'),
+              label: Text(s.checkNewChapters),
             ),
           ],
         ),
@@ -2475,7 +2468,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
               const Icon(Icons.auto_stories_rounded, color: AppTokens.accent, size: 20),
               const SizedBox(width: 8),
               Text(
-                isRu ? 'Глава завершена' : 'Chapter Complete',
+                s.chapterComplete,
                 style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white70),
               ),
             ],
@@ -2483,15 +2476,13 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
           const SizedBox(height: 14),
           if (_nextChapter != null)
             Text(
-              isRu 
-                ? 'Следующая: Том ${_nextChapter!.volume} Глава ${_nextChapter!.number}' 
-                : 'Next: Volume ${_nextChapter!.volume} Chapter ${_nextChapter!.number}',
+              s.nextWithNumber(_nextChapter!.volume, _nextChapter!.number),
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
               textAlign: TextAlign.center,
             )
           else if (_nextLocalCbzPath != null)
             Text(
-              isRu ? 'Следующая глава' : 'Next Chapter',
+              s.nextChapter,
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
               textAlign: TextAlign.center,
             ),
@@ -2514,7 +2505,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
             onPressed: _navigateToNextChapter,
             icon: const Icon(Icons.arrow_forward_rounded, size: 20),
             label: Text(
-              isRu ? 'Читать следующую главу' : 'Read Next Chapter',
+              s.readNextChapter,
               style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
             ),
           ),
@@ -2529,7 +2520,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
               ),
               onPressed: _showChapterListDialog,
               icon: const Icon(Icons.format_list_bulleted_rounded, size: 18),
-              label: Text(isRu ? 'Список глав' : 'Chapter List'),
+              label: Text(s.chapterListCased),
             ),
           ],
           if (_prevChapter != null || _prevLocalCbzPath != null) ...[
@@ -2543,8 +2534,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
               icon: const Icon(Icons.arrow_back_rounded, size: 16),
               label: Text(
                 _prevChapter != null
-                  ? (isRu ? 'Предыдущая: Том ${_prevChapter!.volume} Гл. ${_prevChapter!.number}' : 'Previous Chapter')
-                  : (isRu ? 'Предыдущая глава' : 'Previous Chapter'),
+                  ? s.previousWithNumber(_prevChapter!.volume, _prevChapter!.number)
+                  : s.previousChapter,
                 style: const TextStyle(fontSize: 13),
               ),
             ),
@@ -2743,7 +2734,7 @@ class _VerticalReaderPageItemState extends State<_VerticalReaderPageItem> {
                   const Icon(Icons.refresh_rounded, color: Colors.white70, size: 32),
                   const SizedBox(height: 8),
                   Text(
-                    Localizations.localeOf(context).languageCode == 'ru' ? 'Нажмите для повтора' : 'Tap to retry',
+                    ReaderStrings.of(context).tapToRetry,
                     style: const TextStyle(color: Colors.white70, fontSize: 12),
                   ),
                 ],
@@ -2939,7 +2930,7 @@ class _HorizontalReaderPageItemState extends State<_HorizontalReaderPageItem>
                   const Icon(Icons.refresh_rounded, color: Colors.white70, size: 32),
                   const SizedBox(height: 8),
                   Text(
-                    isRu ? 'Нажмите для повтора' : 'Tap to retry',
+                    ReaderStrings(isRu).tapToRetry,
                     style: const TextStyle(color: Colors.white70, fontSize: 12),
                   ),
                 ],

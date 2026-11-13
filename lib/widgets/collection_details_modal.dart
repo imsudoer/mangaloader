@@ -6,6 +6,7 @@ import 'package:mangaloader/src/rust/api/models.dart';
 import 'package:mangaloader/widgets/manga_card.dart';
 import 'package:mangaloader/services/content_filter.dart';
 import 'package:mangaloader/theme/app_tokens.dart';
+import 'package:mangaloader/l10n/strings/collection_strings.dart';
 
 class CollectionDetailsModal extends StatefulWidget {
   final int collectionId;
@@ -83,7 +84,7 @@ class _CollectionDetailsModalState extends State<CollectionDetailsModal> {
 
   @override
   Widget build(BuildContext context) {
-    final isRu = Localizations.localeOf(context).languageCode == 'ru';
+    final s = CollectionStrings.of(context);
 
     return Container(
       height: MediaQuery.of(context).size.height * 0.88,
@@ -124,7 +125,7 @@ class _CollectionDetailsModalState extends State<CollectionDetailsModal> {
                         });
                         _loadDetails();
                       },
-                      child: Text(isRu ? 'Повторить' : 'Retry'),
+                      child: Text(s.retry),
                     ),
                   ],
                 ),
@@ -166,7 +167,7 @@ class _CollectionDetailsModalState extends State<CollectionDetailsModal> {
                           const Icon(Icons.menu_book_rounded, size: 14, color: Color(0xFF888888)),
                           const SizedBox(width: 4),
                           Text(
-                            '${_details?.items.length ?? 0} ${isRu ? "тайтлов" : "titles"}',
+                            s.titles('${_details?.items.length ?? 0}'),
                             style: const TextStyle(fontSize: 12, color: Color(0xFF888888)),
                           ),
                           const SizedBox(width: 12),
@@ -208,7 +209,7 @@ class _CollectionDetailsModalState extends State<CollectionDetailsModal> {
               child: _details?.items.isEmpty ?? true
                 ? Center(
                     child: Text(
-                      isRu ? 'В коллекции нет тайтлов' : 'No titles in collection',
+                      s.empty,
                       style: const TextStyle(color: Color(0xFF888888)),
                     ),
                   )
