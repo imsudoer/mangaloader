@@ -673,12 +673,6 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
             if (progress != null && progress.chapterVolume == widget.volume && progress.chapterNumber == widget.number) {
               _currentPageIndex = progress.pageIndex.toInt();
             }
-            // A bookmark opened from another chapter wins over the saved
-            // progress, otherwise the jump would land on the wrong page.
-            final initialPage = widget.initialPageIndex;
-            if (initialPage != null && initialPage >= 0) {
-              _currentPageIndex = initialPage;
-            }
           }
         }
 
@@ -718,6 +712,13 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     } catch (e) {
       _errorMessage = e.toString();
       debugPrint("Error loading chapter: $e");
+    }
+
+    // A bookmark opened from another chapter wins over the saved progress,
+    // otherwise the jump would land on the wrong page.
+    final initialPage = widget.initialPageIndex;
+    if (initialPage != null && initialPage >= 0 && initialPage < _totalPages) {
+      _currentPageIndex = initialPage;
     }
 
     if (_currentPageIndex >= _totalPages) {
@@ -1834,11 +1835,12 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                               Icons.grid_view_rounded,
                               s.pageGrid,
                             ),
-                            _buildMenuItem(
-                              _ReaderMenuAction.bookmarks,
-                              Icons.bookmarks_rounded,
-                              s.bookmarks,
-                            ),
+                            if (widget.slugUrl.isNotEmpty)
+                              _buildMenuItem(
+                                _ReaderMenuAction.bookmarks,
+                                Icons.bookmarks_rounded,
+                                s.bookmarks,
+                              ),
                             if (_readMode == ReadMode.vertical)
                               _buildMenuItem(
                                 _ReaderMenuAction.autoScroll,
@@ -2499,25 +2501,27 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: marked ? AppTokens.accent : AppTokens.textPrimary,
-                          side: BorderSide(
-                            color: marked ? AppTokens.accent : AppTokens.borderStrong,
+                      if (widget.slugUrl.isNotEmpty) ...[
+                        OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: marked ? AppTokens.accent : AppTokens.textPrimary,
+                            side: BorderSide(
+                              color: marked ? AppTokens.accent : AppTokens.borderStrong,
+                            ),
+                            minimumSize: const Size(0, 40),
                           ),
-                          minimumSize: const Size(0, 40),
+                          onPressed: () async {
+                            final added = await _toggleBookmarkAt(target);
+                            if (ctx.mounted) setSheet(() => marked = added);
+                          },
+                          icon: Icon(
+                            marked ? Icons.bookmark_remove_rounded : Icons.bookmark_add_outlined,
+                            size: 18,
+                          ),
+                          label: Text(marked ? s.bookmarkRemove : s.bookmarkAdd),
                         ),
-                        onPressed: () async {
-                          final added = await _toggleBookmarkAt(target);
-                          if (ctx.mounted) setSheet(() => marked = added);
-                        },
-                        icon: Icon(
-                          marked ? Icons.bookmark_remove_rounded : Icons.bookmark_add_outlined,
-                          size: 18,
-                        ),
-                        label: Text(marked ? s.bookmarkRemove : s.bookmarkAdd),
-                      ),
-                      const SizedBox(width: 10),
+                        const SizedBox(width: 10),
+                      ],
                       Expanded(
                         child: FilledButton.icon(
                           style: FilledButton.styleFrom(
