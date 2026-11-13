@@ -54,29 +54,33 @@ class AppUpdateInfo {
 
   ReleaseAsset? getBestAsset(String archInfo) {
     if (assets.isEmpty) return null;
+    // The RuStore build ships the same ABI in its name but is filtered for that
+    // store; it must never be offered as a self-update.
+    final candidates = assets.where((a) => !a.name.toLowerCase().contains('rustore')).toList();
+    if (candidates.isEmpty) return assets.first;
 
     if (Platform.isAndroid) {
       final archLower = archInfo.toLowerCase();
       if (archLower.contains('aarch64') || archLower.contains('arm64') || archLower.contains('v8a')) {
-        final match = assets.where((a) => (a.name.toLowerCase().contains('arm64') || a.name.toLowerCase().contains('v8a')) && a.name.endsWith('.apk')).firstOrNull;
+        final match = candidates.where((a) => (a.name.toLowerCase().contains('arm64') || a.name.toLowerCase().contains('v8a')) && a.name.endsWith('.apk')).firstOrNull;
         if (match != null) return match;
       } else if (archLower.contains('v7a') || archLower.contains('armeabi') || archLower.contains('arm')) {
-        final match = assets.where((a) => (a.name.toLowerCase().contains('armeabi') || a.name.toLowerCase().contains('v7a') || a.name.toLowerCase().contains('armv7')) && a.name.endsWith('.apk')).firstOrNull;
+        final match = candidates.where((a) => (a.name.toLowerCase().contains('armeabi') || a.name.toLowerCase().contains('v7a') || a.name.toLowerCase().contains('armv7')) && a.name.endsWith('.apk')).firstOrNull;
         if (match != null) return match;
       } else if (archLower.contains('x86_64')) {
-        final match = assets.where((a) => a.name.toLowerCase().contains('x86_64') && a.name.endsWith('.apk')).firstOrNull;
+        final match = candidates.where((a) => a.name.toLowerCase().contains('x86_64') && a.name.endsWith('.apk')).firstOrNull;
         if (match != null) return match;
       }
-      return assets.where((a) => a.name.endsWith('.apk')).firstOrNull ?? assets.first;
+      return candidates.where((a) => a.name.endsWith('.apk')).firstOrNull ?? candidates.first;
     } else if (Platform.isWindows) {
-      final match = assets.where((a) => (a.name.toLowerCase().contains('windows') || a.name.toLowerCase().contains('win')) && (a.name.endsWith('.zip') || a.name.endsWith('.exe'))).firstOrNull;
+      final match = candidates.where((a) => (a.name.toLowerCase().contains('windows') || a.name.toLowerCase().contains('win')) && (a.name.endsWith('.zip') || a.name.endsWith('.exe'))).firstOrNull;
       if (match != null) return match;
-      return assets.where((a) => a.name.endsWith('.zip')).firstOrNull ?? assets.first;
+      return candidates.where((a) => a.name.endsWith('.zip')).firstOrNull ?? candidates.first;
     } else if (Platform.isLinux) {
-      final match = assets.where((a) => a.name.endsWith('.tar.gz') || a.name.endsWith('.AppImage') || a.name.endsWith('.deb')).firstOrNull;
+      final match = candidates.where((a) => a.name.endsWith('.tar.gz') || a.name.endsWith('.AppImage') || a.name.endsWith('.deb')).firstOrNull;
       if (match != null) return match;
     }
-    return assets.first;
+    return candidates.first;
   }
 
   String getTargetArchitectureLabel(String archInfo) {
@@ -104,9 +108,11 @@ class AppUpdateInfo {
 
   String? get androidApkUrl {
     for (final a in assets) {
+      if (a.name.toLowerCase().contains('rustore')) continue;
       if (a.name.contains('arm64') && a.name.endsWith('.apk')) return a.downloadUrl;
     }
     for (final a in assets) {
+      if (a.name.toLowerCase().contains('rustore')) continue;
       if (a.name.endsWith('.apk')) return a.downloadUrl;
     }
     return null;
@@ -167,8 +173,17 @@ class UpdateChecker {
   static String? _cachedCurrentVersion;
   static const String defaultRepo = 'imsudoer/mangaloader';
 
+  /// Release builds pass their tag here. The platform version name drops the
+  /// pre-release suffix (`1.9.0-beta.5` ships as `1.9.0`), which made a beta
+  /// indistinguishable from the stable release it precedes.
+  static const String _buildVersion = String.fromEnvironment('APP_VERSION');
+
   static Future<String> getCurrentVersion() async {
     if (_cachedCurrentVersion != null) return _cachedCurrentVersion!;
+    if (_buildVersion.isNotEmpty) {
+      _cachedCurrentVersion = _cleanTag(_buildVersion);
+      return _cachedCurrentVersion!;
+    }
     try {
       final info = await PackageInfo.fromPlatform();
       _cachedCurrentVersion = info.version;
@@ -178,7 +193,11 @@ class UpdateChecker {
     }
   }
 
-  static String get currentVersion => _cachedCurrentVersion ?? '1.9.0';
+  static String get currentVersion =>
+      _cachedCurrentVersion ?? (_buildVersion.isEmpty ? '1.9.0' : _cleanTag(_buildVersion));
+
+  static String _cleanTag(String tag) =>
+      tag.replaceAll(RegExp(r'^[vV]'), '').trim();
 
   static Future<AppUpdateInfo?> checkForUpdates({
     String repo = defaultRepo,
@@ -191,7 +210,7 @@ class UpdateChecker {
       client.connectionTimeout = const Duration(seconds: 10);
       
       final uri = channel == UpdateChannel.beta
-          ? Uri.parse('https://api.github.com/repos/$repo/releases?per_page=10')
+          ? Uri.parse('https://api.github.com/repos/$repo/releases?per_page=30')
           : Uri.parse('https://api.github.com/repos/$repo/releases/latest');
 
       final request = await client.getUrl(uri);
@@ -208,14 +227,26 @@ class UpdateChecker {
       
       Map<String, dynamic> json;
       if (decoded is List) {
-        final releases = decoded.whereType<Map<String, dynamic>>().toList();
+        final releases = decoded
+            .whereType<Map<String, dynamic>>()
+            .where((release) => release['draft'] != true)
+            .toList();
         if (releases.isEmpty) return null;
-        json = releases.first;
+        // Dev/nightly tags carry no version, so they must not win the comparison
+        // below just because they are the most recently created release.
+        final versioned = releases
+            .where((release) =>
+                _ParsedVersion.parse(_cleanTag(release['tag_name'] as String? ?? '')) != null)
+            .toList();
+        final pool = versioned.isEmpty ? releases : versioned;
+        json = pool.first;
         if (channel == UpdateChannel.beta) {
           // GitHub orders releases by creation date, which is not the same as the
-          // highest version when a hotfix lands after a beta.
+          // highest version when a hotfix lands after a beta. The newest stable
+          // wins over older betas of the same line, so a beta tester is offered
+          // the stable release once it ships.
           var bestTag = json['tag_name'] as String? ?? '';
-          for (final release in releases.skip(1)) {
+          for (final release in pool.skip(1)) {
             final candidateTag = release['tag_name'] as String? ?? '';
             if (isNewerVersion(bestTag, candidateTag)) {
               bestTag = candidateTag;
