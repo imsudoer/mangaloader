@@ -331,6 +331,8 @@ jobs:
           if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
             TAG_NAME="${{ github.ref_name }}"
             VERSION_CLEAN="${TAG_NAME#v}"
+            # Beta tags point at the numeric changelog section of their release line.
+            VERSION_CLEAN="${VERSION_CLEAN%%-*}"
             if [[ "$TAG_NAME" == *"-beta"* || "$TAG_NAME" == *"-alpha"* || "$TAG_NAME" == *"-rc"* ]]; then
               echo "is_prerelease=true" >> $GITHUB_OUTPUT
               echo "release_title=${TAG_NAME} (Beta)" >> $GITHUB_OUTPUT
@@ -401,6 +403,7 @@ jobs:
         run: |
           TAG_NAME="${GITHUB_REF#refs/tags/}"
           VERSION_CLEAN="${TAG_NAME#v}"
+          VERSION_CLEAN="${VERSION_CLEAN%%-*}"
           if [ -f CHANGELOG.md ]; then
             awk -v ver="$VERSION_CLEAN" '
               BEGIN { recording=0; found=0 }
