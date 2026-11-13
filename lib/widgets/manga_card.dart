@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:mangaloader/src/rust/api/models.dart';
 import 'package:mangaloader/providers/library_provider.dart';
 import 'package:mangaloader/theme/app_tokens.dart';
+import 'package:mangaloader/utils/search_highlight.dart';
 
 /// Tag shared by a cover thumbnail and the large cover on the details header.
 String coverHeroTag(String slugUrl) => 'cover-$slugUrl';
@@ -131,12 +132,17 @@ class MangaCard extends ConsumerWidget {
   /// library indicator is redundant (the library screen itself).
   final bool showLibraryBadge;
 
+  /// Marks the parts of the title that matched a search, so offline results show
+  /// why they were returned. Null in grids that were not produced by a search.
+  final String? highlightQuery;
+
   const MangaCard({
     super.key,
     required this.manga,
     required this.onTap,
     this.onLongPress,
     this.showLibraryBadge = true,
+    this.highlightQuery,
   });
 
   Widget? _buildLibraryStatusBadge(BuildContext context, WidgetRef ref) {
@@ -196,6 +202,40 @@ class MangaCard extends ConsumerWidget {
         child: Icon(icon, size: 12, color: color),
       ),
     );
+  }
+
+  static const TextStyle _titleStyle = TextStyle(
+    color: Colors.white,
+    fontWeight: FontWeight.bold,
+    fontSize: 12.5,
+    shadows: [
+      Shadow(color: Colors.black87, blurRadius: 4, offset: Offset(0, 1)),
+    ],
+  );
+
+  /// Marks the tokens that matched the query; everything else keeps the normal
+  /// title style, so a card without a query renders exactly as before.
+  TextSpan _titleSpan(String title) {
+    final query = highlightQuery;
+    final ranges = query == null ? const <(int, int)>[] : highlightRanges(title, query);
+    if (ranges.isEmpty) return TextSpan(text: title, style: _titleStyle);
+
+    final children = <TextSpan>[];
+    var cursor = 0;
+    for (final (start, end) in ranges) {
+      if (start > cursor) {
+        children.add(TextSpan(text: title.substring(cursor, start)));
+      }
+      children.add(TextSpan(
+        text: title.substring(start, end),
+        style: const TextStyle(color: AppTokens.warning),
+      ));
+      cursor = end;
+    }
+    if (cursor < title.length) {
+      children.add(TextSpan(text: title.substring(cursor)));
+    }
+    return TextSpan(style: _titleStyle, children: children);
   }
 
   @override
@@ -286,18 +326,10 @@ class MangaCard extends ConsumerWidget {
                       ),
                       const SizedBox(height: 3),
                     ],
-                    Text(
-                      title,
+                    Text.rich(
+                      _titleSpan(title),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12.5,
-                        shadows: [
-                          Shadow(color: Colors.black87, blurRadius: 4, offset: Offset(0, 1)),
-                        ],
-                      ),
                     ),
                   ],
                 ),

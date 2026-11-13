@@ -564,6 +564,9 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                           final manga = items[index];
                           return MangaCard(
                             manga: manga,
+                            // Local results come from the title/author index, so
+                            // showing the matched tokens explains the hit.
+                            highlightQuery: _localOnly ? _localQuery : null,
                             onTap: () => context.push('/manga/${manga.slugUrl}'),
                           );
                         },
