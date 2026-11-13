@@ -7,6 +7,7 @@ import 'package:mangaloader/services/update_downloader.dart';
 import 'package:mangaloader/src/rust/api/mangalib_client.dart' as rust_client;
 import 'package:mangaloader/widgets/changelog_markdown.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:mangaloader/theme/app_tokens.dart';
 
 class AppUpdateBottomSheet extends ConsumerWidget {
   final AppUpdateInfo update;
@@ -49,10 +50,10 @@ class AppUpdateBottomSheet extends ConsumerWidget {
         maxHeight: MediaQuery.of(context).size.height * 0.85,
       ),
       decoration: BoxDecoration(
-        color: isAmoled ? const Color(0xFF0A0A0A) : const Color(0xFF1E1E1E),
+        color: isAmoled ? const Color(0xFF0A0A0A) : AppTokens.surfaceBase,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
         border: Border.all(
-          color: const Color(0xFF8A897C).withValues(alpha: 0.35),
+          color: AppTokens.accent.withValues(alpha: 0.35),
           width: 1.2,
         ),
         boxShadow: const [
@@ -76,7 +77,7 @@ class AppUpdateBottomSheet extends ConsumerWidget {
                 width: 42,
                 height: 4.5,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF8A897C).withValues(alpha: 0.5),
+                  color: AppTokens.accent.withValues(alpha: 0.5),
                   borderRadius: BorderRadius.circular(3),
                 ),
               ),
@@ -92,21 +93,21 @@ class AppUpdateBottomSheet extends ConsumerWidget {
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         colors: [
-                          const Color(0xFF8A897C).withValues(alpha: 0.3),
-                          const Color(0xFF8A897C).withValues(alpha: 0.1),
+                          AppTokens.accent.withValues(alpha: 0.3),
+                          AppTokens.accent.withValues(alpha: 0.1),
                         ],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: const Color(0xFF8A897C).withValues(alpha: 0.5),
+                        color: AppTokens.accent.withValues(alpha: 0.5),
                         width: 1.2,
                       ),
                     ),
                     child: const Icon(
                       Icons.system_update_rounded,
-                      color: Color(0xFFD2D7DF),
+                      color: AppTokens.textPrimary,
                       size: 26,
                     ),
                   ),
@@ -130,28 +131,28 @@ class AppUpdateBottomSheet extends ConsumerWidget {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF2C2C2C),
+                                color: AppTokens.surfaceRaised,
                                 borderRadius: BorderRadius.circular(6),
-                                border: Border.all(color: const Color(0xFF3E3E3E)),
+                                border: Border.all(color: AppTokens.borderStrong),
                               ),
                               child: Text(
                                 'v$currentVerStr',
                                 style: const TextStyle(
                                   fontSize: 11.5,
-                                  color: Color(0xFFBDBBB0),
+                                  color: AppTokens.textSecondary,
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
                             ),
                             const Padding(
                               padding: EdgeInsets.symmetric(horizontal: 6),
-                              child: Icon(Icons.arrow_forward_rounded, size: 13, color: Color(0xFF8A897C)),
+                              child: Icon(Icons.arrow_forward_rounded, size: 13, color: AppTokens.accent),
                             ),
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                               decoration: BoxDecoration(
                                 gradient: const LinearGradient(
-                                  colors: [Color(0xFF8A897C), Color(0xFF6B6A5E)],
+                                  colors: [AppTokens.accent, Color(0xFF6B6A5E)],
                                 ),
                                 borderRadius: BorderRadius.circular(6),
                                 boxShadow: const [
@@ -173,7 +174,7 @@ class AppUpdateBottomSheet extends ConsumerWidget {
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close_rounded, color: Color(0xFFBDBBB0)),
+                    icon: const Icon(Icons.close_rounded, color: AppTokens.textSecondary),
                     tooltip: isRu ? 'Закрыть' : 'Close',
                     onPressed: () => Navigator.pop(context),
                   ),
@@ -197,7 +198,7 @@ class AppUpdateBottomSheet extends ConsumerWidget {
                       Icon(
                         Platform.isAndroid ? Icons.android_rounded : Icons.desktop_windows_rounded,
                         size: 16,
-                        color: const Color(0xFF8A897C),
+                        color: AppTokens.accent,
                       ),
                       const SizedBox(width: 8),
                       Expanded(
@@ -205,7 +206,7 @@ class AppUpdateBottomSheet extends ConsumerWidget {
                           '$targetLabel • ${bestAsset.name}',
                           style: const TextStyle(
                             fontSize: 12,
-                            color: Color(0xFFD2D7DF),
+                            color: AppTokens.textPrimary,
                             fontWeight: FontWeight.w500,
                           ),
                           maxLines: 1,
@@ -222,7 +223,7 @@ class AppUpdateBottomSheet extends ConsumerWidget {
                           ),
                           child: Text(
                             bestAsset.formattedSize,
-                            style: const TextStyle(fontSize: 11, color: Color(0xFFD2D7DF), fontWeight: FontWeight.bold),
+                            style: const TextStyle(fontSize: 11, color: AppTokens.textPrimary, fontWeight: FontWeight.bold),
                           ),
                         ),
                       ],
@@ -237,14 +238,14 @@ class AppUpdateBottomSheet extends ConsumerWidget {
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 6),
                 child: Row(
                   children: [
-                    const Icon(Icons.receipt_long_rounded, size: 16, color: Color(0xFF8A897C)),
+                    const Icon(Icons.receipt_long_rounded, size: 16, color: AppTokens.accent),
                     const SizedBox(width: 6),
                     Text(
                       isRu ? 'Список изменений:' : 'What\'s new:',
                       style: const TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFFD2D7DF),
+                        color: AppTokens.textPrimary,
                       ),
                     ),
                   ],
@@ -255,9 +256,9 @@ class AppUpdateBottomSheet extends ConsumerWidget {
                   margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: isAmoled ? const Color(0xFF111111) : const Color(0xFF242424),
+                    color: isAmoled ? const Color(0xFF111111) : AppTokens.surfaceCard,
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: const Color(0xFF353535)),
+                    border: Border.all(color: AppTokens.border),
                   ),
                   child: SingleChildScrollView(
                     child: ChangelogMarkdown(update.changelog.trim()),
@@ -300,12 +301,12 @@ class AppUpdateBottomSheet extends ConsumerWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF8A897C).withValues(alpha: 0.25),
+                  color: AppTokens.accent.withValues(alpha: 0.25),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
                   '$percentStr%',
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFFD2D7DF)),
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppTokens.textPrimary),
                 ),
               ),
             ],
@@ -315,8 +316,8 @@ class AppUpdateBottomSheet extends ConsumerWidget {
             borderRadius: BorderRadius.circular(6),
             child: LinearProgressIndicator(
               value: downloadState.progress > 0 ? downloadState.progress : null,
-              backgroundColor: const Color(0xFF353535),
-              valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF8A897C)),
+              backgroundColor: AppTokens.border,
+              valueColor: const AlwaysStoppedAnimation<Color>(AppTokens.accent),
               minHeight: 8,
             ),
           ),
@@ -326,7 +327,7 @@ class AppUpdateBottomSheet extends ConsumerWidget {
             children: [
               Text(
                 '$receivedMb MB / $totalMb MB',
-                style: const TextStyle(fontSize: 11.5, color: Color(0xFFBDBBB0)),
+                style: const TextStyle(fontSize: 11.5, color: AppTokens.textSecondary),
               ),
               TextButton(
                 onPressed: () {
@@ -371,7 +372,7 @@ class AppUpdateBottomSheet extends ConsumerWidget {
           ),
           FilledButton.icon(
             style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFF8A897C),
+              backgroundColor: AppTokens.accent,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -422,7 +423,7 @@ class AppUpdateBottomSheet extends ConsumerWidget {
           ),
           FilledButton.icon(
             style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFF8A897C),
+              backgroundColor: AppTokens.accent,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -453,7 +454,7 @@ class AppUpdateBottomSheet extends ConsumerWidget {
       children: [
         FilledButton.icon(
           style: FilledButton.styleFrom(
-            backgroundColor: const Color(0xFF8A897C),
+            backgroundColor: AppTokens.accent,
             foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(vertical: 14),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -484,8 +485,8 @@ class AppUpdateBottomSheet extends ConsumerWidget {
             Expanded(
               child: OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFFD2D7DF),
-                  side: const BorderSide(color: Color(0xFF3E3E3E)),
+                  foregroundColor: AppTokens.textPrimary,
+                  side: const BorderSide(color: AppTokens.borderStrong),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   padding: const EdgeInsets.symmetric(vertical: 10),
                 ),
@@ -504,7 +505,7 @@ class AppUpdateBottomSheet extends ConsumerWidget {
               onPressed: () => Navigator.pop(context),
               child: Text(
                 isRu ? 'Позже' : 'Later',
-                style: const TextStyle(color: Color(0xFFBDBBB0), fontSize: 12),
+                style: const TextStyle(color: AppTokens.textSecondary, fontSize: 12),
               ),
             ),
           ],

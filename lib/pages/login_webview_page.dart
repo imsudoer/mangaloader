@@ -6,6 +6,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:mangaloader/providers/settings_provider.dart';
 import 'package:mangaloader/src/rust/api/mangalib_client.dart' as rust_api;
+import 'package:mangaloader/theme/app_tokens.dart';
 
 class LoginWebviewPage extends ConsumerStatefulWidget {
   const LoginWebviewPage({super.key});
@@ -295,10 +296,10 @@ class _LoginWebviewPageState extends ConsumerState<LoginWebviewPage> {
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 550),
                 child: Card(
-                  color: const Color(0xFF2C2C2C),
+                  color: AppTokens.surfaceRaised,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
-                    side: const BorderSide(color: Color(0xFF3E3E3E)),
+                    side: const BorderSide(color: AppTokens.borderStrong),
                   ),
                   child: Padding(
                     padding: const EdgeInsets.all(24),
@@ -311,10 +312,10 @@ class _LoginWebviewPageState extends ConsumerState<LoginWebviewPage> {
                             Container(
                               padding: const EdgeInsets.all(10),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF8A897C).withValues(alpha: 0.2),
+                                color: AppTokens.accent.withValues(alpha: 0.2),
                                 borderRadius: BorderRadius.circular(10),
                               ),
-                              child: const Icon(Icons.account_circle_rounded, size: 28, color: Color(0xFFD2D7DF)),
+                              child: const Icon(Icons.account_circle_rounded, size: 28, color: AppTokens.textPrimary),
                             ),
                             const SizedBox(width: 14),
                             Text(
@@ -328,12 +329,12 @@ class _LoginWebviewPageState extends ConsumerState<LoginWebviewPage> {
                           isRu 
                             ? 'Для входа на десктопе откройте страницу авторизации в браузере, пройдите капчу и вставьте сюда Cookie-строку (mangalib_session=...; XSRF-TOKEN=...) или JSON-экспорт cookie:'
                             : 'Open login in browser, solve captcha, then paste the Cookie header or the JSON cookie export below:',
-                          style: const TextStyle(color: Color(0xFFBDBBB0), fontSize: 13, height: 1.4),
+                          style: const TextStyle(color: AppTokens.textSecondary, fontSize: 13, height: 1.4),
                         ),
                         const SizedBox(height: 16),
                         ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF8A897C),
+                            backgroundColor: AppTokens.accent,
                             foregroundColor: Colors.white,
                             minimumSize: const Size.fromHeight(42),
                           ),
@@ -353,14 +354,14 @@ class _LoginWebviewPageState extends ConsumerState<LoginWebviewPage> {
                           decoration: InputDecoration(
                             hintText: 'mangalib_session=...; XSRF-TOKEN=...  |  [{"name":...}]',
                             filled: true,
-                            fillColor: const Color(0xFF1E1E1E),
+                            fillColor: AppTokens.surfaceBase,
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                           ),
                         ),
                         const SizedBox(height: 16),
                         FilledButton.icon(
                           style: FilledButton.styleFrom(
-                            backgroundColor: const Color(0xFF8A897C),
+                            backgroundColor: AppTokens.accent,
                             foregroundColor: Colors.white,
                             minimumSize: const Size.fromHeight(44),
                           ),
@@ -388,7 +389,7 @@ class _LoginWebviewPageState extends ConsumerState<LoginWebviewPage> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF2C2C2C),
+        backgroundColor: AppTokens.surfaceRaised,
         title: Text(isRu ? 'Вставить Cookie' : 'Paste Cookie', style: const TextStyle(color: Colors.white)),
         content: TextField(
           controller: textController,
@@ -403,7 +404,7 @@ class _LoginWebviewPageState extends ConsumerState<LoginWebviewPage> {
             child: Text(isRu ? 'Отмена' : 'Cancel'),
           ),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF8A897C)),
+            style: FilledButton.styleFrom(backgroundColor: AppTokens.accent),
             onPressed: () {
               Navigator.pop(ctx);
               if (textController.text.trim().isNotEmpty) {

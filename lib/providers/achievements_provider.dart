@@ -6,6 +6,7 @@ import 'package:mangaloader/providers/library_provider.dart';
 import 'package:mangaloader/providers/settings_provider.dart';
 import 'package:mangaloader/src/rust/api/storage.dart' as rust_storage;
 import 'package:mangaloader/src/rust/api/models.dart';
+import 'package:mangaloader/theme/app_tokens.dart';
 
 class AchievementsOverview {
   final List<Achievement> achievements;
@@ -357,7 +358,7 @@ final achievementsProvider = FutureProvider<AchievementsOverview>((ref) async {
       descRu: 'Добавьте 1 тайтл в библиотеку',
       descEn: 'Add 1 manga to your library',
       icon: Icons.bookmark_add_rounded,
-      iconColor: const Color(0xFF8A897C),
+      iconColor: AppTokens.accent,
       tier: AchievementTier.bronze,
       xp: 10,
       maxProgress: 1,
@@ -511,7 +512,7 @@ final achievementsProvider = FutureProvider<AchievementsOverview>((ref) async {
       descRu: 'Проведите 10 активных дней в приложении',
       descEn: 'Spend 10 active days in app',
       icon: Icons.calendar_month_rounded,
-      iconColor: const Color(0xFF8A897C),
+      iconColor: AppTokens.accent,
       tier: AchievementTier.silver,
       xp: 50,
       maxProgress: 10,

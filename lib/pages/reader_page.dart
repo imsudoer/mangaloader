@@ -20,6 +20,7 @@ import 'package:mangaloader/services/content_filter.dart';
 import 'package:mangaloader/widgets/manga_comments_modal.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:mangaloader/theme/app_tokens.dart';
 
 enum ReadMode { ltr, rtl, vertical }
 enum ReadBgColor { black, darkGrey, white }
@@ -135,7 +136,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         final isRu = Localizations.localeOf(context).languageCode == 'ru';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            backgroundColor: const Color(0xFF2C2C2C),
+            backgroundColor: AppTokens.surfaceRaised,
             content: Row(
               children: [
                 const Icon(Icons.timer_outlined, color: Colors.orangeAccent),
@@ -150,7 +151,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
             ),
             action: SnackBarAction(
               label: isRu ? 'Отложить' : 'Snooze',
-              textColor: const Color(0xFF8A897C),
+              textColor: AppTokens.accent,
               onPressed: () {
                 _continuousReadingMinutes = 90;
               },
@@ -743,7 +744,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   Color get _resolvedBgColor {
     switch (_bgColor) {
       case ReadBgColor.black: return Colors.black;
-      case ReadBgColor.darkGrey: return const Color(0xFF181818);
+      case ReadBgColor.darkGrey: return AppTokens.surfaceDeep;
       case ReadBgColor.white: return Colors.white;
     }
   }
@@ -1288,14 +1289,14 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                   borderRadius: BorderRadius.circular(8),
                   child: Container(
                     decoration: BoxDecoration(
-                      color: isCurrent ? const Color(0xFF8A897C) : const Color(0xFF333333),
+                      color: isCurrent ? AppTokens.accent : const Color(0xFF333333),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     alignment: Alignment.center,
                     child: Text(
                       '${i + 1}',
                       style: TextStyle(
-                        color: isCurrent ? Colors.white : const Color(0xFFD2D7DF),
+                        color: isCurrent ? Colors.white : AppTokens.textPrimary,
                         fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
                       ),
                     ),
@@ -1307,7 +1308,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: Text(isRu ? 'Закрыть' : 'Close', style: const TextStyle(color: Color(0xFFD2D7DF))),
+              child: Text(isRu ? 'Закрыть' : 'Close', style: const TextStyle(color: AppTokens.textPrimary)),
             ),
           ],
         );
@@ -1338,9 +1339,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
             decoration: BoxDecoration(
-              color: const Color(0xFF2C2C2C),
+              color: AppTokens.surfaceRaised,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFF3E3E3E)),
+              border: Border.all(color: AppTokens.borderStrong),
               boxShadow: const [
                 BoxShadow(color: Colors.black45, blurRadius: 10, offset: Offset(0, 4)),
               ],
@@ -1351,7 +1352,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                 const SizedBox(
                   width: 18, 
                   height: 18, 
-                  child: CircularProgressIndicator(strokeWidth: 2.2, color: Color(0xFF8A897C)),
+                  child: CircularProgressIndicator(strokeWidth: 2.2, color: AppTokens.accent),
                 ),
                 const SizedBox(width: 12),
                 Text(
@@ -1368,7 +1369,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     if (_errorMessage != null) {
       final isLocked = _errorMessage!.contains('заблокирована') || _errorMessage!.contains('доступ');
       return Scaffold(
-        backgroundColor: const Color(0xFF1E1E1E),
+        backgroundColor: AppTokens.surfaceBase,
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
@@ -1384,10 +1385,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 450),
               child: Card(
-                color: const Color(0xFF2C2C2C),
+                color: AppTokens.surfaceRaised,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
-                  side: const BorderSide(color: Color(0xFF3E3E3E)),
+                  side: const BorderSide(color: AppTokens.borderStrong),
                 ),
                 child: Padding(
                   padding: const EdgeInsets.all(24),
@@ -1408,13 +1409,13 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                       const SizedBox(height: 10),
                       Text(
                         _errorMessage!,
-                        style: const TextStyle(color: Color(0xFFD2D7DF), fontSize: 13, height: 1.4),
+                        style: const TextStyle(color: AppTokens.textPrimary, fontSize: 13, height: 1.4),
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 20),
                       FilledButton.icon(
                         style: FilledButton.styleFrom(
-                          backgroundColor: const Color(0xFF8A897C),
+                          backgroundColor: AppTokens.accent,
                           foregroundColor: Colors.white,
                           minimumSize: const Size.fromHeight(42),
                         ),
@@ -1426,7 +1427,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                         const SizedBox(height: 10),
                         OutlinedButton.icon(
                           style: OutlinedButton.styleFrom(
-                            foregroundColor: const Color(0xFFD2D7DF),
+                            foregroundColor: AppTokens.textPrimary,
                             minimumSize: const Size.fromHeight(42),
                           ),
                           onPressed: () async {
@@ -1505,7 +1506,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                               Flexible(child: Text(_chapterTitle, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
                               if (_allChapters.isNotEmpty) ...[
                                 const SizedBox(width: 4),
-                                const Icon(Icons.arrow_drop_down_rounded, size: 20, color: Color(0xFF8A897C)),
+                                const Icon(Icons.arrow_drop_down_rounded, size: 20, color: AppTokens.accent),
                               ],
                             ],
                           ),
@@ -1641,8 +1642,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                                       value: pageIndex.toDouble().clamp(0.0, (_totalPages - 1).toDouble()),
                                       min: 0,
                                       max: (_totalPages - 1).toDouble(),
-                                      activeColor: const Color(0xFF8A897C),
-                                      inactiveColor: const Color(0xFF353535),
+                                      activeColor: AppTokens.accent,
+                                      inactiveColor: AppTokens.border,
                                       onChanged: (val) {
                                         final target = val.round();
                                         // Update visual indicator immediately
@@ -1668,7 +1669,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                                           ),
                                           if (_allChapters.isNotEmpty)
                                             IconButton(
-                                              icon: const Icon(Icons.format_list_bulleted_rounded, size: 18, color: Color(0xFF8A897C)),
+                                              icon: const Icon(Icons.format_list_bulleted_rounded, size: 18, color: AppTokens.accent),
                                               tooltip: isRu ? 'Выбрать главу' : 'Select chapter',
                                               onPressed: _showChapterListDialog,
                                             ),
@@ -1685,7 +1686,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                                           if (hasNext) ...[
                                             FilledButton.tonalIcon(
                                               style: FilledButton.styleFrom(
-                                                backgroundColor: const Color(0xFF8A897C).withValues(alpha: 0.3),
+                                                backgroundColor: AppTokens.accent.withValues(alpha: 0.3),
                                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                                 minimumSize: Size.zero,
                                                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -1726,20 +1727,20 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF2C2C2C).withValues(alpha: 0.9),
+                        color: AppTokens.surfaceRaised.withValues(alpha: 0.9),
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: const Color(0xFF8A897C)),
+                        border: Border.all(color: AppTokens.accent),
                         boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 8, offset: Offset(0, 3))],
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.play_circle_fill_rounded, size: 16, color: Color(0xFF8A897C)),
+                          const Icon(Icons.play_circle_fill_rounded, size: 16, color: AppTokens.accent),
                           const SizedBox(width: 6),
                           Text(isRu ? 'Автоскролл' : 'Auto-scroll', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
                           const SizedBox(width: 8),
                           IconButton(
-                            icon: const Icon(Icons.remove_rounded, size: 16, color: Color(0xFFD2D7DF)),
+                            icon: const Icon(Icons.remove_rounded, size: 16, color: AppTokens.textPrimary),
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
                             onPressed: () {
@@ -1752,7 +1753,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF353535),
+                              color: AppTokens.border,
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(
@@ -1761,7 +1762,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                             ),
                           ),
                           IconButton(
-                            icon: const Icon(Icons.add_rounded, size: 16, color: Color(0xFFD2D7DF)),
+                            icon: const Icon(Icons.add_rounded, size: 16, color: AppTokens.textPrimary),
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
                             onPressed: () {
@@ -1973,7 +1974,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1E1E1E),
+      backgroundColor: AppTokens.surfaceBase,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -2006,7 +2007,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                   child: Row(
                     children: [
-                      const Icon(Icons.format_list_bulleted_rounded, color: Color(0xFF8A897C), size: 20),
+                      const Icon(Icons.format_list_bulleted_rounded, color: AppTokens.accent, size: 20),
                       const SizedBox(width: 8),
                       Text(
                         isRu ? 'Список глав (${_allChapters.length})' : 'Chapters (${_allChapters.length})',
@@ -2028,7 +2029,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                       prefixIcon: const Icon(Icons.search_rounded, size: 18),
                       isDense: true,
                       filled: true,
-                      fillColor: const Color(0xFF2C2C2C),
+                      fillColor: AppTokens.surfaceRaised,
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     ),
@@ -2045,16 +2046,16 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
                       return ListTile(
                         selected: isCurrent,
-                        selectedTileColor: const Color(0xFF8A897C).withValues(alpha: 0.20),
+                        selectedTileColor: AppTokens.accent.withValues(alpha: 0.20),
                         leading: CircleAvatar(
                           radius: 16,
-                          backgroundColor: isCurrent ? const Color(0xFF8A897C) : const Color(0xFF2C2C2C),
+                          backgroundColor: isCurrent ? AppTokens.accent : AppTokens.surfaceRaised,
                           child: Text(
                             c.number,
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.bold,
-                              color: isCurrent ? Colors.white : const Color(0xFFD2D7DF),
+                              color: isCurrent ? Colors.white : AppTokens.textPrimary,
                             ),
                           ),
                         ),
@@ -2063,7 +2064,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
-                            color: isCurrent ? Colors.white : const Color(0xFFD2D7DF),
+                            color: isCurrent ? Colors.white : AppTokens.textPrimary,
                           ),
                         ),
                         subtitle: c.name != null && c.name!.isNotEmpty
@@ -2072,7 +2073,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                         trailing: c.isPaid
                             ? const Icon(Icons.lock_outline_rounded, size: 16, color: Colors.amber)
                             : isCurrent
-                                ? const Icon(Icons.bookmark_rounded, size: 18, color: Color(0xFF8A897C))
+                                ? const Icon(Icons.bookmark_rounded, size: 18, color: AppTokens.accent)
                                 : null,
                         onTap: () {
                           Navigator.pop(ctx);
@@ -2098,7 +2099,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1E1E1E),
+      backgroundColor: AppTokens.surfaceBase,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
       builder: (ctx) {
         return StatefulBuilder(
@@ -2334,7 +2335,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                     if (_hasTitleOverride) ...[
                       const SizedBox(height: 4),
                       TextButton.icon(
-                        style: TextButton.styleFrom(foregroundColor: const Color(0xFF8A897C)),
+                        style: TextButton.styleFrom(foregroundColor: AppTokens.accent),
                         onPressed: () {
                           final global = ref.read(readerPrefsProvider);
                           ref.read(titleReaderPrefsProvider.notifier).clearForTitle(widget.slugUrl);
@@ -2378,13 +2379,13 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 36),
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
-          color: const Color(0xFF242424),
+          color: AppTokens.surfaceCard,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: const Color(0xFF383838)),
         ),
         child: Column(
           children: [
-            const Icon(Icons.check_circle_outline_rounded, size: 40, color: Color(0xFF8A897C)),
+            const Icon(Icons.check_circle_outline_rounded, size: 40, color: AppTokens.accent),
             const SizedBox(height: 12),
             Text(
               isRu ? 'Вы прочитали последнюю главу!' : 'You reached the latest chapter!',
@@ -2394,7 +2395,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
             const SizedBox(height: 6),
             Text(
               isRu ? 'Ожидайте выхода новых глав от переводчиков' : 'Stay tuned for upcoming releases',
-              style: const TextStyle(fontSize: 12, color: Color(0xFFBDBBB0)),
+              style: const TextStyle(fontSize: 12, color: AppTokens.textSecondary),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),
@@ -2418,8 +2419,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
             if (_allChapters.isNotEmpty) ...[
               OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFFD2D7DF),
-                  side: const BorderSide(color: Color(0xFF8A897C)),
+                  foregroundColor: AppTokens.textPrimary,
+                  side: const BorderSide(color: AppTokens.accent),
                   minimumSize: const Size.fromHeight(42),
                 ),
                 onPressed: _showChapterListDialog,
@@ -2430,8 +2431,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
             ],
             OutlinedButton.icon(
               style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFF8A897C),
-                side: const BorderSide(color: Color(0xFF8A897C)),
+                foregroundColor: AppTokens.accent,
+                side: const BorderSide(color: AppTokens.accent),
                 minimumSize: const Size.fromHeight(42),
               ),
               onPressed: () async {
@@ -2459,9 +2460,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFF242424),
+        color: AppTokens.surfaceCard,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF8A897C).withValues(alpha: 0.5)),
+        border: Border.all(color: AppTokens.accent.withValues(alpha: 0.5)),
         boxShadow: const [
           BoxShadow(color: Colors.black38, blurRadius: 12, offset: Offset(0, 4)),
         ],
@@ -2471,7 +2472,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.auto_stories_rounded, color: Color(0xFF8A897C), size: 20),
+              const Icon(Icons.auto_stories_rounded, color: AppTokens.accent, size: 20),
               const SizedBox(width: 8),
               Text(
                 isRu ? 'Глава завершена' : 'Chapter Complete',
@@ -2498,14 +2499,14 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
             const SizedBox(height: 4),
             Text(
               _nextChapter!.name!,
-              style: const TextStyle(fontSize: 12, color: Color(0xFFBDBBB0)),
+              style: const TextStyle(fontSize: 12, color: AppTokens.textSecondary),
               textAlign: TextAlign.center,
             ),
           ],
           const SizedBox(height: 18),
           FilledButton.icon(
             style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFF8A897C),
+              backgroundColor: AppTokens.accent,
               foregroundColor: Colors.white,
               minimumSize: const Size.fromHeight(48),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -2692,14 +2693,14 @@ class _VerticalReaderPageItemState extends State<_VerticalReaderPageItem> {
         content = Container(
           width: itemWidth,
           height: placeholderHeight,
-          color: const Color(0xFF181818),
+          color: AppTokens.surfaceDeep,
           child: const Center(child: Icon(Icons.broken_image, color: Colors.white54)),
         );
       } else {
         content = Container(
           width: itemWidth,
           height: placeholderHeight,
-          color: const Color(0xFF181818),
+          color: AppTokens.surfaceDeep,
           child: const Center(
             child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2)),
           ),
@@ -2724,7 +2725,7 @@ class _VerticalReaderPageItemState extends State<_VerticalReaderPageItem> {
         placeholder: (ctx, url) => Container(
           width: itemWidth,
           height: placeholderHeight,
-          color: const Color(0xFF181818),
+          color: AppTokens.surfaceDeep,
           child: const Center(
             child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2)),
           ),
@@ -2734,7 +2735,7 @@ class _VerticalReaderPageItemState extends State<_VerticalReaderPageItem> {
           child: Container(
             width: itemWidth,
             height: placeholderHeight,
-            color: const Color(0xFF181818),
+            color: AppTokens.surfaceDeep,
             child: Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -2755,7 +2756,7 @@ class _VerticalReaderPageItemState extends State<_VerticalReaderPageItem> {
       content = Container(
         width: itemWidth,
         height: placeholderHeight,
-        color: const Color(0xFF181818),
+        color: AppTokens.surfaceDeep,
         child: const Center(child: Icon(Icons.broken_image, color: Colors.white54)),
       );
     }
@@ -2930,7 +2931,7 @@ class _HorizontalReaderPageItemState extends State<_HorizontalReaderPageItem>
         errorWidget: (ctx, url, err) => InkWell(
           onTap: () => widget.reloadImage(pageUrl),
           child: Container(
-            color: const Color(0xFF181818),
+            color: AppTokens.surfaceDeep,
             child: Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,

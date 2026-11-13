@@ -10,6 +10,7 @@ import 'package:mangaloader/src/rust/api/models.dart';
 import 'package:mangaloader/services/content_filter.dart';
 import 'package:mangaloader/services/download_queue_service.dart';
 import 'package:mangaloader/services/update_checker.dart';
+import 'package:mangaloader/theme/app_tokens.dart';
 
 class DownloadsPage extends ConsumerStatefulWidget {
   const DownloadsPage({super.key});
@@ -84,13 +85,13 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF2C2C2C),
+        backgroundColor: AppTokens.surfaceRaised,
         title: Text(isRu ? 'Удалить главу?' : 'Delete chapter?', style: const TextStyle(color: Colors.white)),
         content: Text(
           isRu 
             ? 'Удалить Том ${ch.volume} Гл ${ch.number} из памяти устройства?'
             : 'Delete Vol ${ch.volume} Ch ${ch.number} from storage?',
-          style: const TextStyle(color: Color(0xFFD2D7DF)),
+          style: const TextStyle(color: AppTokens.textPrimary),
         ),
         actions: [
           TextButton(
@@ -121,13 +122,13 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF2C2C2C),
+        backgroundColor: AppTokens.surfaceRaised,
         title: Text(isRu ? 'Удалить всю мангу?' : 'Delete entire manga?', style: const TextStyle(color: Colors.white)),
         content: Text(
           isRu 
             ? 'Удалить все ${group.chapters.length} скачанные главы "$title" (${_formatBytes(group.totalSizeBytes.toInt())})?'
             : 'Delete all ${group.chapters.length} downloaded chapters of "$title"?',
-          style: const TextStyle(color: Color(0xFFD2D7DF)),
+          style: const TextStyle(color: AppTokens.textPrimary),
         ),
         actions: [
           TextButton(
@@ -153,7 +154,7 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF2C2C2C),
+        backgroundColor: AppTokens.surfaceRaised,
         title: Text(
           isRu ? 'Освободить место?' : 'Free up space?',
           style: const TextStyle(color: Colors.white),
@@ -162,7 +163,7 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
           isRu
               ? 'Будут удалены скачанные главы, отмеченные как прочитанные.'
               : 'Downloaded chapters marked as read will be deleted.',
-          style: const TextStyle(color: Color(0xFFD2D7DF)),
+          style: const TextStyle(color: AppTokens.textPrimary),
         ),
         actions: [
           TextButton(
@@ -170,7 +171,7 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
             child: Text(isRu ? 'Отмена' : 'Cancel'),
           ),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF8A897C)),
+            style: FilledButton.styleFrom(backgroundColor: AppTokens.accent),
             onPressed: () => Navigator.pop(ctx, true),
             child: Text(isRu ? 'Очистить' : 'Clean up'),
           ),
@@ -252,7 +253,7 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
       margin: const EdgeInsets.only(bottom: 16),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
-        side: const BorderSide(color: Color(0xFF3E3E3E), width: 1),
+        side: const BorderSide(color: AppTokens.borderStrong, width: 1),
       ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
@@ -261,7 +262,7 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
           children: [
             Row(
               children: [
-                const Icon(Icons.sd_storage_rounded, size: 18, color: Color(0xFFD2D7DF)),
+                const Icon(Icons.sd_storage_rounded, size: 18, color: AppTokens.textPrimary),
                 const SizedBox(width: 8),
                 Text(
                   isRu ? 'Хранилище' : 'Storage',
@@ -275,7 +276,7 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: nearLimit ? Colors.amberAccent : const Color(0xFFBDBBB0),
+                    color: nearLimit ? Colors.amberAccent : AppTokens.textSecondary,
                   ),
                 ),
               ],
@@ -287,8 +288,8 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
                 child: LinearProgressIndicator(
                   value: usage,
                   minHeight: 6,
-                  backgroundColor: const Color(0xFF353535),
-                  color: nearLimit ? Colors.amberAccent : const Color(0xFF8A897C),
+                  backgroundColor: AppTokens.border,
+                  color: nearLimit ? Colors.amberAccent : AppTokens.accent,
                 ),
               ),
             ],
@@ -348,10 +349,10 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
     switch (item.status) {
       case DownloadQueueStatus.queued:
         icon = Icons.schedule_rounded;
-        color = const Color(0xFFBDBBB0);
+        color = AppTokens.textSecondary;
       case DownloadQueueStatus.downloading:
         icon = Icons.downloading_rounded;
-        color = const Color(0xFF8A897C);
+        color = AppTokens.accent;
       case DownloadQueueStatus.waitingForWifi:
         icon = Icons.wifi_off_rounded;
         color = Colors.amberAccent;
@@ -360,7 +361,7 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
         color = Colors.redAccent;
       case DownloadQueueStatus.completed:
         icon = Icons.check_circle_outline_rounded;
-        color = const Color(0xFF8A897C);
+        color = AppTokens.accent;
     }
 
     final isFailed = item.status == DownloadQueueStatus.failed;
@@ -371,7 +372,7 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(
-          color: isFailed ? Colors.redAccent.withValues(alpha: 0.5) : const Color(0xFF353535),
+          color: isFailed ? Colors.redAccent.withValues(alpha: 0.5) : AppTokens.border,
           width: 1,
         ),
       ),
@@ -390,7 +391,7 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
             fontSize: 11,
-            color: isFailed ? Colors.redAccent.shade100 : const Color(0xFFBDBBB0),
+            color: isFailed ? Colors.redAccent.shade100 : AppTokens.textSecondary,
           ),
         ),
         trailing: Row(
@@ -584,7 +585,7 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
                         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                         filled: true,
-                        fillColor: const Color(0xFF2C2C2C),
+                        fillColor: AppTokens.surfaceRaised,
                       ),
                       onChanged: (val) => setState(() => _searchQuery = val),
                     ),
@@ -594,7 +595,7 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
                     initialValue: _sortBy,
                     tooltip: isRu ? 'Сортировка' : 'Sort',
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    color: const Color(0xFF2C2C2C),
+                    color: AppTokens.surfaceRaised,
                     onSelected: (val) => setState(() => _sortBy = val),
                     itemBuilder: (ctx) => sortOptions.map((opt) {
                       final isSel = _sortBy == opt['id'];
@@ -605,13 +606,13 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
                             Icon(
                               isSel ? Icons.check_circle_rounded : Icons.circle_outlined,
                               size: 16,
-                              color: isSel ? const Color(0xFF8A897C) : const Color(0xFFBDBBB0),
+                              color: isSel ? AppTokens.accent : AppTokens.textSecondary,
                             ),
                             const SizedBox(width: 8),
                             Text(
                               isRu ? opt['labelRu'] as String : opt['labelEn'] as String,
                               style: TextStyle(
-                                color: isSel ? Colors.white : const Color(0xFFD2D7DF),
+                                color: isSel ? Colors.white : AppTokens.textPrimary,
                                 fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
                               ),
                             ),
@@ -622,11 +623,11 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
                     child: Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF2C2C2C),
+                        color: AppTokens.surfaceRaised,
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: const Color(0xFF3E3E3E)),
+                        border: Border.all(color: AppTokens.borderStrong),
                       ),
-                      child: const Icon(Icons.sort_rounded, size: 20, color: Color(0xFFD2D7DF)),
+                      child: const Icon(Icons.sort_rounded, size: 20, color: AppTokens.textPrimary),
                     ),
                   ),
                 ],
@@ -642,7 +643,7 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
                   padding: const EdgeInsets.all(32),
                   child: Column(
                     children: [
-                      const Icon(Icons.offline_pin_outlined, size: 52, color: Color(0xFF8A897C)),
+                      const Icon(Icons.offline_pin_outlined, size: 52, color: AppTokens.accent),
                       const SizedBox(height: 12),
                       Text(
                         isRu ? 'Нет скачанных глав' : 'No downloaded chapters',
@@ -651,7 +652,7 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
                       const SizedBox(height: 6),
                       Text(
                         isRu ? 'Скачайте главы со страницы тайтла или откройте локальный .cbz файл' : 'Download chapters from manga page or open a local .cbz file',
-                        style: const TextStyle(color: Color(0xFFBDBBB0), fontSize: 13),
+                        style: const TextStyle(color: AppTokens.textSecondary, fontSize: 13),
                         textAlign: TextAlign.center,
                       ),
                     ],
@@ -664,7 +665,7 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
                   padding: const EdgeInsets.all(24),
                   child: Text(
                     isRu ? 'Ничего не найдено по запросу "$_searchQuery"' : 'No matches for "$_searchQuery"',
-                    style: const TextStyle(color: Color(0xFFBDBBB0)),
+                    style: const TextStyle(color: AppTokens.textSecondary),
                   ),
                 ),
               )
@@ -694,7 +695,7 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
                   margin: const EdgeInsets.only(bottom: 12),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
-                    side: const BorderSide(color: Color(0xFF3E3E3E), width: 1),
+                    side: const BorderSide(color: AppTokens.borderStrong, width: 1),
                   ),
                   child: Theme(
                     data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
@@ -712,12 +713,12 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
                                 imageUrl: group.coverUrl,
                                 httpHeaders: const {'Referer': 'https://mangalib.org/'},
                                 fit: BoxFit.cover,
-                                placeholder: (_, __) => Container(color: const Color(0xFF353535)),
+                                placeholder: (_, __) => Container(color: AppTokens.border),
                                 errorWidget: (_, __, ___) => const Icon(Icons.broken_image, size: 20),
                               )
                             : Container(
-                                color: const Color(0xFF353535),
-                                child: const Icon(Icons.menu_book_rounded, color: Color(0xFF8A897C)),
+                                color: AppTokens.border,
+                                child: const Icon(Icons.menu_book_rounded, color: AppTokens.accent),
                               ),
                         ),
                       ),
@@ -734,16 +735,16 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF8A897C).withValues(alpha: 0.2),
+                                color: AppTokens.accent.withValues(alpha: 0.2),
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: Text(
                                 '${group.chapters.length} ${isRu ? "гл." : "ch."}',
-                                style: const TextStyle(color: Color(0xFFD2D7DF), fontSize: 11, fontWeight: FontWeight.bold),
+                                style: const TextStyle(color: AppTokens.textPrimary, fontSize: 11, fontWeight: FontWeight.bold),
                               ),
                             ),
                             const SizedBox(width: 8),
-                            Text(sizeStr, style: const TextStyle(color: Color(0xFFBDBBB0), fontSize: 12)),
+                            Text(sizeStr, style: const TextStyle(color: AppTokens.textSecondary, fontSize: 12)),
                           ],
                         ),
                       ),
@@ -771,7 +772,7 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
                             children: [
                               Text(
                                 isRu ? 'Главы по порядку:' : 'Chapters in order:',
-                                style: const TextStyle(fontSize: 12, color: Color(0xFFBDBBB0), fontWeight: FontWeight.w600),
+                                style: const TextStyle(fontSize: 12, color: AppTokens.textSecondary, fontWeight: FontWeight.w600),
                               ),
                               const Spacer(),
                               TextButton.icon(
@@ -797,13 +798,13 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
                             leading: Container(
                               padding: const EdgeInsets.all(6),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF8A897C).withValues(alpha: 0.15),
+                                color: AppTokens.accent.withValues(alpha: 0.15),
                                 borderRadius: BorderRadius.circular(8),
                               ),
-                              child: const Icon(Icons.archive_outlined, color: Color(0xFFD2D7DF), size: 18),
+                              child: const Icon(Icons.archive_outlined, color: AppTokens.textPrimary, size: 18),
                             ),
                             title: Text('Том ${ch.volume} Глава ${ch.number}', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-                            subtitle: Text('${ch.pageCount} стр. • ${ch.downloadedAt.split("T").first}', style: const TextStyle(fontSize: 11, color: Color(0xFFBDBBB0))),
+                            subtitle: Text('${ch.pageCount} стр. • ${ch.downloadedAt.split("T").first}', style: const TextStyle(fontSize: 11, color: AppTokens.textSecondary)),
                             trailing: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
@@ -811,8 +812,8 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
                                   icon: const Icon(Icons.play_arrow_rounded, size: 18),
                                   tooltip: isRu ? 'Читать' : 'Read',
                                   style: IconButton.styleFrom(
-                                    backgroundColor: const Color(0xFF8A897C).withValues(alpha: 0.25),
-                                    foregroundColor: const Color(0xFFD2D7DF),
+                                    backgroundColor: AppTokens.accent.withValues(alpha: 0.25),
+                                    foregroundColor: AppTokens.textPrimary,
                                     minimumSize: const Size(32, 32),
                                     padding: EdgeInsets.zero,
                                   ),

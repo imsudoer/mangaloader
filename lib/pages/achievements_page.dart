@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:mangaloader/models/achievement.dart';
 import 'package:mangaloader/providers/achievements_provider.dart';
+import 'package:mangaloader/theme/app_tokens.dart';
 
 class AchievementsPage extends ConsumerStatefulWidget {
   const AchievementsPage({super.key});
@@ -55,9 +56,9 @@ class _AchievementsPageState extends ConsumerState<AchievementsPage> {
                   elevation: 0,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
-                    side: const BorderSide(color: Color(0xFF3E3E3E), width: 1),
+                    side: const BorderSide(color: AppTokens.borderStrong, width: 1),
                   ),
-                  color: const Color(0xFF242424),
+                  color: AppTokens.surfaceCard,
                   child: Padding(
                     padding: const EdgeInsets.all(18),
                     child: Column(
@@ -70,8 +71,8 @@ class _AchievementsPageState extends ConsumerState<AchievementsPage> {
                               height: 52,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                color: const Color(0xFF8A897C).withValues(alpha: 0.25),
-                                border: Border.all(color: const Color(0xFF8A897C), width: 2),
+                                color: AppTokens.accent.withValues(alpha: 0.25),
+                                border: Border.all(color: AppTokens.accent, width: 2),
                               ),
                               child: Center(
                                 child: Text(
@@ -92,7 +93,7 @@ class _AchievementsPageState extends ConsumerState<AchievementsPage> {
                                   const SizedBox(height: 2),
                                   Text(
                                     '${overview.totalXp} XP • ${overview.unlockedCount} / ${overview.totalCount} ${isRu ? "открыто" : "unlocked"}',
-                                    style: const TextStyle(fontSize: 12.5, color: Color(0xFFD2D7DF)),
+                                    style: const TextStyle(fontSize: 12.5, color: AppTokens.textPrimary),
                                   ),
                                 ],
                               ),
@@ -105,8 +106,8 @@ class _AchievementsPageState extends ConsumerState<AchievementsPage> {
                           child: LinearProgressIndicator(
                             value: overview.levelProgress,
                             minHeight: 6,
-                            backgroundColor: const Color(0xFF353535),
-                            valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF8A897C)),
+                            backgroundColor: AppTokens.border,
+                            valueColor: const AlwaysStoppedAnimation<Color>(AppTokens.accent),
                           ),
                         ),
                         const SizedBox(height: 6),
@@ -115,11 +116,11 @@ class _AchievementsPageState extends ConsumerState<AchievementsPage> {
                           children: [
                             Text(
                               '${overview.totalXp} XP',
-                              style: const TextStyle(fontSize: 11, color: Color(0xFFBDBBB0)),
+                              style: const TextStyle(fontSize: 11, color: AppTokens.textSecondary),
                             ),
                             Text(
                               '${overview.nextLevelXp} XP (${isRu ? "След. уровень" : "Next level"})',
-                              style: const TextStyle(fontSize: 11, color: Color(0xFFBDBBB0)),
+                              style: const TextStyle(fontSize: 11, color: AppTokens.textSecondary),
                             ),
                           ],
                         ),
@@ -172,11 +173,11 @@ class _AchievementsPageState extends ConsumerState<AchievementsPage> {
       labelStyle: TextStyle(
         fontSize: 12,
         fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-        color: isSelected ? Colors.white : const Color(0xFFD2D7DF),
+        color: isSelected ? Colors.white : AppTokens.textPrimary,
       ),
-      selectedColor: const Color(0xFF8A897C),
-      backgroundColor: const Color(0xFF2C2C2C),
-      side: BorderSide(color: isSelected ? const Color(0xFF8A897C) : const Color(0xFF3E3E3E)),
+      selectedColor: AppTokens.accent,
+      backgroundColor: AppTokens.surfaceRaised,
+      side: BorderSide(color: isSelected ? AppTokens.accent : AppTokens.borderStrong),
       onSelected: (_) => setState(() => _selectedCategory = key),
     );
   }
@@ -191,11 +192,11 @@ class _AchievementsPageState extends ConsumerState<AchievementsPage> {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
         side: BorderSide(
-          color: isDone ? tierColor.withValues(alpha: 0.5) : const Color(0xFF353535),
+          color: isDone ? tierColor.withValues(alpha: 0.5) : AppTokens.border,
           width: isDone ? 1.2 : 0.8,
         ),
       ),
-      color: const Color(0xFF1E1E1E),
+      color: AppTokens.surfaceBase,
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Row(
@@ -237,7 +238,7 @@ class _AchievementsPageState extends ConsumerState<AchievementsPage> {
                           style: TextStyle(
                             fontSize: 14.5,
                             fontWeight: FontWeight.bold,
-                            color: isDone ? Colors.white : const Color(0xFFBDBBB0),
+                            color: isDone ? Colors.white : AppTokens.textSecondary,
                           ),
                         ),
                       ),
@@ -258,7 +259,7 @@ class _AchievementsPageState extends ConsumerState<AchievementsPage> {
                   const SizedBox(height: 4),
                   Text(
                     isRu ? a.descRu : a.descEn,
-                    style: const TextStyle(fontSize: 12, color: Color(0xFFBDBBB0)),
+                    style: const TextStyle(fontSize: 12, color: AppTokens.textSecondary),
                   ),
                   const SizedBox(height: 8),
 
@@ -269,8 +270,8 @@ class _AchievementsPageState extends ConsumerState<AchievementsPage> {
                       child: LinearProgressIndicator(
                         value: a.progressRatio,
                         minHeight: 4,
-                        backgroundColor: const Color(0xFF2C2C2C),
-                        valueColor: AlwaysStoppedAnimation<Color>(isDone ? a.iconColor : const Color(0xFF8A897C)),
+                        backgroundColor: AppTokens.surfaceRaised,
+                        valueColor: AlwaysStoppedAnimation<Color>(isDone ? a.iconColor : AppTokens.accent),
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -279,18 +280,18 @@ class _AchievementsPageState extends ConsumerState<AchievementsPage> {
                       children: [
                         Text(
                           '${a.currentProgress} / ${a.maxProgress}',
-                          style: const TextStyle(fontSize: 10.5, color: Color(0xFF8A897C)),
+                          style: const TextStyle(fontSize: 10.5, color: AppTokens.accent),
                         ),
                         if (isDone)
                           InkWell(
                             onTap: () => _shareAchievement(a, isRu),
                             child: Row(
                               children: [
-                                const Icon(Icons.share_rounded, size: 12, color: Color(0xFF8A897C)),
+                                const Icon(Icons.share_rounded, size: 12, color: AppTokens.accent),
                                 const SizedBox(width: 4),
                                 Text(
                                   isRu ? 'Поделиться' : 'Share',
-                                  style: const TextStyle(fontSize: 10.5, color: Color(0xFF8A897C), fontWeight: FontWeight.bold),
+                                  style: const TextStyle(fontSize: 10.5, color: AppTokens.accent, fontWeight: FontWeight.bold),
                                 ),
                               ],
                             ),
@@ -305,11 +306,11 @@ class _AchievementsPageState extends ConsumerState<AchievementsPage> {
                           onTap: () => _shareAchievement(a, isRu),
                           child: Row(
                             children: [
-                              const Icon(Icons.share_rounded, size: 12, color: Color(0xFF8A897C)),
+                              const Icon(Icons.share_rounded, size: 12, color: AppTokens.accent),
                               const SizedBox(width: 4),
                               Text(
                                 isRu ? 'Поделиться' : 'Share',
-                                style: const TextStyle(fontSize: 10.5, color: Color(0xFF8A897C), fontWeight: FontWeight.bold),
+                                style: const TextStyle(fontSize: 10.5, color: AppTokens.accent, fontWeight: FontWeight.bold),
                               ),
                             ],
                           ),

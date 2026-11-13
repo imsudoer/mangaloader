@@ -1,28 +1,29 @@
 import 'package:flutter/material.dart';
+import 'package:mangaloader/theme/app_tokens.dart';
 
 class AppTheme {
   // Brand Palette: ["#353535", "#ffffff", "#d2d7df", "#bdbbb0", "#8a897c"]
-  static const colorCharcoal = Color(0xFF353535);
+  static const colorCharcoal = AppTokens.border;
   static const colorWhite = Color(0xFFFFFFFF);
-  static const colorCoolSilver = Color(0xFFD2D7DF);
-  static const colorWarmStone = Color(0xFFBDBBB0);
-  static const colorDeepSlate = Color(0xFF8A897C);
+  static const colorCoolSilver = AppTokens.textPrimary;
+  static const colorWarmStone = AppTokens.textSecondary;
+  static const colorDeepSlate = AppTokens.accent;
 
   // Dark Theme specifics
   static const _darkBackground = Color(0xFF161616);
   static const _darkSurface = Color(0xFF202020);
-  static const _darkSurfaceVariant = Color(0xFF2C2C2C);
+  static const _darkSurfaceVariant = AppTokens.surfaceRaised;
   static const _darkOnSurface = Color(0xFFFFFFFF);
-  static const _darkOnSurfaceVariant = Color(0xFFD2D7DF);
+  static const _darkOnSurfaceVariant = AppTokens.textPrimary;
   
   // Accents
-  static const _darkPrimary = Color(0xFFD2D7DF); // Accent 1 (Crisp Platinum)
-  static const _darkPrimaryContainer = Color(0xFF8A897C); // Deep Slate Accent
+  static const _darkPrimary = AppTokens.textPrimary; // Accent 1 (Crisp Platinum)
+  static const _darkPrimaryContainer = AppTokens.accent; // Deep Slate Accent
   static const _darkOnPrimary = Color(0xFF161616);
-  static const _darkSecondary = Color(0xFFBDBBB0); // Accent 2 (Warm Stone)
+  static const _darkSecondary = AppTokens.textSecondary; // Accent 2 (Warm Stone)
   static const _darkSecondaryContainer = Color(0xFF3A3934);
   static const _darkOnSecondaryContainer = Color(0xFFFFFFFF);
-  static const _darkTertiary = Color(0xFF8A897C);
+  static const _darkTertiary = AppTokens.accent;
   static const _darkOnTertiary = Color(0xFFFFFFFF);
   static const _darkError = Color(0xFFFF6B6B);
 
@@ -32,13 +33,13 @@ class AppTheme {
   static const _lightSurfaceVariant = Color(0xFFEDEFE4);
   static const _lightOnSurface = Color(0xFF222222);
   static const _lightOnSurfaceVariant = Color(0xFF6B6A62);
-  static const _lightPrimary = Color(0xFF353535);
-  static const _lightPrimaryContainer = Color(0xFFD2D7DF);
+  static const _lightPrimary = AppTokens.border;
+  static const _lightPrimaryContainer = AppTokens.textPrimary;
   static const _lightOnPrimary = Color(0xFFFFFFFF);
-  static const _lightSecondary = Color(0xFF8A897C);
+  static const _lightSecondary = AppTokens.accent;
   static const _lightSecondaryContainer = Color(0xFFEAE9E4);
-  static const _lightOnSecondaryContainer = Color(0xFF353535);
-  static const _lightTertiary = Color(0xFF8A897C);
+  static const _lightOnSecondaryContainer = AppTokens.border;
+  static const _lightTertiary = AppTokens.accent;
   static const _lightOnTertiary = Color(0xFFFFFFFF);
   static const _lightError = Color(0xFFD32F2F);
 
@@ -152,7 +153,7 @@ class AppTheme {
         onPrimary: _darkOnPrimary,
         primaryContainer: _darkPrimaryContainer,
         secondary: _darkSecondary,
-        onSecondary: Color(0xFF1E1E1E),
+        onSecondary: AppTokens.surfaceBase,
         secondaryContainer: _darkSecondaryContainer,
         onSecondaryContainer: _darkOnSecondaryContainer,
         tertiary: _darkTertiary,
@@ -175,19 +176,19 @@ class AppTheme {
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: _darkBackground,
         elevation: 0,
-        indicatorColor: const Color(0xFF8A897C).withValues(alpha: 0.35),
+        indicatorColor: AppTokens.accent.withValues(alpha: 0.35),
         indicatorShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
             return const TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Colors.white);
           }
-          return const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w500, color: Color(0xFFBDBBB0));
+          return const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w500, color: AppTokens.textSecondary);
         }),
         iconTheme: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
             return const IconThemeData(color: Colors.white, size: 22);
           }
-          return const IconThemeData(color: Color(0xFFBDBBB0), size: 22);
+          return const IconThemeData(color: AppTokens.textSecondary, size: 22);
         }),
       ),
       cardTheme: CardThemeData(
@@ -213,11 +214,11 @@ class AppTheme {
         fillColor: _darkSurfaceVariant,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: Color(0xFF3E3E3E), width: 1),
+          borderSide: const BorderSide(color: AppTokens.borderStrong, width: 1),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: Color(0xFF3E3E3E), width: 1),
+          borderSide: const BorderSide(color: AppTokens.borderStrong, width: 1),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
@@ -230,12 +231,12 @@ class AppTheme {
         style: ButtonStyle(
           shape: WidgetStateProperty.all(RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
           backgroundColor: WidgetStateProperty.resolveWith((states) {
-            if (states.contains(WidgetState.selected)) return const Color(0xFF8A897C);
+            if (states.contains(WidgetState.selected)) return AppTokens.accent;
             return Colors.transparent;
           }),
           foregroundColor: WidgetStateProperty.resolveWith((states) {
             if (states.contains(WidgetState.selected)) return Colors.white;
-            return const Color(0xFFD2D7DF);
+            return AppTokens.textPrimary;
           }),
         ),
       ),
@@ -322,7 +323,7 @@ class AppTheme {
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: _lightBackground,
         elevation: 0,
-        indicatorColor: const Color(0xFF8A897C).withValues(alpha: 0.25),
+        indicatorColor: AppTokens.accent.withValues(alpha: 0.25),
         indicatorShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
       cardTheme: CardThemeData(
@@ -394,7 +395,7 @@ class AppTheme {
         primaryContainer: _darkPrimaryContainer,
         secondary: _darkSecondary,
         onSecondary: Color(0xFF111111),
-        secondaryContainer: Color(0xFF1E1E1E),
+        secondaryContainer: AppTokens.surfaceBase,
         onSecondaryContainer: _darkOnSecondaryContainer,
         tertiary: _darkTertiary,
         onTertiary: _darkOnTertiary,
@@ -416,7 +417,7 @@ class AppTheme {
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: const Color(0xFF000000),
         elevation: 0,
-        indicatorColor: const Color(0xFF8A897C).withValues(alpha: 0.35),
+        indicatorColor: AppTokens.accent.withValues(alpha: 0.35),
         indicatorShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
       cardTheme: CardThemeData(
@@ -464,7 +465,7 @@ class AppTheme {
         ),
       ),
       dividerTheme: const DividerThemeData(
-        color: Color(0xFF1E1E1E),
+        color: AppTokens.surfaceBase,
         thickness: 1,
         space: 1,
       ),

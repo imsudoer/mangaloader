@@ -5,6 +5,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:mangaloader/src/rust/api/models.dart';
 import 'package:mangaloader/providers/streak_provider.dart';
 import 'package:mangaloader/utils/plural.dart';
+import 'package:mangaloader/theme/app_tokens.dart';
 
 class StreakDetailsModal extends ConsumerWidget {
   final ReadingStreakInfo streak;
@@ -71,7 +72,7 @@ class StreakDetailsModal extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF242424),
+        backgroundColor: AppTokens.surfaceCard,
         title: Text(isRu ? 'Синхронизация стрика' : 'Sync Streak'),
         content: TextField(
           controller: controller,
@@ -88,7 +89,7 @@ class StreakDetailsModal extends ConsumerWidget {
             child: Text(isRu ? 'Отмена' : 'Cancel'),
           ),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF8A897C)),
+            style: FilledButton.styleFrom(backgroundColor: AppTokens.accent),
             onPressed: () {
               final val = int.tryParse(controller.text.trim());
               if (val != null && val >= 0) {
@@ -128,7 +129,7 @@ class StreakDetailsModal extends ConsumerWidget {
     return Container(
       constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.85),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
+        color: AppTokens.surfaceBase,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         border: Border.all(color: flameColor.withValues(alpha: 0.3), width: 1.5),
         boxShadow: const [BoxShadow(color: Colors.black87, blurRadius: 20, offset: Offset(0, -4))],
@@ -146,7 +147,7 @@ class StreakDetailsModal extends ConsumerWidget {
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: const Color(0xFF3E3E3E),
+                    color: AppTokens.borderStrong,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -216,19 +217,19 @@ class StreakDetailsModal extends ConsumerWidget {
                 decoration: BoxDecoration(
                   color: streak.isActiveToday
                       ? Colors.green.shade900.withValues(alpha: 0.2)
-                      : const Color(0xFF2C2C2C),
+                      : AppTokens.surfaceRaised,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: streak.isActiveToday
                         ? Colors.green.shade700.withValues(alpha: 0.4)
-                        : const Color(0xFF3E3E3E),
+                        : AppTokens.borderStrong,
                   ),
                 ),
                 child: Row(
                   children: [
                     Icon(
                       streak.isActiveToday ? Icons.check_circle_rounded : Icons.info_outline_rounded,
-                      color: streak.isActiveToday ? Colors.greenAccent : const Color(0xFF8A897C),
+                      color: streak.isActiveToday ? Colors.greenAccent : AppTokens.accent,
                       size: 20,
                     ),
                     const SizedBox(width: 10),
@@ -243,7 +244,7 @@ class StreakDetailsModal extends ConsumerWidget {
                                 : 'Read 1 chapter today to keep your streak!'),
                         style: TextStyle(
                           fontSize: 12.5,
-                          color: streak.isActiveToday ? Colors.white : const Color(0xFFD2D7DF),
+                          color: streak.isActiveToday ? Colors.white : AppTokens.textPrimary,
                         ),
                       ),
                     ),
@@ -257,7 +258,7 @@ class StreakDetailsModal extends ConsumerWidget {
                 alignment: Alignment.centerLeft,
                 child: Text(
                   isRu ? 'Активность за последние 7 дней:' : 'Last 7 Days Activity:',
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFFBDBBB0)),
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppTokens.textSecondary),
                 ),
               ),
               const SizedBox(height: 8),
@@ -279,11 +280,11 @@ class StreakDetailsModal extends ConsumerWidget {
                           shape: BoxShape.circle,
                           color: isDone
                               ? flameColor.withValues(alpha: 0.25)
-                              : const Color(0xFF2C2C2C),
+                              : AppTokens.surfaceRaised,
                           border: Border.all(
                             color: isToday
                                 ? flameColor
-                                : (isDone ? flameColor.withValues(alpha: 0.6) : const Color(0xFF3E3E3E)),
+                                : (isDone ? flameColor.withValues(alpha: 0.6) : AppTokens.borderStrong),
                             width: isToday ? 2.0 : 1.0,
                           ),
                         ),
@@ -292,7 +293,7 @@ class StreakDetailsModal extends ConsumerWidget {
                               ? Icon(Icons.check_rounded, size: 18, color: flameColor)
                               : Text(
                                   '${d.day}',
-                                  style: const TextStyle(fontSize: 11, color: Color(0xFF8A897C)),
+                                  style: const TextStyle(fontSize: 11, color: AppTokens.accent),
                                 ),
                         ),
                       ),
@@ -301,7 +302,7 @@ class StreakDetailsModal extends ConsumerWidget {
                         label,
                         style: TextStyle(
                           fontSize: 10.5,
-                          color: isToday ? Colors.white : const Color(0xFF8A897C),
+                          color: isToday ? Colors.white : AppTokens.accent,
                           fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
                         ),
                       ),
@@ -318,13 +319,13 @@ class StreakDetailsModal extends ConsumerWidget {
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF2C2C2C),
+                        color: AppTokens.surfaceRaised,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFF3E3E3E)),
+                        border: Border.all(color: AppTokens.borderStrong),
                       ),
                       child: Column(
                         children: [
-                          const Icon(Icons.emoji_events_outlined, size: 18, color: Color(0xFF8A897C)),
+                          const Icon(Icons.emoji_events_outlined, size: 18, color: AppTokens.accent),
                           const SizedBox(height: 4),
                           Text(
                             '$maxStreak ${isRu ? "дн." : "d."}',
@@ -332,7 +333,7 @@ class StreakDetailsModal extends ConsumerWidget {
                           ),
                           Text(
                             isRu ? 'Рекорд стрика' : 'Best Streak',
-                            style: const TextStyle(fontSize: 10.5, color: Color(0xFFBDBBB0)),
+                            style: const TextStyle(fontSize: 10.5, color: AppTokens.textSecondary),
                           ),
                         ],
                       ),
@@ -343,13 +344,13 @@ class StreakDetailsModal extends ConsumerWidget {
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF2C2C2C),
+                        color: AppTokens.surfaceRaised,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFF3E3E3E)),
+                        border: Border.all(color: AppTokens.borderStrong),
                       ),
                       child: Column(
                         children: [
-                          const Icon(Icons.menu_book_rounded, size: 18, color: Color(0xFF8A897C)),
+                          const Icon(Icons.menu_book_rounded, size: 18, color: AppTokens.accent),
                           const SizedBox(height: 4),
                           Text(
                             '${streak.totalChaptersRead}',
@@ -357,7 +358,7 @@ class StreakDetailsModal extends ConsumerWidget {
                           ),
                           Text(
                             isRu ? 'Всего глав' : 'Chapters Read',
-                            style: const TextStyle(fontSize: 10.5, color: Color(0xFFBDBBB0)),
+                            style: const TextStyle(fontSize: 10.5, color: AppTokens.textSecondary),
                           ),
                         ],
                       ),
@@ -368,13 +369,13 @@ class StreakDetailsModal extends ConsumerWidget {
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF2C2C2C),
+                        color: AppTokens.surfaceRaised,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFF3E3E3E)),
+                        border: Border.all(color: AppTokens.borderStrong),
                       ),
                       child: Column(
                         children: [
-                          const Icon(Icons.calendar_today_rounded, size: 18, color: Color(0xFF8A897C)),
+                          const Icon(Icons.calendar_today_rounded, size: 18, color: AppTokens.accent),
                           const SizedBox(height: 4),
                           Text(
                             '${streak.totalDaysRead}',
@@ -382,7 +383,7 @@ class StreakDetailsModal extends ConsumerWidget {
                           ),
                           Text(
                             isRu ? 'Дней с нами' : 'Active Days',
-                            style: const TextStyle(fontSize: 10.5, color: Color(0xFFBDBBB0)),
+                            style: const TextStyle(fontSize: 10.5, color: AppTokens.textSecondary),
                           ),
                         ],
                       ),
@@ -417,8 +418,8 @@ class StreakDetailsModal extends ConsumerWidget {
                 width: double.infinity,
                 child: OutlinedButton.icon(
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFFD2D7DF),
-                    side: const BorderSide(color: Color(0xFF3E3E3E)),
+                    foregroundColor: AppTokens.textPrimary,
+                    side: const BorderSide(color: AppTokens.borderStrong),
                     padding: const EdgeInsets.symmetric(vertical: 11),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),

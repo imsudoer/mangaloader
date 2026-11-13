@@ -30,6 +30,7 @@ import 'services/chapter_tracker_service.dart';
 import 'services/download_queue_service.dart';
 import 'services/notification_navigation.dart';
 import 'services/window_state_service.dart';
+import 'package:mangaloader/theme/app_tokens.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -400,10 +401,10 @@ class _AppShellState extends State<AppShell> {
       ),
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
-          color: Color(0xFF181818),
+          color: AppTokens.surfaceDeep,
           border: Border(
             top: BorderSide(
-              color: Color(0xFF2C2C2C),
+              color: AppTokens.surfaceRaised,
               width: 0.8,
             ),
           ),
@@ -489,10 +490,10 @@ class _AppShellState extends State<AppShell> {
         curve: Curves.easeOutCubic,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF8A897C).withValues(alpha: 0.20) : Colors.transparent,
+          color: isSelected ? AppTokens.accent.withValues(alpha: 0.20) : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
           border: isSelected
-              ? Border.all(color: const Color(0xFF8A897C).withValues(alpha: 0.45), width: 1.0)
+              ? Border.all(color: AppTokens.accent.withValues(alpha: 0.45), width: 1.0)
               : Border.all(color: Colors.transparent, width: 1.0),
         ),
         child: Column(

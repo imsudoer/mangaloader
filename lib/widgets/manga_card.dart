@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:mangaloader/src/rust/api/models.dart';
 import 'package:mangaloader/providers/library_provider.dart';
+import 'package:mangaloader/theme/app_tokens.dart';
 
 class MangaCard extends ConsumerWidget {
   final MangaSearchResult manga;
@@ -201,11 +202,11 @@ class MangaCard extends ConsumerWidget {
                     decoration: BoxDecoration(
                       color: Colors.black.withValues(alpha: 0.75),
                       borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: const Color(0xFF8A897C).withValues(alpha: 0.6), width: 0.8),
+                      border: Border.all(color: AppTokens.accent.withValues(alpha: 0.6), width: 0.8),
                     ),
                     child: Text(
                       manga.mangaType,
-                      style: const TextStyle(color: Color(0xFFD2D7DF), fontSize: 10.5, fontWeight: FontWeight.w600),
+                      style: const TextStyle(color: AppTokens.textPrimary, fontSize: 10.5, fontWeight: FontWeight.w600),
                     ),
                   ),
                 ),

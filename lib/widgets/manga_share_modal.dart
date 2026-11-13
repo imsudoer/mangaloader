@@ -6,6 +6,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:mangaloader/src/rust/api/models.dart';
+import 'package:mangaloader/theme/app_tokens.dart';
 
 class MangaShareModal extends StatefulWidget {
   final MangaDetails manga;
@@ -84,7 +85,7 @@ class _MangaShareModalState extends State<MangaShareModal> {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
       decoration: const BoxDecoration(
-        color: Color(0xFF181818),
+        color: AppTokens.surfaceDeep,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Column(
@@ -131,7 +132,7 @@ class _MangaShareModalState extends State<MangaShareModal> {
                     end: Alignment.bottomRight,
                     colors: [
                       widget.accentColor.withValues(alpha: 0.35),
-                      const Color(0xFF1E1E1E),
+                      AppTokens.surfaceBase,
                       const Color(0xFF121212),
                     ],
                   ),
@@ -192,7 +193,7 @@ class _MangaShareModalState extends State<MangaShareModal> {
                             width: 100,
                             height: 145,
                             fit: BoxFit.cover,
-                            placeholder: (_, __) => Container(width: 100, height: 145, color: const Color(0xFF2C2C2C)),
+                            placeholder: (_, __) => Container(width: 100, height: 145, color: AppTokens.surfaceRaised),
                           ),
                         ),
                         const SizedBox(width: 14),
@@ -219,7 +220,7 @@ class _MangaShareModalState extends State<MangaShareModal> {
                                   widget.manga.engName,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(fontSize: 11, color: Color(0xFFBDBBB0)),
+                                  style: const TextStyle(fontSize: 11, color: AppTokens.textSecondary),
                                 ),
                               ],
                               const SizedBox(height: 8),
@@ -272,12 +273,12 @@ class _MangaShareModalState extends State<MangaShareModal> {
                           children: widget.manga.genres.take(5).map((g) => Container(
                             padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF2C2C2C),
+                              color: AppTokens.surfaceRaised,
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(
                               g.name,
-                              style: const TextStyle(fontSize: 10.5, color: Color(0xFFD2D7DF)),
+                              style: const TextStyle(fontSize: 10.5, color: AppTokens.textPrimary),
                             ),
                           )).toList(),
                         ),
@@ -319,7 +320,7 @@ class _MangaShareModalState extends State<MangaShareModal> {
               Expanded(
                 child: OutlinedButton.icon(
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFFD2D7DF),
+                    foregroundColor: AppTokens.textPrimary,
                     side: const BorderSide(color: Color(0xFF444444)),
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),

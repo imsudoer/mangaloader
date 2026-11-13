@@ -15,6 +15,7 @@ import 'package:go_router/go_router.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:mangaloader/utils/plural.dart';
+import 'package:mangaloader/theme/app_tokens.dart';
 
 enum LibrarySortMode { recent, title, rating, progress, chapters }
 
@@ -268,7 +269,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF242424),
+        backgroundColor: AppTokens.surfaceCard,
         title: Text(isRu ? 'Новый список' : 'New Custom List'),
         content: TextField(
           controller: controller,
@@ -284,7 +285,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
             child: Text(isRu ? 'Отмена' : 'Cancel'),
           ),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF8A897C)),
+            style: FilledButton.styleFrom(backgroundColor: AppTokens.accent),
             onPressed: () async {
               final name = controller.text.trim();
               if (name.isNotEmpty) {
@@ -339,7 +340,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
               decoration: InputDecoration(
                 hintText: isRu ? 'Поиск в библиотеке...' : 'Search library...',
                 border: InputBorder.none,
-                hintStyle: const TextStyle(color: Color(0xFFBDBBB0)),
+                hintStyle: const TextStyle(color: AppTokens.textSecondary),
               ),
               style: const TextStyle(color: Colors.white),
               onChanged: (_) => setState(() {}),
@@ -373,7 +374,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
           PopupMenuButton<LibrarySortMode>(
             icon: const Icon(Icons.sort_rounded),
             tooltip: isRu ? 'Сортировка' : 'Sort',
-            color: const Color(0xFF2C2C2C),
+            color: AppTokens.surfaceRaised,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             onSelected: (mode) => setState(() => _sortMode = mode),
             itemBuilder: (ctx) => [
@@ -384,7 +385,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
                     Icon(
                       _sortMode == LibrarySortMode.recent ? Icons.check_rounded : Icons.access_time_rounded,
                       size: 18,
-                      color: _sortMode == LibrarySortMode.recent ? const Color(0xFF8A897C) : Colors.white70,
+                      color: _sortMode == LibrarySortMode.recent ? AppTokens.accent : Colors.white70,
                     ),
                     const SizedBox(width: 8),
                     Text(isRu ? 'По дате добавления' : 'Date added'),
@@ -398,7 +399,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
                     Icon(
                       _sortMode == LibrarySortMode.title ? Icons.check_rounded : Icons.sort_by_alpha_rounded,
                       size: 18,
-                      color: _sortMode == LibrarySortMode.title ? const Color(0xFF8A897C) : Colors.white70,
+                      color: _sortMode == LibrarySortMode.title ? AppTokens.accent : Colors.white70,
                     ),
                     const SizedBox(width: 8),
                     Text(isRu ? 'По названию (А-Я)' : 'Title (A-Z)'),
@@ -412,7 +413,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
                     Icon(
                       _sortMode == LibrarySortMode.rating ? Icons.check_rounded : Icons.star_rounded,
                       size: 18,
-                      color: _sortMode == LibrarySortMode.rating ? const Color(0xFF8A897C) : Colors.white70,
+                      color: _sortMode == LibrarySortMode.rating ? AppTokens.accent : Colors.white70,
                     ),
                     const SizedBox(width: 8),
                     Text(isRu ? 'По рейтингу' : 'Rating'),
@@ -426,7 +427,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
                     Icon(
                       _sortMode == LibrarySortMode.progress ? Icons.check_rounded : Icons.percent_rounded,
                       size: 18,
-                      color: _sortMode == LibrarySortMode.progress ? const Color(0xFF8A897C) : Colors.white70,
+                      color: _sortMode == LibrarySortMode.progress ? AppTokens.accent : Colors.white70,
                     ),
                     const SizedBox(width: 8),
                     Text(isRu ? 'По прогрессу чтения' : 'Reading progress'),
@@ -440,7 +441,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
                     Icon(
                       _sortMode == LibrarySortMode.chapters ? Icons.check_rounded : Icons.numbers_rounded,
                       size: 18,
-                      color: _sortMode == LibrarySortMode.chapters ? const Color(0xFF8A897C) : Colors.white70,
+                      color: _sortMode == LibrarySortMode.chapters ? AppTokens.accent : Colors.white70,
                     ),
                     const SizedBox(width: 8),
                     Text(isRu ? 'По количеству глав' : 'Total chapters'),
@@ -457,7 +458,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert_rounded),
             tooltip: isRu ? 'Действия' : 'Actions',
-            color: const Color(0xFF2C2C2C),
+            color: AppTokens.surfaceRaised,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             onSelected: (action) {
               if (action == 'new_list') _showCreateListDialog(isRu);
@@ -471,7 +472,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
                 value: 'new_list',
                 child: Row(
                   children: [
-                    const Icon(Icons.add_circle_outline_rounded, size: 18, color: Color(0xFF8A897C)),
+                    const Icon(Icons.add_circle_outline_rounded, size: 18, color: AppTokens.accent),
                     const SizedBox(width: 8),
                     Text(isRu ? 'Новый список' : 'New Custom List'),
                   ],
@@ -482,7 +483,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
                 value: 'export',
                 child: Row(
                   children: [
-                    const Icon(Icons.backup_rounded, size: 18, color: Color(0xFF8A897C)),
+                    const Icon(Icons.backup_rounded, size: 18, color: AppTokens.accent),
                     const SizedBox(width: 8),
                     Text(isRu ? 'Экспорт базы (JSON)' : 'Export Backup (JSON)'),
                   ],
@@ -492,7 +493,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
                 value: 'import',
                 child: Row(
                   children: [
-                    const Icon(Icons.restore_rounded, size: 18, color: Color(0xFF8A897C)),
+                    const Icon(Icons.restore_rounded, size: 18, color: AppTokens.accent),
                     const SizedBox(width: 8),
                     Text(isRu ? 'Импорт базы (JSON)' : 'Import Backup (JSON)'),
                   ],
@@ -546,13 +547,13 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
           tabAlignment: TabAlignment.start,
           indicatorSize: TabBarIndicatorSize.tab,
           indicator: BoxDecoration(
-            color: const Color(0xFF8A897C).withValues(alpha: 0.3),
+            color: AppTokens.accent.withValues(alpha: 0.3),
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: const Color(0xFF8A897C), width: 1),
+            border: Border.all(color: AppTokens.accent, width: 1),
           ),
           dividerColor: Colors.transparent,
           labelColor: Colors.white,
-          unselectedLabelColor: const Color(0xFFBDBBB0),
+          unselectedLabelColor: AppTokens.textSecondary,
           labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
           unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.normal, fontSize: 13),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -587,7 +588,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.bookmarks_outlined, size: 64, color: Color(0xFF8A897C)),
+                    const Icon(Icons.bookmarks_outlined, size: 64, color: AppTokens.accent),
                     const SizedBox(height: 16),
                     Text(
                       isRu ? 'Библиотека пуста' : 'Your library is empty',
@@ -596,12 +597,12 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
                     const SizedBox(height: 8),
                     Text(
                       isRu ? 'Добавляйте тайтлы из каталога или поиска' : 'Add manga from catalog or search',
-                      style: const TextStyle(color: Color(0xFFBDBBB0), fontSize: 13),
+                      style: const TextStyle(color: AppTokens.textSecondary, fontSize: 13),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 20),
                     FilledButton.icon(
-                      style: FilledButton.styleFrom(backgroundColor: const Color(0xFF8A897C)),
+                      style: FilledButton.styleFrom(backgroundColor: AppTokens.accent),
                       onPressed: () => context.go('/search'),
                       icon: const Icon(Icons.search_rounded),
                       label: Text(isRu ? 'Перейти в каталог' : 'Browse Catalog'),
@@ -624,7 +625,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
                     padding: const EdgeInsets.all(24),
                     child: Text(
                       isRu ? 'В этой категории пока ничего нет' : 'No items in this category',
-                      style: const TextStyle(color: Color(0xFFBDBBB0)),
+                      style: const TextStyle(color: AppTokens.textSecondary),
                     ),
                   ),
                 );
@@ -673,7 +674,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
                 side: BorderSide(
-                  color: isSelected ? const Color(0xFF8A897C) : const Color(0xFF333333),
+                  color: isSelected ? AppTokens.accent : const Color(0xFF333333),
                   width: isSelected ? 1.8 : 1,
                 ),
               ),
@@ -694,7 +695,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
                       memCacheHeight: 460,
                       httpHeaders: const {'Referer': 'https://mangalib.org/'},
                       fit: BoxFit.cover,
-                      placeholder: (_, __) => Container(color: const Color(0xFF242424)),
+                      placeholder: (_, __) => Container(color: AppTokens.surfaceCard),
                       errorWidget: (_, __, ___) => const Icon(Icons.broken_image_rounded, color: Colors.white38),
                     ),
                     // Gradient
@@ -749,7 +750,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
                                 value: _calculateProgress(entry),
                                 minHeight: 3.5,
                                 backgroundColor: const Color(0xFF333333),
-                                valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF8A897C)),
+                                valueColor: const AlwaysStoppedAnimation<Color>(AppTokens.accent),
                               ),
                             ),
                             const SizedBox(height: 3),
@@ -759,7 +760,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
                                 Expanded(
                                   child: Text(
                                     'Т.${entry.lastReadVolume ?? "1"} Гл.${entry.lastReadChapter}',
-                                    style: const TextStyle(color: Color(0xFFD2D7DF), fontSize: 10, fontWeight: FontWeight.bold),
+                                    style: const TextStyle(color: AppTokens.textPrimary, fontSize: 10, fontWeight: FontWeight.bold),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                   ),
@@ -767,7 +768,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
                                 if (_calculateProgress(entry) > 0)
                                   Text(
                                     '${(_calculateProgress(entry) * 100).toInt()}%',
-                                    style: const TextStyle(color: Color(0xFF8A897C), fontSize: 9.5, fontWeight: FontWeight.bold),
+                                    style: const TextStyle(color: AppTokens.accent, fontSize: 9.5, fontWeight: FontWeight.bold),
                                   ),
                               ],
                             ),
@@ -809,7 +810,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
                         child: IconButton.filled(
                           onPressed: () => _startReadingEntry(entry),
                           style: IconButton.styleFrom(
-                            backgroundColor: const Color(0xFF8A897C),
+                            backgroundColor: AppTokens.accent,
                             foregroundColor: Colors.white,
                             minimumSize: const Size(34, 34),
                             padding: EdgeInsets.zero,
@@ -858,7 +859,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
             width: 50,
             height: 70,
             fit: BoxFit.cover,
-            placeholder: (_, __) => Container(width: 50, height: 70, color: const Color(0xFF2C2C2C)),
+            placeholder: (_, __) => Container(width: 50, height: 70, color: AppTokens.surfaceRaised),
           ),
         );
 
@@ -866,7 +867,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
             side: BorderSide(
-              color: isSelected ? const Color(0xFF8A897C) : const Color(0xFF353535),
+              color: isSelected ? AppTokens.accent : AppTokens.border,
               width: isSelected ? 1.8 : 1,
             ),
           ),
@@ -898,8 +899,8 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
                     child: LinearProgressIndicator(
                       value: progressVal,
                       minHeight: 3,
-                      backgroundColor: const Color(0xFF353535),
-                      valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF8A897C)),
+                      backgroundColor: AppTokens.border,
+                      valueColor: const AlwaysStoppedAnimation<Color>(AppTokens.accent),
                     ),
                   ),
                   const SizedBox(height: 2),
@@ -910,21 +911,21 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
                           'Посл. чтение: Том ${entry.lastReadVolume ?? "1"} Гл ${entry.lastReadChapter}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 11, color: Color(0xFFD2D7DF)),
+                          style: const TextStyle(fontSize: 11, color: AppTokens.textPrimary),
                         ),
                       ),
                       if (entry.totalChapters > 0) ...[
                         const SizedBox(width: 6),
                         Text(
                           '${entry.readChapters}/${entry.totalChapters}',
-                          style: const TextStyle(fontSize: 11, color: Color(0xFFBDBBB0)),
+                          style: const TextStyle(fontSize: 11, color: AppTokens.textSecondary),
                         ),
                       ],
                       if (progressPercent > 0) ...[
                         const SizedBox(width: 6),
                         Text(
                           '$progressPercent%',
-                          style: const TextStyle(fontSize: 11, color: Color(0xFF8A897C), fontWeight: FontWeight.bold),
+                          style: const TextStyle(fontSize: 11, color: AppTokens.accent, fontWeight: FontWeight.bold),
                         ),
                       ],
                     ],
@@ -952,8 +953,8 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
                   children: [
                     IconButton.filledTonal(
                       style: IconButton.styleFrom(
-                        backgroundColor: const Color(0xFF8A897C).withValues(alpha: 0.2),
-                        foregroundColor: const Color(0xFFD2D7DF),
+                        backgroundColor: AppTokens.accent.withValues(alpha: 0.2),
+                        foregroundColor: AppTokens.textPrimary,
                       ),
                       icon: const Icon(Icons.play_arrow_rounded, size: 20),
                       onPressed: () => _startReadingEntry(entry),
@@ -1056,7 +1057,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
       height: 22,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: selected ? const Color(0xFF8A897C) : Colors.black.withValues(alpha: 0.55),
+        color: selected ? AppTokens.accent : Colors.black.withValues(alpha: 0.55),
         shape: BoxShape.circle,
         border: Border.all(color: Colors.white, width: 1.4),
       ),
@@ -1165,7 +1166,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
     return showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF242424),
+        backgroundColor: AppTokens.surfaceCard,
         title: Text(title),
         content: Text(message),
         actions: [
@@ -1327,7 +1328,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
 
               // Open Details
               ListTile(
-                leading: const Icon(Icons.info_outline_rounded, color: Color(0xFFD2D7DF)),
+                leading: const Icon(Icons.info_outline_rounded, color: AppTokens.textPrimary),
                 title: Text(isRu ? 'Открыть страницу тайтла' : 'View manga details'),
                 onTap: () {
                   Navigator.pop(ctx);
@@ -1337,7 +1338,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
 
               // Change Category Submenu
               ListTile(
-                leading: const Icon(Icons.swap_horiz_rounded, color: Color(0xFF8A897C)),
+                leading: const Icon(Icons.swap_horiz_rounded, color: AppTokens.accent),
                 title: Text(isRu ? 'Сменить категорию / статус' : 'Move to another category'),
                 onTap: () {
                   Navigator.pop(ctx);
@@ -1370,7 +1371,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
     showDialog(
       context: context,
       builder: (ctx) => SimpleDialog(
-        backgroundColor: const Color(0xFF2C2C2C),
+        backgroundColor: AppTokens.surfaceRaised,
         title: Text(isRu ? 'Выберите категорию' : 'Select Category'),
         children: [
           _buildCategoryOption(ctx, entry, 'reading', isRu ? 'Читаю' : 'Reading', Icons.auto_stories_rounded, const Color(0xFF64B5F6)),

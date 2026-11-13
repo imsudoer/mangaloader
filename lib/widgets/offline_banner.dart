@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mangaloader/providers/connectivity_provider.dart';
+import 'package:mangaloader/theme/app_tokens.dart';
 
 class OfflineBanner extends ConsumerWidget {
   const OfflineBanner({super.key});
@@ -19,7 +20,7 @@ class OfflineBanner extends ConsumerWidget {
       width: double.infinity,
       padding: EdgeInsets.only(top: topInset + 6, bottom: 6, left: 12, right: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFFE65100).withValues(alpha: 0.92),
+        color: AppTokens.warning.withValues(alpha: 0.92),
         boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2))],
       ),
       child: Row(

@@ -10,6 +10,7 @@ import 'package:mangaloader/providers/settings_provider.dart';
 import 'package:mangaloader/src/rust/api/storage.dart' as rust_storage;
 import 'package:mangaloader/src/rust/api/models.dart';
 import 'package:mangaloader/services/content_filter.dart';
+import 'package:mangaloader/theme/app_tokens.dart';
 
 class MangaRecapModal extends ConsumerStatefulWidget {
   const MangaRecapModal({super.key});
@@ -98,7 +99,7 @@ class _MangaRecapModalState extends ConsumerState<MangaRecapModal> {
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.auto_awesome_rounded, color: Color(0xFF8A897C), size: 22),
+                    const Icon(Icons.auto_awesome_rounded, color: AppTokens.accent, size: 22),
                     const SizedBox(width: 10),
                     Text(
                       isRu ? 'Manga Recap / Итоги чтения' : 'Manga Reading Recap',
@@ -125,7 +126,7 @@ class _MangaRecapModalState extends ConsumerState<MangaRecapModal> {
                   return Center(
                     child: Text(
                       isRu ? 'Ошибка загрузки статистики' : 'Failed to load recap data',
-                      style: const TextStyle(color: Color(0xFFBDBBB0)),
+                      style: const TextStyle(color: AppTokens.textSecondary),
                     ),
                   );
                 }
@@ -155,7 +156,7 @@ class _MangaRecapModalState extends ConsumerState<MangaRecapModal> {
                               end: Alignment.bottomRight,
                             ),
                             borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: const Color(0xFF3E3E3E), width: 1.2),
+                            border: Border.all(color: AppTokens.borderStrong, width: 1.2),
                             boxShadow: [
                               BoxShadow(
                                 color: Colors.black.withValues(alpha: 0.5),
@@ -176,10 +177,10 @@ class _MangaRecapModalState extends ConsumerState<MangaRecapModal> {
                                       Container(
                                         padding: const EdgeInsets.all(8),
                                         decoration: BoxDecoration(
-                                          color: const Color(0xFF8A897C).withValues(alpha: 0.25),
+                                          color: AppTokens.accent.withValues(alpha: 0.25),
                                           borderRadius: BorderRadius.circular(10),
                                         ),
-                                        child: const Icon(Icons.menu_book_rounded, color: Color(0xFFD2D7DF), size: 20),
+                                        child: const Icon(Icons.menu_book_rounded, color: AppTokens.textPrimary, size: 20),
                                       ),
                                       const SizedBox(width: 10),
                                       Column(
@@ -188,7 +189,7 @@ class _MangaRecapModalState extends ConsumerState<MangaRecapModal> {
                                           const Text(
                                             'MANGA LOADER',
                                             style: TextStyle(
-                                              color: Color(0xFFD2D7DF),
+                                              color: AppTokens.textPrimary,
                                               fontWeight: FontWeight.w900,
                                               letterSpacing: 1.2,
                                               fontSize: 13,
@@ -196,7 +197,7 @@ class _MangaRecapModalState extends ConsumerState<MangaRecapModal> {
                                           ),
                                           Text(
                                             userProfile != null ? userProfile.username : (isRu ? 'Итоги чтения' : 'Recap Summary'),
-                                            style: const TextStyle(color: Color(0xFF8A897C), fontSize: 11),
+                                            style: const TextStyle(color: AppTokens.accent, fontSize: 11),
                                           ),
                                         ],
                                       ),
@@ -224,7 +225,7 @@ class _MangaRecapModalState extends ConsumerState<MangaRecapModal> {
                                     title: isRu ? 'Глав прочитано' : 'Chapters Read',
                                     value: '${recap.totalChaptersRead}',
                                     icon: Icons.check_circle_outline_rounded,
-                                    color: const Color(0xFF8A897C),
+                                    color: AppTokens.accent,
                                   ),
                                   const SizedBox(width: 12),
                                   _buildStatBlock(
@@ -270,8 +271,8 @@ class _MangaRecapModalState extends ConsumerState<MangaRecapModal> {
                                           Row(
                                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                             children: [
-                                              Text(g.name, style: const TextStyle(color: Color(0xFFD2D7DF), fontSize: 12)),
-                                              Text('${g.percentage}%', style: const TextStyle(color: Color(0xFF8A897C), fontSize: 12, fontWeight: FontWeight.bold)),
+                                              Text(g.name, style: const TextStyle(color: AppTokens.textPrimary, fontSize: 12)),
+                                              Text('${g.percentage}%', style: const TextStyle(color: AppTokens.accent, fontSize: 12, fontWeight: FontWeight.bold)),
                                             ],
                                           ),
                                           const SizedBox(height: 4),
@@ -280,7 +281,7 @@ class _MangaRecapModalState extends ConsumerState<MangaRecapModal> {
                                             child: LinearProgressIndicator(
                                               value: g.percentage / 100.0,
                                               backgroundColor: const Color(0xFF333333),
-                                              valueColor: const AlwaysStoppedAnimation(Color(0xFF8A897C)),
+                                              valueColor: const AlwaysStoppedAnimation(AppTokens.accent),
                                               minHeight: 6,
                                             ),
                                           ),
@@ -334,7 +335,7 @@ class _MangaRecapModalState extends ConsumerState<MangaRecapModal> {
                                           ),
                                           child: Text(
                                             '${m.chaptersRead} ${isRu ? "гл." : "ch."}',
-                                            style: const TextStyle(color: Color(0xFFD2D7DF), fontSize: 11),
+                                            style: const TextStyle(color: AppTokens.textPrimary, fontSize: 11),
                                           ),
                                         ),
                                       ],
@@ -351,7 +352,7 @@ class _MangaRecapModalState extends ConsumerState<MangaRecapModal> {
                       // Share Action Button
                       FilledButton.icon(
                         style: FilledButton.styleFrom(
-                          backgroundColor: const Color(0xFF8A897C),
+                          backgroundColor: AppTokens.accent,
                           foregroundColor: Colors.white,
                           minimumSize: const Size.fromHeight(48),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -389,7 +390,7 @@ class _MangaRecapModalState extends ConsumerState<MangaRecapModal> {
         decoration: BoxDecoration(
           color: const Color(0xFF222222),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFF353535)),
+          border: Border.all(color: AppTokens.border),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -397,7 +398,7 @@ class _MangaRecapModalState extends ConsumerState<MangaRecapModal> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(title, style: const TextStyle(color: Color(0xFFBDBBB0), fontSize: 11)),
+                Text(title, style: const TextStyle(color: AppTokens.textSecondary, fontSize: 11)),
                 Icon(icon, size: 16, color: color),
               ],
             ),

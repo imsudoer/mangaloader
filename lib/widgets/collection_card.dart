@@ -3,6 +3,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:mangaloader/src/rust/api/models.dart';
 import 'package:mangaloader/services/content_filter.dart';
 import 'package:mangaloader/widgets/collection_details_modal.dart';
+import 'package:mangaloader/theme/app_tokens.dart';
 
 class CollectionCard extends StatelessWidget {
   final MangaCollectionItem collection;
@@ -25,11 +26,11 @@ class CollectionCard extends StatelessWidget {
 
     return Card(
       clipBehavior: Clip.antiAlias,
-      color: const Color(0xFF242424),
+      color: AppTokens.surfaceCard,
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
-        side: const BorderSide(color: Color(0xFF353535)),
+        side: const BorderSide(color: AppTokens.border),
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
@@ -67,7 +68,7 @@ class CollectionCard extends StatelessWidget {
                       collection.username.isNotEmpty ? collection.username : (isRu ? 'Пользователь' : 'User'),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 11, color: Color(0xFFD2D7DF), fontWeight: FontWeight.w500),
+                      style: const TextStyle(fontSize: 11, color: AppTokens.textPrimary, fontWeight: FontWeight.w500),
                     ),
                   ),
                   const Icon(Icons.menu_book_rounded, size: 12, color: Color(0xFF888888)),
@@ -129,12 +130,12 @@ class CollectionCard extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF8A897C).withValues(alpha: 0.2),
+                      color: AppTokens.accent.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
                       isRu ? 'Открыть' : 'View',
-                      style: const TextStyle(fontSize: 10, color: Color(0xFFD2D7DF), fontWeight: FontWeight.bold),
+                      style: const TextStyle(fontSize: 10, color: AppTokens.textPrimary, fontWeight: FontWeight.bold),
                     ),
                   ),
                 ],

@@ -4,7 +4,6 @@ import 'dart:io';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/widgets.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
@@ -14,6 +13,7 @@ import 'package:mangaloader/providers/settings_provider.dart';
 import 'package:mangaloader/src/rust/api/download_engine.dart' as rust_download;
 import 'package:mangaloader/src/rust/api/models.dart';
 import 'package:mangaloader/src/rust/api/storage.dart' as rust_storage;
+import 'package:mangaloader/theme/app_tokens.dart';
 
 enum DownloadQueueStatus {
   queued,
@@ -976,7 +976,7 @@ class _DownloadProgressNotification {
         playSound: false,
         enableVibration: false,
         icon: '@drawable/ic_notification',
-        color: const Color(0xFF8A897C),
+        color: AppTokens.accent,
       );
 
       final body = isRu

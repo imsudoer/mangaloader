@@ -11,6 +11,7 @@ import 'package:mangaloader/src/rust/api/mangalib_client.dart' as rust_api;
 import 'package:mangaloader/src/rust/api/models.dart';
 import 'package:mangaloader/providers/settings_provider.dart';
 import 'package:mangaloader/services/content_filter.dart';
+import 'package:mangaloader/theme/app_tokens.dart';
 
 class SearchPage extends ConsumerStatefulWidget {
   const SearchPage({super.key});
@@ -137,7 +138,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           IconButton(
             icon: Icon(
               _localOnly ? Icons.offline_pin_rounded : Icons.offline_pin_outlined,
-              color: _localOnly ? const Color(0xFF8A897C) : null,
+              color: _localOnly ? AppTokens.accent : null,
             ),
             tooltip: _localOnly
                 ? (isRu ? 'Искать в каталоге онлайн' : 'Search the online catalog')
@@ -158,7 +159,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
             child: SegmentedButton<int>(
               style: SegmentedButton.styleFrom(
-                selectedBackgroundColor: const Color(0xFF8A897C),
+                selectedBackgroundColor: AppTokens.accent,
                 selectedForegroundColor: Colors.white,
                 visualDensity: VisualDensity.compact,
                 textStyle: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold),
@@ -213,7 +214,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                           : null,
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                         filled: true,
-                        fillColor: const Color(0xFF2C2C2C),
+                        fillColor: AppTokens.surfaceRaised,
                         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                       ),
                       onSubmitted: (val) {
@@ -236,18 +237,18 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                 Badge(
                   isLabelVisible: activeCount > 0,
                   label: Text('$activeCount', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
-                  backgroundColor: const Color(0xFF8A897C),
+                  backgroundColor: AppTokens.accent,
                   textColor: Colors.white,
                   child: IconButton.filledTonal(
                     style: IconButton.styleFrom(
                       backgroundColor: activeCount > 0
-                        ? const Color(0xFF8A897C).withValues(alpha: 0.3)
-                        : const Color(0xFF2C2C2C),
-                      foregroundColor: activeCount > 0 ? Colors.white : const Color(0xFFD2D7DF),
+                        ? AppTokens.accent.withValues(alpha: 0.3)
+                        : AppTokens.surfaceRaised,
+                      foregroundColor: activeCount > 0 ? Colors.white : AppTokens.textPrimary,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                         side: BorderSide(
-                          color: activeCount > 0 ? const Color(0xFF8A897C) : const Color(0xFF3E3E3E),
+                          color: activeCount > 0 ? AppTokens.accent : AppTokens.borderStrong,
                         ),
                       ),
                       padding: const EdgeInsets.all(12),
@@ -277,13 +278,13 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                   children: [
                     const Padding(
                       padding: EdgeInsets.only(right: 6),
-                      child: Icon(Icons.history_rounded, size: 16, color: Color(0xFF8A897C)),
+                      child: Icon(Icons.history_rounded, size: 16, color: AppTokens.accent),
                     ),
                     ...history.map((h) => Container(
                       margin: const EdgeInsets.only(right: 6),
                       child: InputChip(
-                        label: Text(h, style: const TextStyle(fontSize: 11, color: Color(0xFFD2D7DF))),
-                        backgroundColor: const Color(0xFF2C2C2C),
+                        label: Text(h, style: const TextStyle(fontSize: 11, color: AppTokens.textPrimary)),
+                        backgroundColor: AppTokens.surfaceRaised,
                         side: const BorderSide(color: Color(0xFF383838)),
                         padding: const EdgeInsets.symmetric(horizontal: 4),
                         visualDensity: VisualDensity.compact,
@@ -294,11 +295,11 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                           setState(() {});
                         },
                         onDeleted: () => ref.read(searchHistoryProvider.notifier).removeQuery(h),
-                        deleteIconColor: const Color(0xFFBDBBB0),
+                        deleteIconColor: AppTokens.textSecondary,
                       ),
                     )),
                     IconButton(
-                      icon: const Icon(Icons.delete_sweep_rounded, size: 16, color: Color(0xFFBDBBB0)),
+                      icon: const Icon(Icons.delete_sweep_rounded, size: 16, color: AppTokens.textSecondary),
                       tooltip: isRu ? 'Очистить историю' : 'Clear history',
                       onPressed: () => ref.read(searchHistoryProvider.notifier).clearAll(),
                     ),
@@ -324,20 +325,20 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                       avatar: Icon(
                         Icons.offline_pin_rounded,
                         size: 15,
-                        color: _localOnly ? Colors.white : const Color(0xFF8A897C),
+                        color: _localOnly ? Colors.white : AppTokens.accent,
                       ),
                       label: Text(
                         isRu ? 'Оффлайн-поиск' : 'Offline search',
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: _localOnly ? FontWeight.bold : FontWeight.normal,
-                          color: _localOnly ? Colors.white : const Color(0xFFD2D7DF),
+                          color: _localOnly ? Colors.white : AppTokens.textPrimary,
                         ),
                       ),
-                      selectedColor: const Color(0xFF8A897C),
-                      backgroundColor: const Color(0xFF2C2C2C),
+                      selectedColor: AppTokens.accent,
+                      backgroundColor: AppTokens.surfaceRaised,
                       side: BorderSide(
-                        color: _localOnly ? const Color(0xFF8A897C) : const Color(0xFF3E3E3E),
+                        color: _localOnly ? AppTokens.accent : AppTokens.borderStrong,
                       ),
                       visualDensity: VisualDensity.compact,
                       onSelected: _toggleLocalOnly,
@@ -348,7 +349,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                     initialValue: filter.sortBy,
                     tooltip: isRu ? 'Сортировка' : 'Sort',
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    color: const Color(0xFF2C2C2C),
+                    color: AppTokens.surfaceRaised,
                     onSelected: (val) {
                       ref.read(searchProvider.notifier).updateFilter(filter.copyWith(sortBy: val));
                     },
@@ -361,13 +362,13 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                             Icon(
                               isSel ? Icons.check_circle_rounded : Icons.circle_outlined,
                               size: 16,
-                              color: isSel ? const Color(0xFF8A897C) : const Color(0xFFBDBBB0),
+                              color: isSel ? AppTokens.accent : AppTokens.textSecondary,
                             ),
                             const SizedBox(width: 8),
                             Text(
                               isRu ? opt['labelRu'] as String : opt['labelEn'] as String,
                               style: TextStyle(
-                                color: isSel ? Colors.white : const Color(0xFFD2D7DF),
+                                color: isSel ? Colors.white : AppTokens.textPrimary,
                                 fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
                               ),
                             ),
@@ -378,20 +379,20 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF353535),
+                        color: AppTokens.border,
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: const Color(0xFF8A897C).withValues(alpha: 0.6)),
+                        border: Border.all(color: AppTokens.accent.withValues(alpha: 0.6)),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.sort_rounded, size: 16, color: Color(0xFFD2D7DF)),
+                          const Icon(Icons.sort_rounded, size: 16, color: AppTokens.textPrimary),
                           const SizedBox(width: 6),
                           Text(
                             _sortOptions.firstWhere((e) => e['id'] == filter.sortBy, orElse: () => _sortOptions.first)[isRu ? 'labelRu' : 'labelEn'] as String,
                             style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
                           ),
-                          const Icon(Icons.arrow_drop_down_rounded, size: 18, color: Color(0xFFD2D7DF)),
+                          const Icon(Icons.arrow_drop_down_rounded, size: 18, color: AppTokens.textPrimary),
                         ],
                       ),
                     ),
@@ -407,15 +408,15 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                       child: ChoiceChip(
                         label: Text(isRu ? opt['labelRu'] as String : opt['labelEn'] as String),
                         selected: isSelected,
-                        selectedColor: const Color(0xFF8A897C),
-                        backgroundColor: const Color(0xFF2C2C2C),
+                        selectedColor: AppTokens.accent,
+                        backgroundColor: AppTokens.surfaceRaised,
                         labelStyle: TextStyle(
                           fontSize: 12,
-                          color: isSelected ? Colors.white : const Color(0xFFD2D7DF),
+                          color: isSelected ? Colors.white : AppTokens.textPrimary,
                           fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                         ),
                         side: BorderSide(
-                          color: isSelected ? const Color(0xFF8A897C) : const Color(0xFF3E3E3E),
+                          color: isSelected ? AppTokens.accent : AppTokens.borderStrong,
                         ),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                         padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -434,7 +435,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                     );
                   }),
 
-                  const VerticalDivider(width: 12, indent: 6, endIndent: 6, color: Color(0xFF3E3E3E)),
+                  const VerticalDivider(width: 12, indent: 6, endIndent: 6, color: AppTokens.borderStrong),
 
                   // Quick Status Chips
                   ..._statusOptions.map((opt) {
@@ -446,15 +447,15 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                       child: ChoiceChip(
                         label: Text(label),
                         selected: isSelected,
-                        selectedColor: const Color(0xFF8A897C),
-                        backgroundColor: const Color(0xFF2C2C2C),
+                        selectedColor: AppTokens.accent,
+                        backgroundColor: AppTokens.surfaceRaised,
                         labelStyle: TextStyle(
                           fontSize: 12,
-                          color: isSelected ? Colors.white : const Color(0xFFD2D7DF),
+                          color: isSelected ? Colors.white : AppTokens.textPrimary,
                           fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                         ),
                         side: BorderSide(
-                          color: isSelected ? const Color(0xFF8A897C) : const Color(0xFF3E3E3E),
+                          color: isSelected ? AppTokens.accent : AppTokens.borderStrong,
                         ),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                         padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -490,7 +491,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.search_off_rounded, size: 56, color: Color(0xFF8A897C)),
+                          const Icon(Icons.search_off_rounded, size: 56, color: AppTokens.accent),
                           const SizedBox(height: 16),
                           Text(
                             isRu ? 'Ничего не найдено' : 'No manga found',
@@ -499,7 +500,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                           const SizedBox(height: 8),
                           Text(
                             isRu ? 'Попробуйте изменить поисковый запрос или фильтры' : 'Try adjusting your search query or filters',
-                            style: const TextStyle(color: Color(0xFFBDBBB0), fontSize: 13),
+                            style: const TextStyle(color: AppTokens.textSecondary, fontSize: 13),
                             textAlign: TextAlign.center,
                           ),
                           if (activeCount > 0) ...[
@@ -656,7 +657,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF2C2C2C),
+        backgroundColor: AppTokens.surfaceRaised,
         title: Text(isRu ? 'Вставить ссылку' : 'Paste Link'),
         content: TextField(
           decoration: const InputDecoration(hintText: 'https://mangalib.me/...'),
@@ -683,7 +684,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: const Color(0xFF1E1E1E),
+      backgroundColor: AppTokens.surfaceBase,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) {
         return _FilterBottomSheetContent(
@@ -789,7 +790,7 @@ class _FilterBottomSheetContentState extends State<_FilterBottomSheetContent> {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: const Color(0xFF8A897C),
+                color: AppTokens.accent,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -811,7 +812,7 @@ class _FilterBottomSheetContentState extends State<_FilterBottomSheetContent> {
                 ],
               ),
             ),
-            const Divider(height: 1, color: Color(0xFF353535)),
+            const Divider(height: 1, color: AppTokens.border),
 
             // Content List
             Expanded(
@@ -916,7 +917,7 @@ class _FilterBottomSheetContentState extends State<_FilterBottomSheetContent> {
                               contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                               border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                               filled: true,
-                              fillColor: const Color(0xFF2C2C2C),
+                              fillColor: AppTokens.surfaceRaised,
                             ),
                             onChanged: (v) => setState(() => _genreSearch = v),
                           ),
@@ -953,7 +954,7 @@ class _FilterBottomSheetContentState extends State<_FilterBottomSheetContent> {
                               contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                               border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                               filled: true,
-                              fillColor: const Color(0xFF2C2C2C),
+                              fillColor: AppTokens.surfaceRaised,
                             ),
                             onChanged: (v) => setState(() => _tagSearch = v),
                           ),
@@ -979,7 +980,7 @@ class _FilterBottomSheetContentState extends State<_FilterBottomSheetContent> {
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
                 child: FilledButton(
                   style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF8A897C),
+                    backgroundColor: AppTokens.accent,
                     foregroundColor: Colors.white,
                     minimumSize: const Size.fromHeight(46),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -1018,7 +1019,7 @@ class _FilterBottomSheetContentState extends State<_FilterBottomSheetContent> {
       padding: const EdgeInsets.only(bottom: 8),
       child: Text(
         title,
-        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFFD2D7DF)),
+        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppTokens.textPrimary),
       ),
     );
   }
@@ -1028,15 +1029,15 @@ class _FilterBottomSheetContentState extends State<_FilterBottomSheetContent> {
     return ChoiceChip(
       label: Text(label),
       selected: isSelected,
-      selectedColor: const Color(0xFF8A897C),
-      backgroundColor: const Color(0xFF2C2C2C),
+      selectedColor: AppTokens.accent,
+      backgroundColor: AppTokens.surfaceRaised,
       labelStyle: TextStyle(
         fontSize: 12,
-        color: isSelected ? Colors.white : const Color(0xFFD2D7DF),
+        color: isSelected ? Colors.white : AppTokens.textPrimary,
         fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
       ),
       side: BorderSide(
-        color: isSelected ? const Color(0xFF8A897C) : const Color(0xFF3E3E3E),
+        color: isSelected ? AppTokens.accent : AppTokens.borderStrong,
       ),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       showCheckmark: false,
@@ -1048,15 +1049,15 @@ class _FilterBottomSheetContentState extends State<_FilterBottomSheetContent> {
     return FilterChip(
       label: Text(label),
       selected: isSelected,
-      selectedColor: const Color(0xFF8A897C),
-      backgroundColor: const Color(0xFF2C2C2C),
+      selectedColor: AppTokens.accent,
+      backgroundColor: AppTokens.surfaceRaised,
       labelStyle: TextStyle(
         fontSize: 11,
-        color: isSelected ? Colors.white : const Color(0xFFD2D7DF),
+        color: isSelected ? Colors.white : AppTokens.textPrimary,
         fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
       ),
       side: BorderSide(
-        color: isSelected ? const Color(0xFF8A897C) : const Color(0xFF3E3E3E),
+        color: isSelected ? AppTokens.accent : AppTokens.borderStrong,
       ),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       showCheckmark: false,
@@ -1071,15 +1072,15 @@ class _FilterBottomSheetContentState extends State<_FilterBottomSheetContent> {
         style: TextStyle(
           fontSize: 11,
           decoration: isExcluded ? TextDecoration.lineThrough : null,
-          color: isExcluded ? Colors.redAccent : const Color(0xFFD2D7DF),
+          color: isExcluded ? Colors.redAccent : AppTokens.textPrimary,
           fontWeight: isExcluded ? FontWeight.bold : FontWeight.normal,
         ),
       ),
       selected: isExcluded,
       selectedColor: Colors.red.shade900.withValues(alpha: 0.35),
-      backgroundColor: const Color(0xFF2C2C2C),
+      backgroundColor: AppTokens.surfaceRaised,
       side: BorderSide(
-        color: isExcluded ? Colors.redAccent : const Color(0xFF3E3E3E),
+        color: isExcluded ? Colors.redAccent : AppTokens.borderStrong,
       ),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       showCheckmark: false,

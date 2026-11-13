@@ -11,6 +11,7 @@ import 'package:mangaloader/services/notification_navigation.dart';
 import 'package:mangaloader/src/rust/api/storage.dart' as rust_storage;
 import 'package:mangaloader/services/update_checker.dart';
 import 'package:mangaloader/utils/plural.dart';
+import 'package:mangaloader/theme/app_tokens.dart';
 
 class StreakNotificationService {
   static final FlutterLocalNotificationsPlugin _notifications = FlutterLocalNotificationsPlugin();
@@ -124,7 +125,7 @@ class StreakNotificationService {
         importance: Importance.high,
         priority: Priority.high,
         icon: '@drawable/ic_notification',
-        color: Color(0xFF8A897C),
+        color: AppTokens.accent,
         largeIcon: DrawableResourceAndroidBitmap('@mipmap/ic_launcher'),
       );
 
@@ -188,7 +189,7 @@ class StreakNotificationService {
         importance: Importance.high,
         priority: Priority.high,
         icon: '@drawable/ic_notification',
-        color: Color(0xFF8A897C),
+        color: AppTokens.accent,
         largeIcon: DrawableResourceAndroidBitmap('@mipmap/ic_launcher'),
       );
 
@@ -245,7 +246,7 @@ class StreakNotificationService {
         importance: Importance.high,
         priority: Priority.high,
         icon: '@drawable/ic_notification',
-        color: Color(0xFF8A897C),
+        color: AppTokens.accent,
         largeIcon: DrawableResourceAndroidBitmap('@mipmap/ic_launcher'),
       );
 
@@ -306,7 +307,7 @@ class StreakNotificationService {
         importance: Importance.high,
         priority: Priority.high,
         icon: '@drawable/ic_notification',
-        color: const Color(0xFF8A897C),
+        color: AppTokens.accent,
         largeIcon: const DrawableResourceAndroidBitmap('@mipmap/ic_launcher'),
         styleInformation: BigTextStyleInformation(body),
       );

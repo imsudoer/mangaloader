@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mangaloader/theme/app_tokens.dart';
 
 class DownloadButton extends StatefulWidget {
   /// 0.0 to 1.0 for an active download, -1 for idle, -2 for waiting.
@@ -41,20 +42,20 @@ class _DownloadButtonState extends State<DownloadButton> {
       border = Border.all(color: const Color(0xFFB3261E), width: 1);
       barColor = const Color(0xFFB3261E);
     } else if (isComplete) {
-      bgColor = const Color(0xFF8A897C);
+      bgColor = AppTokens.accent;
       fgColor = Colors.white;
       border = null;
-      barColor = const Color(0xFF8A897C);
+      barColor = AppTokens.accent;
     } else if (isIdle) {
-      bgColor = const Color(0xFF353535);
-      fgColor = const Color(0xFFD2D7DF);
-      border = Border.all(color: const Color(0xFF8A897C).withValues(alpha: 0.5), width: 1);
-      barColor = const Color(0xFF8A897C);
+      bgColor = AppTokens.border;
+      fgColor = AppTokens.textPrimary;
+      border = Border.all(color: AppTokens.accent.withValues(alpha: 0.5), width: 1);
+      barColor = AppTokens.accent;
     } else {
       bgColor = const Color(0xFF282828);
       fgColor = Colors.white;
-      border = Border.all(color: const Color(0xFFBDBBB0), width: 1);
-      barColor = const Color(0xFF8A897C);
+      border = Border.all(color: AppTokens.textSecondary, width: 1);
+      barColor = AppTokens.accent;
     }
 
     final label = widget.failed

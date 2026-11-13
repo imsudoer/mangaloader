@@ -17,6 +17,7 @@ import 'package:mangaloader/utils/plural.dart';
 import 'package:mangaloader/widgets/update_bottom_sheet.dart';
 import 'package:mangaloader/widgets/manga_recap_modal.dart';
 import 'package:go_router/go_router.dart';
+import 'package:mangaloader/theme/app_tokens.dart';
 
 class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key});
@@ -325,7 +326,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           Card(
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14),
-              side: const BorderSide(color: Color(0xFF353535)),
+              side: const BorderSide(color: AppTokens.border),
             ),
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -339,9 +340,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   const SizedBox(height: 10),
                   SegmentedButton<ThemeMode>(
                     style: SegmentedButton.styleFrom(
-                      selectedBackgroundColor: const Color(0xFF8A897C),
+                      selectedBackgroundColor: AppTokens.accent,
                       selectedForegroundColor: Colors.white,
-                      foregroundColor: const Color(0xFFD2D7DF),
+                      foregroundColor: AppTokens.textPrimary,
                     ),
                     segments: [
                       ButtonSegment(value: ThemeMode.system, label: Text(isRu ? 'Система' : 'System')),
@@ -361,9 +362,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   const SizedBox(height: 10),
                   SegmentedButton<String>(
                     style: SegmentedButton.styleFrom(
-                      selectedBackgroundColor: const Color(0xFF8A897C),
+                      selectedBackgroundColor: AppTokens.accent,
                       selectedForegroundColor: Colors.white,
-                      foregroundColor: const Color(0xFFD2D7DF),
+                      foregroundColor: AppTokens.textPrimary,
                     ),
                     segments: [
                       ButtonSegment(value: 'system', label: Text(isRu ? 'Авто' : 'Auto')),
@@ -384,11 +385,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   const Divider(height: 1),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
-                    secondary: const Icon(Icons.brightness_2_rounded, color: Color(0xFF8A897C)),
+                    secondary: const Icon(Icons.brightness_2_rounded, color: AppTokens.accent),
                     title: Text(isRu ? 'Режим Pure AMOLED' : 'Pure AMOLED Black'),
                     subtitle: Text(
                       isRu ? 'Глубокий черный фон для OLED экранов' : 'Pitch black background for OLED screens',
-                      style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
+                      style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
                     ),
                     value: ref.watch(amoledModeProvider),
                     onChanged: (val) => ref.read(amoledModeProvider.notifier).setAmoled(val),
@@ -401,7 +402,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     title: Text(isRu ? 'Напоминания об огоньке' : 'Daily Streak Reminders'),
                     subtitle: Text(
                       isRu ? 'Ежедневное напоминание почитать главу и сохранить стрик' : 'Daily reminder to read a chapter and keep flame burning',
-                      style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
+                      style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
                     ),
                     value: ref.watch(streakNotificationsEnabledProvider),
                     onChanged: (val) {
@@ -417,11 +418,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   const Divider(height: 1),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.auto_awesome_rounded, color: Color(0xFF8A897C)),
+                    leading: const Icon(Icons.auto_awesome_rounded, color: AppTokens.accent),
                     title: Text(isRu ? 'Manga Recap / Итоги чтения' : 'Manga Recap Summary'),
                     subtitle: Text(
                       isRu ? 'Красивая карточка с вашей статистикой чтения и топами' : 'Beautiful summary card with reading stats & tops',
-                      style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
+                      style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
                     ),
                     trailing: const Icon(Icons.chevron_right_rounded),
                     onTap: () => MangaRecapModal.show(context),
@@ -434,7 +435,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     title: Text(isRu ? 'Достижения' : 'Achievements'),
                     subtitle: Text(
                       isRu ? 'Просмотр всех наград, уровней и прогресса' : 'View all rewards, levels & progress',
-                      style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
+                      style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
                     ),
                     trailing: const Icon(Icons.chevron_right_rounded),
                     onTap: () => GoRouter.of(context).push('/achievements'),
@@ -447,7 +448,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     title: Text(isRu ? 'Статистика чтения' : 'Reading Statistics'),
                     subtitle: Text(
                       isRu ? 'Аналитика жанров, времени активности и прогресса' : 'Analytics of genres, activity time & progress',
-                      style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
+                      style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
                     ),
                     trailing: const Icon(Icons.chevron_right_rounded),
                     onTap: () => GoRouter.of(context).push('/statistics'),
@@ -456,11 +457,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   const Divider(height: 1),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
-                    secondary: const Icon(Icons.notifications_active_rounded, color: Color(0xFF8A897C)),
+                    secondary: const Icon(Icons.notifications_active_rounded, color: AppTokens.accent),
                     title: Text(isRu ? 'Уведомления о новых главах' : 'New Chapters Notifications'),
                     subtitle: Text(
                       isRu ? 'Отслеживание выхода свежих глав для тайтлов в библиотеке' : 'Track newly uploaded chapters for bookmarked titles',
-                      style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
+                      style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
                     ),
                     value: ref.watch(chapterNotificationsEnabledProvider),
                     onChanged: (val) => ref.read(chapterNotificationsEnabledProvider.notifier).setEnabled(val),
@@ -484,12 +485,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           Card(
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14),
-              side: const BorderSide(color: Color(0xFF353535)),
+              side: const BorderSide(color: AppTokens.border),
             ),
             child: Column(
               children: [
                 ListTile(
-                  leading: const Icon(Icons.swap_vert_rounded, color: Color(0xFF8A897C)),
+                  leading: const Icon(Icons.swap_vert_rounded, color: AppTokens.accent),
                   title: Text(isRu ? 'Направление чтения' : 'Reading Direction'),
                   subtitle: Text(
                     _readerDefaultMode == 'vertical'
@@ -497,11 +498,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       : (_readerDefaultMode == 'rtl'
                           ? (isRu ? 'Справа налево (Манга)' : 'Right to Left')
                           : (isRu ? 'Слева направо' : 'Left to Right')),
-                    style: const TextStyle(color: Color(0xFFD2D7DF), fontSize: 12),
+                    style: const TextStyle(color: AppTokens.textPrimary, fontSize: 12),
                   ),
                   trailing: PopupMenuButton<String>(
                     initialValue: _readerDefaultMode,
-                    color: const Color(0xFF2C2C2C),
+                    color: AppTokens.surfaceRaised,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     onSelected: (val) => setState(() => _readerDefaultMode = val),
                     itemBuilder: (ctx) => [
@@ -513,15 +514,15 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 ),
                 const Divider(height: 1, indent: 56),
                 ListTile(
-                  leading: const Icon(Icons.format_color_fill_rounded, color: Color(0xFF8A897C)),
+                  leading: const Icon(Icons.format_color_fill_rounded, color: AppTokens.accent),
                   title: Text(isRu ? 'Фон читалки' : 'Reader Background'),
                   subtitle: Text(
                     _readerDefaultBg == 'black' ? (isRu ? 'Чёрный' : 'Black') : (_readerDefaultBg == 'darkGrey' ? (isRu ? 'Тёмно-серый' : 'Dark Grey') : (isRu ? 'Белый' : 'White')),
-                    style: const TextStyle(color: Color(0xFFD2D7DF), fontSize: 12),
+                    style: const TextStyle(color: AppTokens.textPrimary, fontSize: 12),
                   ),
                   trailing: PopupMenuButton<String>(
                     initialValue: _readerDefaultBg,
-                    color: const Color(0xFF2C2C2C),
+                    color: AppTokens.surfaceRaised,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     onSelected: (val) => setState(() => _readerDefaultBg = val),
                     itemBuilder: (ctx) => [
@@ -533,15 +534,15 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 ),
                 const Divider(height: 1, indent: 56),
                 ListTile(
-                  leading: const Icon(Icons.auto_awesome_rounded, color: Color(0xFF8A897C)),
+                  leading: const Icon(Icons.auto_awesome_rounded, color: AppTokens.accent),
                   title: Text(isRu ? 'Фильтр резкости' : 'Sharpening Filter'),
                   subtitle: Text(
                     _sharpeningMode == 'subtle' ? (isRu ? 'Мягкая резкость' : 'Subtle') : (_sharpeningMode == 'high' ? (isRu ? 'Высокая резкость' : 'High') : (isRu ? 'Отключено' : 'Off')),
-                    style: const TextStyle(color: Color(0xFFD2D7DF), fontSize: 12),
+                    style: const TextStyle(color: AppTokens.textPrimary, fontSize: 12),
                   ),
                   trailing: PopupMenuButton<String>(
                     initialValue: _sharpeningMode,
-                    color: const Color(0xFF2C2C2C),
+                    color: AppTokens.surfaceRaised,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     onSelected: (val) => setState(() => _sharpeningMode = val),
                     itemBuilder: (ctx) => [
@@ -553,17 +554,17 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 ),
                 const Divider(height: 1, indent: 56),
                 SwitchListTile(
-                  secondary: const Icon(Icons.crop_free_rounded, color: Color(0xFF8A897C)),
+                  secondary: const Icon(Icons.crop_free_rounded, color: AppTokens.accent),
                   title: Text(isRu ? 'Обрезка белых полей' : 'Crop White Borders'),
-                  subtitle: Text(isRu ? 'Автоматически удаляет белые поля' : 'Trim empty borders', style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF))),
+                  subtitle: Text(isRu ? 'Автоматически удаляет белые поля' : 'Trim empty borders', style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary)),
                   value: _cropBorders,
                   onChanged: (val) => setState(() => _cropBorders = val),
                 ),
                 const Divider(height: 1, indent: 56),
                 SwitchListTile(
-                  secondary: const Icon(Icons.battery_charging_full_rounded, color: Color(0xFF8A897C)),
+                  secondary: const Icon(Icons.battery_charging_full_rounded, color: AppTokens.accent),
                   title: Text(isRu ? 'Умный статус-бар' : 'Smart Status Bar'),
-                  subtitle: Text(isRu ? 'Отображение времени и заряда батареи' : 'Show clock and battery', style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF))),
+                  subtitle: Text(isRu ? 'Отображение времени и заряда батареи' : 'Show clock and battery', style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary)),
                   value: _smartStatusBar,
                   onChanged: (val) => setState(() => _smartStatusBar = val),
                 ),
@@ -577,7 +578,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           Card(
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14),
-              side: const BorderSide(color: Color(0xFF353535)),
+              side: const BorderSide(color: AppTokens.border),
             ),
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -588,7 +589,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(isRu ? 'Параллельные потоки изображений:' : 'Concurrent images:', style: const TextStyle(fontWeight: FontWeight.bold)),
-                      Text('${ref.watch(downloadConcurrencyImagesProvider)}', style: const TextStyle(color: Color(0xFF8A897C), fontWeight: FontWeight.bold, fontSize: 16)),
+                      Text('${ref.watch(downloadConcurrencyImagesProvider)}', style: const TextStyle(color: AppTokens.accent, fontWeight: FontWeight.bold, fontSize: 16)),
                     ],
                   ),
                   Slider(
@@ -596,7 +597,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     min: 1,
                     max: 30,
                     divisions: 29,
-                    activeColor: const Color(0xFF8A897C),
+                    activeColor: AppTokens.accent,
                     onChanged: (v) => ref.read(downloadConcurrencyImagesProvider.notifier).setConcurrency(v.toInt()),
                   ),
                   const SizedBox(height: 10),
@@ -604,7 +605,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(isRu ? 'Параллельные главы:' : 'Concurrent chapters:', style: const TextStyle(fontWeight: FontWeight.bold)),
-                      Text('${ref.watch(downloadConcurrencyChaptersProvider)}', style: const TextStyle(color: Color(0xFF8A897C), fontWeight: FontWeight.bold, fontSize: 16)),
+                      Text('${ref.watch(downloadConcurrencyChaptersProvider)}', style: const TextStyle(color: AppTokens.accent, fontWeight: FontWeight.bold, fontSize: 16)),
                     ],
                   ),
                   Slider(
@@ -612,22 +613,22 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     min: 1,
                     max: 5,
                     divisions: 4,
-                    activeColor: const Color(0xFF8A897C),
+                    activeColor: AppTokens.accent,
                     onChanged: (v) => ref.read(downloadConcurrencyChaptersProvider.notifier).setConcurrency(v.toInt()),
                   ),
                   const SizedBox(height: 6),
                   const Divider(height: 1),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.offline_pin_outlined, color: Color(0xFF8A897C)),
+                    leading: const Icon(Icons.offline_pin_outlined, color: AppTokens.accent),
                     title: Text(isRu ? 'Умный оффлайн' : 'Smart Offline'),
                     subtitle: Text(
                       isRu ? 'Автоскачивание следующих глав во время чтения' : 'Auto-download next chapters while reading',
-                      style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
+                      style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
                     ),
                     trailing: DropdownButton<int>(
                       value: ref.watch(smartAutoDownloadCountProvider),
-                      dropdownColor: const Color(0xFF2C2C2C),
+                      dropdownColor: AppTokens.surfaceRaised,
                       style: const TextStyle(color: Colors.white, fontSize: 13),
                       underline: const SizedBox(),
                       items: [
@@ -648,11 +649,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   const Divider(height: 1),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
-                    secondary: const Icon(Icons.auto_delete_rounded, color: Color(0xFF8A897C)),
+                    secondary: const Icon(Icons.auto_delete_rounded, color: AppTokens.accent),
                     title: Text(isRu ? 'Автоудаление прочитанного' : 'Auto-Delete Read Chapters'),
                     subtitle: Text(
                       isRu ? 'Автоматически удалять скачанную главу с устройства после прочтения' : 'Automatically delete downloaded chapter file after finishing reading',
-                      style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
+                      style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
                     ),
                     value: ref.watch(autoDeleteReadChaptersProvider),
                     onChanged: (val) => ref.read(autoDeleteReadChaptersProvider.notifier).setAutoDelete(val),
@@ -668,20 +669,20 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           Card(
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14),
-              side: const BorderSide(color: Color(0xFF353535)),
+              side: const BorderSide(color: AppTokens.border),
             ),
             child: Column(
               children: [
                 ListTile(
-                  leading: const Icon(Icons.schedule_send_rounded, color: Color(0xFF8A897C)),
+                  leading: const Icon(Icons.schedule_send_rounded, color: AppTokens.accent),
                   title: Text(isRu ? 'Автоматические копии' : 'Automatic Backups'),
                   subtitle: Text(
                     _backupIntervalLabel(selectedBackupInterval, isRu),
-                    style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
+                    style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
                   ),
                   trailing: DropdownButton<int>(
                     value: selectedBackupInterval,
-                    dropdownColor: const Color(0xFF2C2C2C),
+                    dropdownColor: AppTokens.surfaceRaised,
                     style: const TextStyle(color: Colors.white, fontSize: 13),
                     underline: const SizedBox(),
                     items: [
@@ -704,13 +705,13 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 ),
                 const Divider(height: 1, indent: 56),
                 ListTile(
-                  leading: const Icon(Icons.save_alt_rounded, color: Color(0xFF8A897C)),
+                  leading: const Icon(Icons.save_alt_rounded, color: AppTokens.accent),
                   title: Text(isRu ? 'Создать копию сейчас' : 'Create Backup Now'),
                   subtitle: Text(
                     _lastBackupAt == null
                         ? (isRu ? 'Копий пока не было' : 'No backups yet')
                         : '${isRu ? 'Последняя копия' : 'Last backup'}: ${_formatBackupMoment(_lastBackupAt!)}',
-                    style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
+                    style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
                   ),
                   trailing: OutlinedButton(
                     onPressed: _isBackingUp ? null : () => _createBackupNow(isRu),
@@ -725,23 +726,23 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     padding: const EdgeInsets.fromLTRB(56, 10, 16, 12),
                     child: Text(
                       _lastBackupPath!,
-                      style: const TextStyle(fontSize: 11, color: Color(0xFF8A897C), height: 1.3),
+                      style: const TextStyle(fontSize: 11, color: AppTokens.accent, height: 1.3),
                     ),
                   ),
                 ],
                 const Divider(height: 1, indent: 56),
                 ListTile(
-                  leading: const Icon(Icons.file_download_outlined, color: Color(0xFF8A897C)),
+                  leading: const Icon(Icons.file_download_outlined, color: AppTokens.accent),
                   title: Text(isRu ? 'Экспорт базы данных (JSON)' : 'Export Backup (JSON)'),
-                  subtitle: Text(isRu ? 'Сохраняет библиотеку, историю и закладки' : 'Save library, history & bookmarks', style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF))),
+                  subtitle: Text(isRu ? 'Сохраняет библиотеку, историю и закладки' : 'Save library, history & bookmarks', style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary)),
                   trailing: const Icon(Icons.chevron_right_rounded),
                   onTap: () => _exportBackup(isRu),
                 ),
                 const Divider(height: 1, indent: 56),
                 ListTile(
-                  leading: const Icon(Icons.file_upload_outlined, color: Color(0xFF8A897C)),
+                  leading: const Icon(Icons.file_upload_outlined, color: AppTokens.accent),
                   title: Text(isRu ? 'Импорт базы данных (JSON)' : 'Import Backup (JSON)'),
-                  subtitle: Text(isRu ? 'Восстановить библиотеку из JSON-файла' : 'Restore library from JSON file', style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF))),
+                  subtitle: Text(isRu ? 'Восстановить библиотеку из JSON-файла' : 'Restore library from JSON file', style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary)),
                   trailing: const Icon(Icons.chevron_right_rounded),
                   onTap: () => _importBackup(isRu),
                 ),
@@ -749,7 +750,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 ListTile(
                   leading: const Icon(Icons.import_export_rounded, color: Color(0xFF2E7D32)),
                   title: Text(isRu ? 'Экспорт в MyAnimeList (XML)' : 'Export to MyAnimeList (XML)'),
-                  subtitle: Text(isRu ? 'Экспорт библиотеки в формат MAL' : 'Export library to MAL format', style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF))),
+                  subtitle: Text(isRu ? 'Экспорт библиотеки в формат MAL' : 'Export library to MAL format', style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary)),
                   trailing: const Icon(Icons.chevron_right_rounded),
                   onTap: () => _exportMalXml(isRu),
                 ),
@@ -757,7 +758,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 ListTile(
                   leading: const Icon(Icons.download_for_offline_outlined, color: Color(0xFF2E7D32)),
                   title: Text(isRu ? 'Импорт из MyAnimeList (XML)' : 'Import from MyAnimeList (XML)'),
-                  subtitle: Text(isRu ? 'Импорт манги из экспорта MyAnimeList' : 'Import manga from MyAnimeList export', style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF))),
+                  subtitle: Text(isRu ? 'Импорт манги из экспорта MyAnimeList' : 'Import manga from MyAnimeList export', style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary)),
                   trailing: const Icon(Icons.chevron_right_rounded),
                   onTap: () => _importMalXml(isRu),
                 ),
@@ -767,7 +768,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   title: Text(isRu ? 'Импорт из MyAnimeList по ссылке' : 'Import from MyAnimeList (URL)'),
                   subtitle: Text(
                     isRu ? 'Скачать XML-экспорт по прямой ссылке' : 'Download an XML export from a direct link',
-                    style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
+                    style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
                   ),
                   trailing: const Icon(Icons.chevron_right_rounded),
                   onTap: () => _importMalFromUrl(isRu),
@@ -782,20 +783,20 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           Card(
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14),
-              side: const BorderSide(color: Color(0xFF353535)),
+              side: const BorderSide(color: AppTokens.border),
             ),
             child: Column(
               children: [
                 ListTile(
-                  leading: const Icon(Icons.auto_delete_outlined, color: Color(0xFF8A897C)),
+                  leading: const Icon(Icons.auto_delete_outlined, color: AppTokens.accent),
                   title: Text(isRu ? 'Автоочистка кэша' : 'Auto-Clear Cache'),
                   subtitle: Text(
                     isRu ? 'Удалять кэшированные страницы старше выбранного срока' : 'Remove cached pages older than selected period',
-                    style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
+                    style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
                   ),
                   trailing: DropdownButton<int>(
                     value: ref.watch(autoClearCacheDaysProvider),
-                    dropdownColor: const Color(0xFF2C2C2C),
+                    dropdownColor: AppTokens.surfaceRaised,
                     style: const TextStyle(color: Colors.white, fontSize: 13),
                     underline: const SizedBox(),
                     items: [
@@ -814,11 +815,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 ),
                 const Divider(height: 1, indent: 56),
                 ListTile(
-                  leading: const Icon(Icons.cleaning_services_rounded, color: Color(0xFF8A897C)),
+                  leading: const Icon(Icons.cleaning_services_rounded, color: AppTokens.accent),
                   title: Text(isRu ? 'Очистить кэш приложения' : 'Clear Application Cache'),
                   subtitle: Text(
                     isRu ? 'Очищает сетевой дисковый кэш и оперативную память' : 'Clears disk network cache & RAM memory',
-                    style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
+                    style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
                   ),
                   trailing: OutlinedButton(
                     onPressed: _isClearingCache ? null : () => _clearAllCaches(isRu),
@@ -838,10 +839,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             Card(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),
-                side: const BorderSide(color: Color(0xFF353535)),
+                side: const BorderSide(color: AppTokens.border),
               ),
               child: ListTile(
-                leading: const Icon(Icons.storefront_rounded, color: Color(0xFF8A897C)),
+                leading: const Icon(Icons.storefront_rounded, color: AppTokens.accent),
                 title: Text(
                   isRu ? 'Версия: v$currentVersionStr (RuStore)' : 'Version: v$currentVersionStr (RuStore)',
                   style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white),
@@ -850,7 +851,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   isRu
                       ? 'Обновления приложения управляются через магазин RuStore'
                       : 'App updates are managed via RuStore',
-                  style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
+                  style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
                 ),
               ),
             )
@@ -858,7 +859,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             Card(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),
-                side: const BorderSide(color: Color(0xFF353535)),
+                side: const BorderSide(color: AppTokens.border),
               ),
               child: Column(
                 children: [
@@ -881,7 +882,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                                     Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                       decoration: BoxDecoration(
-                                        color: const Color(0xFF8A897C),
+                                        color: AppTokens.accent,
                                         borderRadius: BorderRadius.circular(6),
                                       ),
                                       child: Text(
@@ -896,15 +897,15 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                               if (downloadState.status == UpdateDownloadStatus.downloading) ...[
                                 Text(
                                   '${isRu ? "Загрузка:" : "Downloading:"} ${(downloadState.progress * 100).toStringAsFixed(0)}%',
-                                  style: const TextStyle(color: Color(0xFF8A897C), fontSize: 12, fontWeight: FontWeight.bold),
+                                  style: const TextStyle(color: AppTokens.accent, fontSize: 12, fontWeight: FontWeight.bold),
                                 ),
                                 const SizedBox(height: 6),
                                 ClipRRect(
                                   borderRadius: BorderRadius.circular(4),
                                   child: LinearProgressIndicator(
                                     value: downloadState.progress > 0 ? downloadState.progress : null,
-                                    backgroundColor: const Color(0xFF353535),
-                                    valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF8A897C)),
+                                    backgroundColor: AppTokens.border,
+                                    valueColor: const AlwaysStoppedAnimation<Color>(AppTokens.accent),
                                     minHeight: 4,
                                   ),
                                 ),
@@ -916,7 +917,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                               ] else ...[
                                 Text(
                                   isRu ? 'Проверка новых релизов на GitHub' : 'Check for new releases on GitHub',
-                                  style: const TextStyle(color: Color(0xFFBDBBB0), fontSize: 12),
+                                  style: const TextStyle(color: AppTokens.textSecondary, fontSize: 12),
                                 ),
                               ],
                             ],
@@ -952,7 +953,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                             if (availableUpdate != null && availableUpdate.hasUpdate) {
                               return FilledButton.icon(
                                 style: FilledButton.styleFrom(
-                                  backgroundColor: const Color(0xFF8A897C),
+                                  backgroundColor: AppTokens.accent,
                                   foregroundColor: Colors.white,
                                 ),
                                 onPressed: () => _showUpdateSheet(context, availableUpdate, isRu),
@@ -962,7 +963,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                             }
                             return FilledButton.icon(
                               style: FilledButton.styleFrom(
-                                backgroundColor: const Color(0xFF8A897C),
+                                backgroundColor: AppTokens.accent,
                                 foregroundColor: Colors.white,
                               ),
                               onPressed: _isCheckingUpdates ? null : () => _checkUpdates(isRu),
@@ -990,7 +991,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                               const SizedBox(height: 2),
                               Text(
                                 isRu ? 'Стабильные релизы или Dev/Beta' : 'Stable releases or Dev/Beta',
-                                style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
+                                style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
                               ),
                             ],
                           ),
@@ -1016,11 +1017,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   ),
                   const Divider(height: 1, indent: 16, endIndent: 16),
                   SwitchListTile(
-                    secondary: const Icon(Icons.schedule_rounded, color: Color(0xFF8A897C)),
+                    secondary: const Icon(Icons.schedule_rounded, color: AppTokens.accent),
                     title: Text(isRu ? 'Проверять при запуске' : 'Check updates on launch'),
                     subtitle: Text(
                       isRu ? 'Тихий поиск свежих версий на главной' : 'Silent background check on startup',
-                      style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
+                      style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
                     ),
                     value: ref.watch(autoCheckUpdatesProvider),
                     onChanged: (val) => ref.read(autoCheckUpdatesProvider.notifier).setAutoCheck(val),
@@ -1035,7 +1036,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           Card(
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14),
-              side: const BorderSide(color: Color(0xFF353535)),
+              side: const BorderSide(color: AppTokens.border),
             ),
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -1046,14 +1047,14 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   const SizedBox(height: 4),
                   Text(
                     isRu ? 'Версия $currentVersionStr' : 'Version $currentVersionStr',
-                    style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
+                    style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     isRu
                       ? 'Современный загрузчик и ридер манги с аппаратным декодированием, масштабированием, автоскроллом и оффлайн-режимом CBZ.'
                       : 'Modern manga reader and downloader with hardware decoding, scaling, auto-scroll and offline CBZ mode.',
-                    style: const TextStyle(fontSize: 12, color: Color(0xFFBDBBB0), height: 1.4),
+                    style: const TextStyle(fontSize: 12, color: AppTokens.textSecondary, height: 1.4),
                   ),
                 ],
               ),
@@ -1072,18 +1073,18 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     return Card(
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
-        side: const BorderSide(color: Color(0xFF353535)),
+        side: const BorderSide(color: AppTokens.border),
       ),
       child: Column(
         children: [
           SwitchListTile(
-            secondary: const Icon(Icons.bedtime_rounded, color: Color(0xFF8A897C)),
+            secondary: const Icon(Icons.bedtime_rounded, color: AppTokens.accent),
             title: Text(isRu ? 'Тихие часы' : 'Quiet Hours'),
             subtitle: Text(
               isRu
                   ? 'Не присылать уведомления о главах ночью'
                   : 'Hold chapter notifications during the night',
-              style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
+              style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
             ),
             value: quiet.enabled,
             onChanged: (val) =>
@@ -1092,7 +1093,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           if (quiet.enabled) ...[
             const Divider(height: 1, indent: 56),
             ListTile(
-              leading: const Icon(Icons.nightlight_round, color: Color(0xFF8A897C)),
+              leading: const Icon(Icons.nightlight_round, color: AppTokens.accent),
               title: Text(isRu ? 'Начало' : 'Starts at'),
               trailing: _buildHourDropdown(
                 quiet.startHour,
@@ -1102,7 +1103,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             ),
             const Divider(height: 1, indent: 56),
             ListTile(
-              leading: const Icon(Icons.wb_sunny_rounded, color: Color(0xFF8A897C)),
+              leading: const Icon(Icons.wb_sunny_rounded, color: AppTokens.accent),
               title: Text(isRu ? 'Конец' : 'Ends at'),
               trailing: _buildHourDropdown(
                 quiet.endHour,
@@ -1113,13 +1114,13 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           ],
           const Divider(height: 1, indent: 56),
           SwitchListTile(
-            secondary: const Icon(Icons.mark_email_unread_rounded, color: Color(0xFF8A897C)),
+            secondary: const Icon(Icons.mark_email_unread_rounded, color: AppTokens.accent),
             title: Text(isRu ? 'Один дайджест в день' : 'One Daily Digest'),
             subtitle: Text(
               isRu
                   ? 'Вместо уведомления на каждую главу — одна сводка «Новые главы: N»'
                   : 'One summary («New chapters: N») instead of a ping per chapter',
-              style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
+              style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
             ),
             value: digestEnabled,
             onChanged: (val) => ref.read(chapterDigestProvider.notifier).setEnabled(val),
@@ -1133,7 +1134,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final safeValue = value.clamp(0, 23);
     return DropdownButton<int>(
       value: safeValue,
-      dropdownColor: const Color(0xFF2C2C2C),
+      dropdownColor: AppTokens.surfaceRaised,
       style: const TextStyle(color: Colors.white, fontSize: 13),
       underline: const SizedBox(),
       items: [
@@ -1163,11 +1164,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       padding: const EdgeInsets.only(bottom: 8, left: 4),
       child: Row(
         children: [
-          Icon(icon, size: 18, color: const Color(0xFF8A897C)),
+          Icon(icon, size: 18, color: AppTokens.accent),
           const SizedBox(width: 8),
           Text(
             title,
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFFD2D7DF)),
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppTokens.textPrimary),
           ),
         ],
       ),

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:mangaloader/providers/settings_provider.dart';
 import 'package:mangaloader/src/rust/api/mangalib_client.dart' as rust_api;
 import 'package:mangaloader/src/rust/api/models.dart';
+import 'package:mangaloader/theme/app_tokens.dart';
 
 class MangaCommentsModal extends ConsumerStatefulWidget {
   final String relationType; // "media" or "chapter"
@@ -26,7 +27,7 @@ class MangaCommentsModal extends ConsumerStatefulWidget {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: const Color(0xFF1E1E1E),
+      backgroundColor: AppTokens.surfaceBase,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -287,7 +288,7 @@ class _MangaCommentsModalState extends ConsumerState<MangaCommentsModal> {
                         widget.title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 12, color: Color(0xFFBDBBB0)),
+                        style: const TextStyle(fontSize: 12, color: AppTokens.textSecondary),
                       ),
                     ],
                   ),
@@ -296,7 +297,7 @@ class _MangaCommentsModalState extends ConsumerState<MangaCommentsModal> {
                 SegmentedButton<String>(
                   style: SegmentedButton.styleFrom(
                     visualDensity: VisualDensity.compact,
-                    selectedBackgroundColor: const Color(0xFF8A897C),
+                    selectedBackgroundColor: AppTokens.accent,
                     selectedForegroundColor: Colors.white,
                     textStyle: const TextStyle(fontSize: 12),
                   ),
@@ -326,7 +327,7 @@ class _MangaCommentsModalState extends ConsumerState<MangaCommentsModal> {
                       children: [
                         const Icon(Icons.error_outline_rounded, size: 40, color: Colors.redAccent),
                         const SizedBox(height: 12),
-                        Text(_errorMessage!, style: const TextStyle(color: Color(0xFFD2D7DF))),
+                        Text(_errorMessage!, style: const TextStyle(color: AppTokens.textPrimary)),
                         const SizedBox(height: 12),
                         FilledButton.tonal(
                           onPressed: () => _loadComments(refresh: true),
@@ -395,12 +396,12 @@ class _MangaCommentsModalState extends ConsumerState<MangaCommentsModal> {
               color: const Color(0xFF282828),
               child: Row(
                 children: [
-                  const Icon(Icons.reply_rounded, size: 16, color: Color(0xFFD2D7DF)),
+                  const Icon(Icons.reply_rounded, size: 16, color: AppTokens.textPrimary),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       '${isRu ? "Ответ для" : "Replying to"} @${_replyingTo!.username}',
-                      style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
+                      style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
                     ),
                   ),
                   IconButton(
@@ -416,7 +417,7 @@ class _MangaCommentsModalState extends ConsumerState<MangaCommentsModal> {
           Container(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
             decoration: const BoxDecoration(
-              color: Color(0xFF242424),
+              color: AppTokens.surfaceCard,
               border: Border(top: BorderSide(color: Color(0xFF333333))),
             ),
             child: Row(
@@ -432,7 +433,7 @@ class _MangaCommentsModalState extends ConsumerState<MangaCommentsModal> {
                         ? '${isRu ? "Ответить" : "Reply to"} @${_replyingTo!.username}...'
                         : (isRu ? 'Написать комментарий...' : 'Write a comment...'),
                       filled: true,
-                      fillColor: const Color(0xFF1E1E1E),
+                      fillColor: AppTokens.surfaceBase,
                       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(20),
@@ -444,7 +445,7 @@ class _MangaCommentsModalState extends ConsumerState<MangaCommentsModal> {
                 const SizedBox(width: 8),
                 IconButton.filled(
                   style: IconButton.styleFrom(
-                    backgroundColor: const Color(0xFF8A897C),
+                    backgroundColor: AppTokens.accent,
                     foregroundColor: Colors.white,
                   ),
                   onPressed: _isPosting ? null : () => _postComment(isRu),
@@ -475,7 +476,7 @@ class _MangaCommentsModalState extends ConsumerState<MangaCommentsModal> {
               // Avatar
               CircleAvatar(
                 radius: 18,
-                backgroundColor: const Color(0xFF3E3E3E),
+                backgroundColor: AppTokens.borderStrong,
                 backgroundImage: comment.userAvatar.isNotEmpty ? CachedNetworkImageProvider(comment.userAvatar) : null,
                 child: comment.userAvatar.isEmpty
                   ? Text(
@@ -506,7 +507,7 @@ class _MangaCommentsModalState extends ConsumerState<MangaCommentsModal> {
                             ),
                             child: Text(
                               '${isRu ? "Стр." : "P."} ${comment.postPage}',
-                              style: const TextStyle(fontSize: 10, color: Color(0xFFBDBBB0)),
+                              style: const TextStyle(fontSize: 10, color: AppTokens.textSecondary),
                             ),
                           ),
                         ],
@@ -639,7 +640,7 @@ class _MangaCommentsModalState extends ConsumerState<MangaCommentsModal> {
         children: [
           CircleAvatar(
             radius: 14,
-            backgroundColor: const Color(0xFF3E3E3E),
+            backgroundColor: AppTokens.borderStrong,
             backgroundImage: reply.userAvatar.isNotEmpty ? CachedNetworkImageProvider(reply.userAvatar) : null,
             child: reply.userAvatar.isEmpty
               ? Text(

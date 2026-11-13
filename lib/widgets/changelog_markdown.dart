@@ -1,6 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:mangaloader/theme/app_tokens.dart';
 
 /// Renders the GitHub release body (a markdown subset) inside the update sheet.
 ///
@@ -17,8 +18,8 @@ class ChangelogMarkdown extends StatelessWidget {
     this.data, {
     super.key,
     this.fontSize = 12.5,
-    this.textColor = const Color(0xFFD2D7DF),
-    this.accentColor = const Color(0xFF8A897C),
+    this.textColor = AppTokens.textPrimary,
+    this.accentColor = AppTokens.accent,
   });
 
   @override

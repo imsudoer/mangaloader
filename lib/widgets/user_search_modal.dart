@@ -3,6 +3,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mangaloader/src/rust/api/mangalib_client.dart' as rust_api;
 import 'package:mangaloader/src/rust/api/models.dart';
+import 'package:mangaloader/theme/app_tokens.dart';
 
 class UserSearchModal extends StatefulWidget {
   const UserSearchModal({super.key});
@@ -63,15 +64,15 @@ class _UserSearchModalState extends State<UserSearchModal> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF242424),
+        backgroundColor: AppTokens.surfaceCard,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: [
             CircleAvatar(
               radius: 20,
-              backgroundColor: const Color(0xFF353535),
+              backgroundColor: AppTokens.border,
               backgroundImage: user.avatarUrl.isNotEmpty ? CachedNetworkImageProvider(user.avatarUrl) : null,
-              child: user.avatarUrl.isEmpty ? const Icon(Icons.person, color: Color(0xFF8A897C)) : null,
+              child: user.avatarUrl.isEmpty ? const Icon(Icons.person, color: AppTokens.accent) : null,
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -87,12 +88,12 @@ class _UserSearchModalState extends State<UserSearchModal> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('ID: ${user.id}', style: const TextStyle(color: Color(0xFFD2D7DF), fontSize: 13)),
+            Text('ID: ${user.id}', style: const TextStyle(color: AppTokens.textPrimary, fontSize: 13)),
             if (user.createdAt != null && user.createdAt!.isNotEmpty) ...[
               const SizedBox(height: 6),
               Text(
                 '${isRu ? "Регистрация" : "Joined"}: ${user.createdAt!.split("T").first}',
-                style: const TextStyle(color: Color(0xFFBDBBB0), fontSize: 12),
+                style: const TextStyle(color: AppTokens.textSecondary, fontSize: 12),
               ),
             ],
             const SizedBox(height: 6),
@@ -102,7 +103,7 @@ class _UserSearchModalState extends State<UserSearchModal> {
                 const SizedBox(width: 4),
                 Text(
                   '${isRu ? "Стрик входа" : "Login Streak"}: ${user.loginStreak} ${isRu ? "дн." : "days"}',
-                  style: const TextStyle(color: Color(0xFFD2D7DF), fontSize: 13),
+                  style: const TextStyle(color: AppTokens.textPrimary, fontSize: 13),
                 ),
               ],
             ),
@@ -114,7 +115,7 @@ class _UserSearchModalState extends State<UserSearchModal> {
             child: Text(isRu ? 'Закрыть' : 'Close'),
           ),
           FilledButton.icon(
-            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF8A897C)),
+            style: FilledButton.styleFrom(backgroundColor: AppTokens.accent),
             onPressed: () {
               Navigator.pop(ctx);
               _viewUserBookmarks(user, isRu);
@@ -131,7 +132,7 @@ class _UserSearchModalState extends State<UserSearchModal> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: const Color(0xFF1E1E1E),
+      backgroundColor: AppTokens.surfaceBase,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -171,7 +172,7 @@ class _UserSearchModalState extends State<UserSearchModal> {
                           child: Center(
                             child: Text(
                               isRu ? 'Закладки пользователя скрыты или пусты' : 'No public bookmarks found',
-                              style: const TextStyle(color: Color(0xFFBDBBB0)),
+                              style: const TextStyle(color: AppTokens.textSecondary),
                             ),
                           ),
                         )
@@ -199,7 +200,7 @@ class _UserSearchModalState extends State<UserSearchModal> {
                                   ),
                                 ),
                                 title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
-                                subtitle: Text(manga.mangaType, style: const TextStyle(color: Color(0xFFBDBBB0), fontSize: 12)),
+                                subtitle: Text(manga.mangaType, style: const TextStyle(color: AppTokens.textSecondary, fontSize: 12)),
                                 onTap: () {
                                   Navigator.pop(ctx);
                                   Navigator.pop(context);
@@ -233,7 +234,7 @@ class _UserSearchModalState extends State<UserSearchModal> {
         bottom: MediaQuery.of(context).viewInsets.bottom + 16,
       ),
       decoration: const BoxDecoration(
-        color: Color(0xFF1E1E1E),
+        color: AppTokens.surfaceBase,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Column(
@@ -252,7 +253,7 @@ class _UserSearchModalState extends State<UserSearchModal> {
           const SizedBox(height: 12),
           Row(
             children: [
-              const Icon(Icons.people_alt_rounded, color: Color(0xFF8A897C)),
+              const Icon(Icons.people_alt_rounded, color: AppTokens.accent),
               const SizedBox(width: 8),
               Text(
                 isRu ? 'Поиск пользователей MangaLib' : 'Search MangaLib Users',
@@ -290,7 +291,7 @@ class _UserSearchModalState extends State<UserSearchModal> {
               child: Center(
                 child: Text(
                   isRu ? 'Введите никнейм для поиска пользователей' : 'Search for users by username',
-                  style: const TextStyle(color: Color(0xFFBDBBB0)),
+                  style: const TextStyle(color: AppTokens.textSecondary),
                 ),
               ),
             )
@@ -309,13 +310,13 @@ class _UserSearchModalState extends State<UserSearchModal> {
                     ),
                     child: ListTile(
                       leading: CircleAvatar(
-                        backgroundColor: const Color(0xFF353535),
+                        backgroundColor: AppTokens.border,
                         backgroundImage: u.avatarUrl.isNotEmpty ? CachedNetworkImageProvider(u.avatarUrl) : null,
-                        child: u.avatarUrl.isEmpty ? const Icon(Icons.person, color: Color(0xFF8A897C)) : null,
+                        child: u.avatarUrl.isEmpty ? const Icon(Icons.person, color: AppTokens.accent) : null,
                       ),
                       title: Text(u.username, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-                      subtitle: Text('ID: ${u.id}', style: const TextStyle(color: Color(0xFFBDBBB0), fontSize: 12)),
-                      trailing: const Icon(Icons.chevron_right_rounded, color: Color(0xFFBDBBB0)),
+                      subtitle: Text('ID: ${u.id}', style: const TextStyle(color: AppTokens.textSecondary, fontSize: 12)),
+                      trailing: const Icon(Icons.chevron_right_rounded, color: AppTokens.textSecondary),
                       onTap: () => _showUserProfileDialog(u, isRu),
                     ),
                   );

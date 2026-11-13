@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mangaloader/providers/statistics_provider.dart';
 import 'package:mangaloader/src/rust/api/models.dart';
+import 'package:mangaloader/theme/app_tokens.dart';
 
 class StatisticsPage extends ConsumerWidget {
   const StatisticsPage({super.key});
@@ -78,7 +79,7 @@ class StatisticsPage extends ConsumerWidget {
         const SizedBox(height: 10),
         Row(
           children: [
-            Expanded(child: _buildMetricCard(Icons.folder_outlined, '${stats.totalLibraryCount}', isRu ? 'Всего в библиотеке' : 'Library Titles', const Color(0xFF8A897C))),
+            Expanded(child: _buildMetricCard(Icons.folder_outlined, '${stats.totalLibraryCount}', isRu ? 'Всего в библиотеке' : 'Library Titles', AppTokens.accent)),
             const SizedBox(width: 10),
             Expanded(child: _buildMetricCard(Icons.download_done_rounded, '${stats.totalDownloadedChapters}', isRu ? 'Скачано глав (CBZ)' : 'Downloaded (CBZ)', const Color(0xFF4FC3F7))),
           ],
@@ -92,9 +93,9 @@ class StatisticsPage extends ConsumerWidget {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
-        side: const BorderSide(color: Color(0xFF353535), width: 0.8),
+        side: const BorderSide(color: AppTokens.border, width: 0.8),
       ),
-      color: const Color(0xFF1E1E1E),
+      color: AppTokens.surfaceBase,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
         child: Column(
@@ -116,7 +117,7 @@ class StatisticsPage extends ConsumerWidget {
             const SizedBox(height: 2),
             Text(
               label,
-              style: const TextStyle(fontSize: 11, color: Color(0xFFBDBBB0)),
+              style: const TextStyle(fontSize: 11, color: AppTokens.textSecondary),
             ),
           ],
         ),
@@ -129,9 +130,9 @@ class StatisticsPage extends ConsumerWidget {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: Color(0xFF353535), width: 0.8),
+        side: const BorderSide(color: AppTokens.border, width: 0.8),
       ),
-      color: const Color(0xFF1E1E1E),
+      color: AppTokens.surfaceBase,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -139,7 +140,7 @@ class StatisticsPage extends ConsumerWidget {
           children: [
             Row(
               children: [
-                const Icon(Icons.pie_chart_outline_rounded, size: 20, color: Color(0xFF8A897C)),
+                const Icon(Icons.pie_chart_outline_rounded, size: 20, color: AppTokens.accent),
                 const SizedBox(width: 8),
                 Text(
                   isRu ? 'Любимые жанры' : 'Top Genres',
@@ -153,7 +154,7 @@ class StatisticsPage extends ConsumerWidget {
                 padding: const EdgeInsets.symmetric(vertical: 10),
                 child: Text(
                   isRu ? 'Пока нет данных. Читайте больше глав!' : 'No data yet. Read more chapters!',
-                  style: const TextStyle(fontSize: 12, color: Color(0xFF8A897C)),
+                  style: const TextStyle(fontSize: 12, color: AppTokens.accent),
                 ),
               )
             else
@@ -167,7 +168,7 @@ class StatisticsPage extends ConsumerWidget {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(g.name, style: const TextStyle(fontSize: 13, color: Colors.white, fontWeight: FontWeight.w500)),
-                          Text('${g.percentage}% (${g.count})', style: const TextStyle(fontSize: 11.5, color: Color(0xFF8A897C))),
+                          Text('${g.percentage}% (${g.count})', style: const TextStyle(fontSize: 11.5, color: AppTokens.accent)),
                         ],
                       ),
                       const SizedBox(height: 5),
@@ -177,7 +178,7 @@ class StatisticsPage extends ConsumerWidget {
                           value: (g.percentage / 100).clamp(0.0, 1.0),
                           minHeight: 5,
                           backgroundColor: const Color(0xFF2A2A2A),
-                          valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF8A897C)),
+                          valueColor: const AlwaysStoppedAnimation<Color>(AppTokens.accent),
                         ),
                       ),
                     ],
@@ -198,9 +199,9 @@ class StatisticsPage extends ConsumerWidget {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: Color(0xFF353535), width: 0.8),
+        side: const BorderSide(color: AppTokens.border, width: 0.8),
       ),
-      color: const Color(0xFF1E1E1E),
+      color: AppTokens.surfaceBase,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -208,7 +209,7 @@ class StatisticsPage extends ConsumerWidget {
           children: [
             Row(
               children: [
-                const Icon(Icons.access_time_rounded, size: 20, color: Color(0xFF8A897C)),
+                const Icon(Icons.access_time_rounded, size: 20, color: AppTokens.accent),
                 const SizedBox(width: 8),
                 Text(
                   isRu ? 'Время активности' : 'Reading Activity Time',
@@ -246,7 +247,7 @@ class StatisticsPage extends ConsumerWidget {
         Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white)),
         Text(pct, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color)),
         const SizedBox(height: 2),
-        Text(timeRange, style: const TextStyle(fontSize: 9, color: Color(0xFF8A897C))),
+        Text(timeRange, style: const TextStyle(fontSize: 9, color: AppTokens.accent)),
       ],
     );
   }
@@ -256,9 +257,9 @@ class StatisticsPage extends ConsumerWidget {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: Color(0xFF353535), width: 0.8),
+        side: const BorderSide(color: AppTokens.border, width: 0.8),
       ),
-      color: const Color(0xFF1E1E1E),
+      color: AppTokens.surfaceBase,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -281,21 +282,21 @@ class StatisticsPage extends ConsumerWidget {
                 Column(
                   children: [
                     Text('${stats.currentStreakDays}', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)),
-                    Text(isRu ? 'Текущий стрик' : 'Current Streak', style: const TextStyle(fontSize: 11, color: Color(0xFFBDBBB0))),
+                    Text(isRu ? 'Текущий стрик' : 'Current Streak', style: const TextStyle(fontSize: 11, color: AppTokens.textSecondary)),
                   ],
                 ),
-                Container(width: 1, height: 30, color: const Color(0xFF353535)),
+                Container(width: 1, height: 30, color: AppTokens.border),
                 Column(
                   children: [
                     Text('${stats.maxStreakDays}', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFFFFD700))),
-                    Text(isRu ? 'Лучший рекорд' : 'Best Record', style: const TextStyle(fontSize: 11, color: Color(0xFFBDBBB0))),
+                    Text(isRu ? 'Лучший рекорд' : 'Best Record', style: const TextStyle(fontSize: 11, color: AppTokens.textSecondary)),
                   ],
                 ),
-                Container(width: 1, height: 30, color: const Color(0xFF353535)),
+                Container(width: 1, height: 30, color: AppTokens.border),
                 Column(
                   children: [
                     Text('${stats.totalActiveDays}', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF81C784))),
-                    Text(isRu ? 'Дней в приложении' : 'Active Days', style: const TextStyle(fontSize: 11, color: Color(0xFFBDBBB0))),
+                    Text(isRu ? 'Дней в приложении' : 'Active Days', style: const TextStyle(fontSize: 11, color: AppTokens.textSecondary)),
                   ],
                 ),
               ],
@@ -325,9 +326,9 @@ class StatisticsPage extends ConsumerWidget {
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
-            side: const BorderSide(color: Color(0xFF353535), width: 0.8),
+            side: const BorderSide(color: AppTokens.border, width: 0.8),
           ),
-          color: const Color(0xFF1E1E1E),
+          color: AppTokens.surfaceBase,
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -350,21 +351,21 @@ class StatisticsPage extends ConsumerWidget {
                     Column(
                       children: [
                         Text(formatSecs(sessions.todayReadingSeconds), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
-                        Text(isRu ? 'Сегодня' : 'Today', style: const TextStyle(fontSize: 11, color: Color(0xFFBDBBB0))),
+                        Text(isRu ? 'Сегодня' : 'Today', style: const TextStyle(fontSize: 11, color: AppTokens.textSecondary)),
                       ],
                     ),
-                    Container(width: 1, height: 28, color: const Color(0xFF353535)),
+                    Container(width: 1, height: 28, color: AppTokens.border),
                     Column(
                       children: [
                         Text(formatSecs(sessions.weekReadingSeconds), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF81C784))),
-                        Text(isRu ? 'За 7 дней' : 'Last 7 Days', style: const TextStyle(fontSize: 11, color: Color(0xFFBDBBB0))),
+                        Text(isRu ? 'За 7 дней' : 'Last 7 Days', style: const TextStyle(fontSize: 11, color: AppTokens.textSecondary)),
                       ],
                     ),
-                    Container(width: 1, height: 28, color: const Color(0xFF353535)),
+                    Container(width: 1, height: 28, color: AppTokens.border),
                     Column(
                       children: [
                         Text(formatSecs(sessions.totalReadingSeconds), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFFFFB74D))),
-                        Text(isRu ? 'Всего' : 'All Time', style: const TextStyle(fontSize: 11, color: Color(0xFFBDBBB0))),
+                        Text(isRu ? 'Всего' : 'All Time', style: const TextStyle(fontSize: 11, color: AppTokens.textSecondary)),
                       ],
                     ),
                   ],

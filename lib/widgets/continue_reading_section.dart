@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:mangaloader/providers/continue_reading_provider.dart';
 import 'package:mangaloader/src/rust/api/models.dart';
+import 'package:mangaloader/theme/app_tokens.dart';
 
 class ContinueReadingSection extends ConsumerWidget {
   final bool isRu;
@@ -40,10 +41,10 @@ class ContinueReadingSection extends ConsumerWidget {
                   Container(
                     padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF8A897C).withValues(alpha: 0.2),
+                      color: AppTokens.accent.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Icon(Icons.auto_stories_rounded, color: Color(0xFF8A897C), size: 18),
+                    child: const Icon(Icons.auto_stories_rounded, color: AppTokens.accent, size: 18),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
@@ -56,14 +57,14 @@ class ContinueReadingSection extends ConsumerWidget {
                         ),
                         Text(
                           isRu ? 'Ваш текущий прогресс' : 'Your recent reading progress',
-                          style: const TextStyle(color: Color(0xFFBDBBB0), fontSize: 11),
+                          style: const TextStyle(color: AppTokens.textSecondary, fontSize: 11),
                         ),
                       ],
                     ),
                   ),
                   TextButton(
                     onPressed: () => context.go('/library'),
-                    child: Text(isRu ? 'Библиотека' : 'Library', style: const TextStyle(fontSize: 12, color: Color(0xFF8A897C))),
+                    child: Text(isRu ? 'Библиотека' : 'Library', style: const TextStyle(fontSize: 12, color: AppTokens.accent)),
                   ),
                 ],
               ),
@@ -88,7 +89,7 @@ class ContinueReadingSection extends ConsumerWidget {
                       clipBehavior: Clip.antiAlias,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
-                        side: const BorderSide(color: Color(0xFF353535), width: 1),
+                        side: const BorderSide(color: AppTokens.border, width: 1),
                       ),
                       child: InkWell(
                         onTap: () async {
@@ -103,7 +104,7 @@ class ContinueReadingSection extends ConsumerWidget {
                               imageUrl: item.coverUrl,
                               httpHeaders: const {'Referer': 'https://mangalib.org/'},
                               fit: BoxFit.cover,
-                              placeholder: (_, __) => Container(color: const Color(0xFF242424)),
+                              placeholder: (_, __) => Container(color: AppTokens.surfaceCard),
                               errorWidget: (_, __, ___) => const Icon(Icons.broken_image_rounded, color: Colors.white38),
                             ),
                             // Gradient
@@ -130,19 +131,19 @@ class ContinueReadingSection extends ConsumerWidget {
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFF1E1E1E).withValues(alpha: 0.85),
+                                    color: AppTokens.surfaceBase.withValues(alpha: 0.85),
                                     borderRadius: BorderRadius.circular(6),
-                                    border: Border.all(color: const Color(0xFF8A897C).withValues(alpha: 0.5)),
+                                    border: Border.all(color: AppTokens.accent.withValues(alpha: 0.5)),
                                     boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 4)],
                                   ),
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      const Icon(Icons.menu_book_rounded, size: 12, color: Color(0xFFD2D7DF)),
+                                      const Icon(Icons.menu_book_rounded, size: 12, color: AppTokens.textPrimary),
                                       const SizedBox(width: 3),
                                       Text(
                                         '${item.unreadCount} ${isRu ? "не прочит." : "unread"}',
-                                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFFD2D7DF)),
+                                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: AppTokens.textPrimary),
                                       ),
                                     ],
                                   ),
@@ -158,7 +159,7 @@ class ContinueReadingSection extends ConsumerWidget {
                                   ref.invalidate(continueReadingProvider);
                                 },
                                 style: IconButton.styleFrom(
-                                  backgroundColor: const Color(0xFF8A897C),
+                                  backgroundColor: AppTokens.accent,
                                   foregroundColor: Colors.white,
                                   minimumSize: const Size(34, 34),
                                   padding: EdgeInsets.zero,
@@ -196,7 +197,7 @@ class ContinueReadingSection extends ConsumerWidget {
                                       value: progress > 0 ? progress : 0.05,
                                       minHeight: 3.5,
                                       backgroundColor: const Color(0xFF333333),
-                                      valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF8A897C)),
+                                      valueColor: const AlwaysStoppedAnimation<Color>(AppTokens.accent),
                                     ),
                                   ),
                                   const SizedBox(height: 3),
@@ -208,7 +209,7 @@ class ContinueReadingSection extends ConsumerWidget {
                                           isRu
                                             ? 'Т.${item.lastReadVolume} Гл.${item.lastReadChapter}'
                                             : 'Vol.${item.lastReadVolume} Ch.${item.lastReadChapter}',
-                                          style: const TextStyle(color: Color(0xFFD2D7DF), fontSize: 10, fontWeight: FontWeight.bold),
+                                          style: const TextStyle(color: AppTokens.textPrimary, fontSize: 10, fontWeight: FontWeight.bold),
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                         ),
@@ -216,7 +217,7 @@ class ContinueReadingSection extends ConsumerWidget {
                                       if (progress > 0)
                                         Text(
                                           '${(progress * 100).toInt()}%',
-                                          style: const TextStyle(color: Color(0xFF8A897C), fontSize: 9.5, fontWeight: FontWeight.bold),
+                                          style: const TextStyle(color: AppTokens.accent, fontSize: 9.5, fontWeight: FontWeight.bold),
                                         ),
                                     ],
                                   ),

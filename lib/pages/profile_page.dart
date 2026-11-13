@@ -13,6 +13,7 @@ import 'package:mangaloader/src/rust/api/models.dart';
 import 'package:mangaloader/widgets/manga_recap_modal.dart';
 import 'package:mangaloader/widgets/user_search_modal.dart';
 import 'package:mangaloader/utils/plural.dart';
+import 'package:mangaloader/theme/app_tokens.dart';
 
 class ProfilePage extends ConsumerStatefulWidget {
   const ProfilePage({super.key});
@@ -131,16 +132,16 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     labelText: isRu ? 'Никнейм' : 'Username',
                     prefixIcon: const Icon(Icons.person_outline_rounded),
                     filled: true,
-                    fillColor: const Color(0xFF2C2C2C),
+                    fillColor: AppTokens.surfaceRaised,
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                   ),
                 ),
                 const SizedBox(height: 12),
-                Text(isRu ? 'Пол' : 'Gender', style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF))),
+                Text(isRu ? 'Пол' : 'Gender', style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary)),
                 const SizedBox(height: 6),
                 SegmentedButton<int>(
                   style: SegmentedButton.styleFrom(
-                    selectedBackgroundColor: const Color(0xFF8A897C),
+                    selectedBackgroundColor: AppTokens.accent,
                     selectedForegroundColor: Colors.white,
                   ),
                   segments: [
@@ -159,7 +160,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     labelText: isRu ? 'О себе' : 'Bio / About',
                     alignLabelWithHint: true,
                     filled: true,
-                    fillColor: const Color(0xFF2C2C2C),
+                    fillColor: AppTokens.surfaceRaised,
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                   ),
                 ),
@@ -172,7 +173,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               child: Text(isRu ? 'Отмена' : 'Cancel'),
             ),
             FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: const Color(0xFF8A897C)),
+              style: FilledButton.styleFrom(backgroundColor: AppTokens.accent),
               onPressed: () async {
                 final nav = Navigator.of(ctx);
                 final messenger = ScaffoldMessenger.of(context);
@@ -244,10 +245,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               const SizedBox(height: 8),
               DropdownButtonFormField<int>(
                 initialValue: profileVis,
-                dropdownColor: const Color(0xFF2C2C2C),
+                dropdownColor: AppTokens.surfaceRaised,
                 decoration: InputDecoration(
                   filled: true,
-                  fillColor: const Color(0xFF2C2C2C),
+                  fillColor: AppTokens.surfaceRaised,
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                 ),
                 items: [
@@ -264,10 +265,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               const SizedBox(height: 8),
               DropdownButtonFormField<int>(
                 initialValue: statsVis,
-                dropdownColor: const Color(0xFF2C2C2C),
+                dropdownColor: AppTokens.surfaceRaised,
                 decoration: InputDecoration(
                   filled: true,
-                  fillColor: const Color(0xFF2C2C2C),
+                  fillColor: AppTokens.surfaceRaised,
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                 ),
                 items: [
@@ -287,7 +288,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               child: Text(isRu ? 'Отмена' : 'Cancel'),
             ),
             FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: const Color(0xFF8A897C)),
+              style: FilledButton.styleFrom(backgroundColor: AppTokens.accent),
               onPressed: () async {
                 final nav = Navigator.of(ctx);
                 final messenger = ScaffoldMessenger.of(context);
@@ -407,7 +408,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             Card(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),
-                side: const BorderSide(color: Color(0xFF353535)),
+                side: const BorderSide(color: AppTokens.border),
               ),
               child: ListTile(
                 leading: const Icon(Icons.link_rounded, color: Color(0xFF2E7D32)),
@@ -416,7 +417,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   isRu
                       ? 'Загрузить XML-экспорт MyAnimeList по прямой ссылке'
                       : 'Load a MyAnimeList XML export from a direct link',
-                  style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
+                  style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
                 ),
                 trailing: const Icon(Icons.chevron_right_rounded),
                 onTap: () => _importMalFromUrl(isRu),
@@ -430,27 +431,27 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               Card(
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
-                  side: const BorderSide(color: Color(0xFF353535)),
+                  side: const BorderSide(color: AppTokens.border),
                 ),
                 child: Column(
                   children: [
                     ListTile(
-                      leading: const Icon(Icons.edit_outlined, color: Color(0xFF8A897C)),
+                      leading: const Icon(Icons.edit_outlined, color: AppTokens.accent),
                       title: Text(isRu ? 'Редактировать профиль' : 'Edit Profile'),
                       subtitle: Text(
                         isRu ? 'Изменить никнейм, пол и описание' : 'Change username, gender & bio',
-                        style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
+                        style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
                       ),
                       trailing: const Icon(Icons.chevron_right_rounded),
                       onTap: () => _showEditProfileDialog(context, isRu),
                     ),
                     const Divider(height: 1, indent: 56),
                     ListTile(
-                      leading: const Icon(Icons.privacy_tip_outlined, color: Color(0xFF8A897C)),
+                      leading: const Icon(Icons.privacy_tip_outlined, color: AppTokens.accent),
                       title: Text(isRu ? 'Приватность профиля' : 'Privacy Settings'),
                       subtitle: Text(
                         isRu ? 'Настройка видимости профиля и статистики' : 'Configure visibility of profile & stats',
-                        style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
+                        style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
                       ),
                       trailing: const Icon(Icons.chevron_right_rounded),
                       onTap: () => _showPrivacyDialog(context, isRu),
@@ -458,12 +459,12 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     const Divider(height: 1, indent: 56),
                     ListTile(
                       leading: _isSyncing
-                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF8A897C)))
-                          : const Icon(Icons.sync_rounded, color: Color(0xFF8A897C)),
+                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppTokens.accent))
+                          : const Icon(Icons.sync_rounded, color: AppTokens.accent),
                       title: Text(isRu ? 'Синхронизировать закладки' : 'Sync MangaLib Bookmarks'),
                       subtitle: Text(
                         isRu ? 'Импортировать все списки закладок в библиотеку' : 'Import all bookmark lists into library',
-                        style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
+                        style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
                       ),
                       trailing: const Icon(Icons.chevron_right_rounded),
                       onTap: _isSyncing ? null : () => _syncMangaLibBookmarks(isRu),
@@ -484,7 +485,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       return Card(
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: Color(0xFF353535)),
+          side: const BorderSide(color: AppTokens.border),
         ),
         child: Padding(
           padding: const EdgeInsets.all(20),
@@ -496,7 +497,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   const CircleAvatar(
                     radius: 30,
                     backgroundColor: Color(0xFF383838),
-                    child: Icon(Icons.person_outline_rounded, size: 36, color: Color(0xFF8A897C)),
+                    child: Icon(Icons.person_outline_rounded, size: 36, color: AppTokens.accent),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
@@ -510,7 +511,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                         const SizedBox(height: 4),
                         Text(
                           isRu ? 'Войдите для синхронизации с MangaLib' : 'Sign in to sync with MangaLib',
-                          style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
+                          style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
                         ),
                       ],
                     ),
@@ -520,7 +521,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               const SizedBox(height: 16),
               FilledButton.icon(
                 style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF8A897C),
+                  backgroundColor: AppTokens.accent,
                   minimumSize: const Size.fromHeight(44),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
@@ -544,7 +545,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: Color(0xFF353535)),
+        side: const BorderSide(color: AppTokens.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -556,7 +557,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  const Color(0xFF8A897C).withValues(alpha: 0.22),
+                  AppTokens.accent.withValues(alpha: 0.22),
                   const Color(0xFF222222),
                 ],
               ),
@@ -568,7 +569,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   backgroundColor: const Color(0xFF383838),
                   backgroundImage: avatarUrl.isNotEmpty ? CachedNetworkImageProvider(avatarUrl) : null,
                   child: avatarUrl.isEmpty
-                      ? const Icon(Icons.person, size: 38, color: Color(0xFF8A897C))
+                      ? const Icon(Icons.person, size: 38, color: AppTokens.accent)
                       : null,
                 ),
                 const SizedBox(width: 16),
@@ -583,7 +584,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                       const SizedBox(height: 2),
                       Text(
                         'ID: ${basicProfile.id}',
-                        style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
+                        style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
                       ),
                       const SizedBox(height: 6),
                       Wrap(
@@ -625,7 +626,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                           ...roles.map((r) => Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF8A897C).withValues(alpha: 0.3),
+                              color: AppTokens.accent.withValues(alpha: 0.3),
                               borderRadius: BorderRadius.circular(5),
                             ),
                             child: Text(r, style: const TextStyle(fontSize: 10, color: Colors.white)),
@@ -643,7 +644,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
               child: Text(
                 bio,
-                style: const TextStyle(fontSize: 13, color: Color(0xFFD2D7DF), height: 1.3),
+                style: const TextStyle(fontSize: 13, color: AppTokens.textPrimary, height: 1.3),
               ),
             ),
           const Divider(height: 1),
@@ -684,10 +685,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           end: Alignment.bottomRight,
           colors: [
             Color(0xFF2E2D24),
-            Color(0xFF1E1E1E),
+            AppTokens.surfaceBase,
           ],
         ),
-        border: Border.all(color: const Color(0xFF8A897C).withValues(alpha: 0.4), width: 1),
+        border: Border.all(color: AppTokens.accent.withValues(alpha: 0.4), width: 1),
       ),
       padding: const EdgeInsets.all(18),
       child: Row(
@@ -695,10 +696,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: const Color(0xFF8A897C).withValues(alpha: 0.2),
+              color: AppTokens.accent.withValues(alpha: 0.2),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.auto_awesome_rounded, color: Color(0xFF8A897C), size: 28),
+            child: const Icon(Icons.auto_awesome_rounded, color: AppTokens.accent, size: 28),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -712,7 +713,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                 const SizedBox(height: 4),
                 Text(
                   isRu ? 'Годовая сводка, рекорды и экспорт карточки' : 'Annual summary, tops & card export',
-                  style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
+                  style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
                 ),
               ],
             ),
@@ -720,7 +721,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           const SizedBox(width: 8),
           FilledButton(
             style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFF8A897C),
+              backgroundColor: AppTokens.accent,
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
@@ -739,7 +740,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           child: Card(
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14),
-              side: const BorderSide(color: Color(0xFF353535)),
+              side: const BorderSide(color: AppTokens.border),
             ),
             child: InkWell(
               borderRadius: BorderRadius.circular(14),
@@ -757,7 +758,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     const SizedBox(height: 2),
                     Text(
                       isRu ? 'Прочитанное' : 'Recent reads',
-                      style: const TextStyle(fontSize: 10, color: Color(0xFFD2D7DF)),
+                      style: const TextStyle(fontSize: 10, color: AppTokens.textPrimary),
                     ),
                   ],
                 ),
@@ -770,7 +771,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           child: Card(
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14),
-              side: const BorderSide(color: Color(0xFF353535)),
+              side: const BorderSide(color: AppTokens.border),
             ),
             child: InkWell(
               borderRadius: BorderRadius.circular(14),
@@ -788,7 +789,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     const SizedBox(height: 2),
                     Text(
                       isRu ? 'Награды' : 'Levels & XP',
-                      style: const TextStyle(fontSize: 10, color: Color(0xFFD2D7DF)),
+                      style: const TextStyle(fontSize: 10, color: AppTokens.textPrimary),
                     ),
                   ],
                 ),
@@ -801,7 +802,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           child: Card(
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14),
-              side: const BorderSide(color: Color(0xFF353535)),
+              side: const BorderSide(color: AppTokens.border),
             ),
             child: InkWell(
               borderRadius: BorderRadius.circular(14),
@@ -819,7 +820,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     const SizedBox(height: 2),
                     Text(
                       isRu ? 'Аналитика' : 'Analytics',
-                      style: const TextStyle(fontSize: 10, color: Color(0xFFD2D7DF)),
+                      style: const TextStyle(fontSize: 10, color: AppTokens.textPrimary),
                     ),
                   ],
                 ),
@@ -836,7 +837,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       padding: const EdgeInsets.only(bottom: 8, left: 4),
       child: Text(
         title,
-        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF8A897C)),
+        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppTokens.accent),
       ),
     );
   }
@@ -912,7 +913,7 @@ Future<bool> showMalUrlImportDialog(BuildContext context, {required bool isRu}) 
               isRu
                   ? 'Прямая ссылка на XML-экспорт MyAnimeList. Размер файла до 5 МБ.'
                   : 'Direct link to a MyAnimeList XML export. Files up to 5 MB.',
-              style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
+              style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
             ),
             const SizedBox(height: 12),
             TextField(
@@ -928,17 +929,17 @@ Future<bool> showMalUrlImportDialog(BuildContext context, {required bool isRu}) 
                 errorMaxLines: 3,
                 prefixIcon: const Icon(Icons.link_rounded),
                 filled: true,
-                fillColor: const Color(0xFF2C2C2C),
+                fillColor: AppTokens.surfaceRaised,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
               ),
             ),
             if (busy) ...[
               const SizedBox(height: 14),
-              const LinearProgressIndicator(minHeight: 3, color: Color(0xFF8A897C)),
+              const LinearProgressIndicator(minHeight: 3, color: AppTokens.accent),
               const SizedBox(height: 6),
               Text(
                 isRu ? 'Загружаем и импортируем...' : 'Downloading and importing...',
-                style: const TextStyle(fontSize: 11, color: Color(0xFF8A897C)),
+                style: const TextStyle(fontSize: 11, color: AppTokens.accent),
               ),
             ],
           ],
@@ -949,7 +950,7 @@ Future<bool> showMalUrlImportDialog(BuildContext context, {required bool isRu}) 
             child: Text(isRu ? 'Отмена' : 'Cancel'),
           ),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF8A897C)),
+            style: FilledButton.styleFrom(backgroundColor: AppTokens.accent),
             onPressed: busy ? null : () => submit(setDialogState, dialogContext),
             child: busy
                 ? const SizedBox(

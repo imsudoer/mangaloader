@@ -14,6 +14,7 @@ import 'package:mangaloader/widgets/reading_streak_button.dart';
 import 'package:mangaloader/widgets/continue_reading_section.dart';
 import 'package:mangaloader/services/streak_notification_service.dart';
 import 'package:mangaloader/services/content_filter.dart';
+import 'package:mangaloader/theme/app_tokens.dart';
 
 final homeDataProvider = FutureProvider.autoDispose<HomePageData>((ref) async {
   final data = await rust_api.getHomepage();
@@ -94,7 +95,7 @@ class _HomePageState extends ConsumerState<HomePage> {
             Container(
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: const Color(0xFF8A897C),
+                color: AppTokens.accent,
                 borderRadius: BorderRadius.circular(8),
               ),
               child: const Icon(Icons.menu_book_rounded, color: Colors.white, size: 20),
@@ -259,7 +260,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                       ),
                       Text(
                         isRu ? 'Самые просматриваемые' : 'Most viewed titles',
-                        style: const TextStyle(fontSize: 12, color: Color(0xFFBDBBB0)),
+                        style: const TextStyle(fontSize: 12, color: AppTokens.textSecondary),
                       ),
                     ],
                   ),
@@ -268,9 +269,9 @@ class _HomePageState extends ConsumerState<HomePage> {
               // Period Switcher Chips
               Container(
                 decoration: BoxDecoration(
-                  color: const Color(0xFF2C2C2C),
+                  color: AppTokens.surfaceRaised,
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: const Color(0xFF3E3E3E)),
+                  border: Border.all(color: AppTokens.borderStrong),
                 ),
                 padding: const EdgeInsets.all(2),
                 child: Row(
@@ -308,7 +309,7 @@ class _HomePageState extends ConsumerState<HomePage> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
-          color: isActive ? const Color(0xFF8A897C) : Colors.transparent,
+          color: isActive ? AppTokens.accent : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
         ),
         child: Text(
@@ -316,7 +317,7 @@ class _HomePageState extends ConsumerState<HomePage> {
           style: TextStyle(
             fontSize: 11,
             fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-            color: isActive ? Colors.white : const Color(0xFFBDBBB0),
+            color: isActive ? Colors.white : AppTokens.textSecondary,
           ),
         ),
       ),
@@ -356,7 +357,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                   ),
                   Text(
                     subtitle,
-                    style: const TextStyle(fontSize: 12, color: Color(0xFFBDBBB0)),
+                    style: const TextStyle(fontSize: 12, color: AppTokens.textSecondary),
                   ),
                 ],
               ),
@@ -365,7 +366,7 @@ class _HomePageState extends ConsumerState<HomePage> {
           if (onSeeAll != null)
             TextButton(
               onPressed: onSeeAll,
-              child: Text(isRu ? 'Все' : 'See all', style: const TextStyle(color: Color(0xFFD2D7DF))),
+              child: Text(isRu ? 'Все' : 'See all', style: const TextStyle(color: AppTokens.textPrimary)),
             ),
         ],
       ),
@@ -398,7 +399,7 @@ class _HomePageState extends ConsumerState<HomePage> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF2C2C2C),
+        backgroundColor: AppTokens.surfaceRaised,
         title: Text(isRu ? 'Вставить ссылку' : 'Paste Link'),
         content: TextField(
           decoration: const InputDecoration(hintText: 'https://mangalib.me/...'),
@@ -430,13 +431,13 @@ class _HomePageState extends ConsumerState<HomePage> {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              const Color(0xFF8A897C).withValues(alpha: 0.22),
-              const Color(0xFF2C2C2C),
+              AppTokens.accent.withValues(alpha: 0.22),
+              AppTokens.surfaceRaised,
             ],
           ),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: const Color(0xFF8A897C).withValues(alpha: 0.45),
+            color: AppTokens.accent.withValues(alpha: 0.45),
             width: 1.2,
           ),
           boxShadow: const [
@@ -448,14 +449,14 @@ class _HomePageState extends ConsumerState<HomePage> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: const Color(0xFF8A897C).withValues(alpha: 0.25),
+                color: AppTokens.accent.withValues(alpha: 0.25),
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(
-                  color: const Color(0xFF8A897C).withValues(alpha: 0.5),
+                  color: AppTokens.accent.withValues(alpha: 0.5),
                   width: 1,
                 ),
               ),
-              child: const Icon(Icons.system_update_rounded, color: Color(0xFFD2D7DF), size: 22),
+              child: const Icon(Icons.system_update_rounded, color: AppTokens.textPrimary, size: 22),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -472,7 +473,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF8A897C),
+                          color: AppTokens.accent,
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
@@ -485,14 +486,14 @@ class _HomePageState extends ConsumerState<HomePage> {
                   const SizedBox(height: 2),
                   Text(
                     isRu ? 'Нажмите, чтобы открыть список изменений' : 'Tap to see changelog & install',
-                    style: const TextStyle(fontSize: 11.5, color: Color(0xFFBDBBB0)),
+                    style: const TextStyle(fontSize: 11.5, color: AppTokens.textSecondary),
                   ),
                 ],
               ),
             ),
             FilledButton(
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF8A897C),
+                backgroundColor: AppTokens.accent,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),

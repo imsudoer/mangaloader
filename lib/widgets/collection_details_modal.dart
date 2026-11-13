@@ -5,6 +5,7 @@ import 'package:mangaloader/src/rust/api/mangalib_client.dart' as rust_api;
 import 'package:mangaloader/src/rust/api/models.dart';
 import 'package:mangaloader/widgets/manga_card.dart';
 import 'package:mangaloader/services/content_filter.dart';
+import 'package:mangaloader/theme/app_tokens.dart';
 
 class CollectionDetailsModal extends StatefulWidget {
   final int collectionId;
@@ -20,7 +21,7 @@ class CollectionDetailsModal extends StatefulWidget {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: const Color(0xFF1E1E1E),
+      backgroundColor: AppTokens.surfaceBase,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -113,7 +114,7 @@ class _CollectionDetailsModalState extends State<CollectionDetailsModal> {
                   children: [
                     const Icon(Icons.error_outline_rounded, size: 40, color: Colors.redAccent),
                     const SizedBox(height: 12),
-                    Text(_errorMessage!, style: const TextStyle(color: Color(0xFFD2D7DF))),
+                    Text(_errorMessage!, style: const TextStyle(color: AppTokens.textPrimary)),
                     const SizedBox(height: 12),
                     FilledButton.tonal(
                       onPressed: () {
@@ -158,7 +159,7 @@ class _CollectionDetailsModalState extends State<CollectionDetailsModal> {
                             const SizedBox(width: 6),
                             Text(
                               _details!.username,
-                              style: const TextStyle(fontSize: 12, color: Color(0xFFD2D7DF)),
+                              style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
                             ),
                             const SizedBox(width: 12),
                           ],
