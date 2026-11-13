@@ -1686,7 +1686,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                   Uri.https('myanimelist.net', '/anime.php', {'q': title}),
                 ),
                 _buildAnimeSearchChip(
-                  isRu ? 'Яндекс' : 'Yandex',
+                  s.animeSearchYandex,
                   Uri.https('yandex.ru', '/search', {'text': title}),
                 ),
               ],

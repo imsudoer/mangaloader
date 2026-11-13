@@ -22,6 +22,7 @@ class DetailsStrings extends AppStrings {
       ? 'Не удалось получить список, доступен только поиск'
       : 'Could not load the list, search is still available';
   String get animeSearchHint => isRu ? 'Искать в:' : 'Search in:';
+  String get animeSearchYandex => isRu ? 'Яндекс' : 'Yandex';
   String animeMeta(String kind, String year, String episodes) {
     final parts = <String>[
       if (kind.isNotEmpty) kind,
