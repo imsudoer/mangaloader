@@ -18,6 +18,9 @@ import 'package:go_router/go_router.dart';
 import 'package:mangaloader/src/rust/api/storage.dart' as rust_storage;
 import 'package:mangaloader/src/rust/api/models.dart';
 import 'package:mangaloader/utils/title_match.dart';
+import 'package:mangaloader/utils/reading_order.dart';
+import 'package:mangaloader/services/content_filter.dart';
+import 'package:mangaloader/theme/app_theme.dart';
 import 'package:mangaloader/theme/app_tokens.dart';
 
 final mangaHistoryProvider = FutureProvider.family<List<ChapterHistory>, int>((ref, mangaId) async {
@@ -1191,6 +1194,9 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        // The whole franchise, ordered, for readers who opened a middle entry.
+        _buildReadingOrderSection(manga, isRu),
+
         // Other formats of the same story (manga / light novel / etc.)
         _buildAlternateEditionsSection(manga, isRu),
 
@@ -1335,29 +1341,36 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
     );
   }
 
-  /// Suggests the same story published in another format (manga next to a light novel).
-  /// Relations catch the officially linked ones; a title lookup covers the rest.
-  Widget _buildAlternateEditionsSection(MangaDetails manga, bool isRu) {
+  /// Relations that may be rendered. RuStore builds must not show a blocked
+  /// title even when MangaLib links to it from an allowed one.
+  List<MangaRelationItem> _relations(String slugUrl) {
+    final relations = ref.watch(mangaRelationsProvider(slugUrl)).valueOrNull ??
+        const <MangaRelationItem>[];
+    return ContentFilter.filterRelations(relations);
+  }
+
+  /// Entries of the same story published in another medium. Relations provide the
+  /// linked ones, the catalog lookup covers pairs MangaLib never linked.
+  List<MangaSearchResult> _otherFormats(
+    MangaDetails manga,
+    List<MangaRelationItem> relations,
+  ) {
     final currentTitle = primaryTitle(
       name: manga.name,
       rusName: manga.rusName,
       engName: manga.engName,
     );
-    if (currentTitle.trim().isEmpty) return const SizedBox.shrink();
+    if (currentTitle.trim().isEmpty) return const [];
 
     final currentKind = editionKindOf(manga.mangaType);
-    final query = AlternateEditionsQuery(
-      id: manga.id,
-      title: currentTitle,
-      kind: currentKind,
-    );
-
-    final nameMatches =
-        ref.watch(alternateEditionsProvider(query)).valueOrNull ??
-            const <MangaSearchResult>[];
-    final relations =
-        ref.watch(mangaRelationsProvider(manga.slugUrl)).valueOrNull ??
-            const <MangaRelationItem>[];
+    final nameMatches = ref
+            .watch(alternateEditionsProvider(AlternateEditionsQuery(
+              id: manga.id,
+              title: currentTitle,
+              kind: currentKind,
+            )))
+            .valueOrNull ??
+        const <MangaSearchResult>[];
 
     final seen = <String>{manga.slugUrl};
     final editions = <MangaSearchResult>[];
@@ -1366,6 +1379,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
       if (candidate.slugUrl.isEmpty || !seen.add(candidate.slugUrl)) return;
       final kind = editionKindOf(candidate.mangaType);
       if (kind == EditionKind.other || kind == currentKind) return;
+      if (ContentFilter.isBlockedSearchResult(candidate)) return;
       editions.add(candidate);
     }
 
@@ -1375,6 +1389,155 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
     for (final candidate in nameMatches) {
       addCandidate(candidate);
     }
+    return editions;
+  }
+
+  /// Orders the franchise around the current title, so a reader who opened a
+  /// sequel by accident sees what to read first.
+  Widget _buildReadingOrderSection(MangaDetails manga, bool isRu) {
+    final relations = _relations(manga.slugUrl);
+    final order = buildReadingOrder(
+      current: manga,
+      relations: relations,
+      otherFormats: _otherFormats(manga, relations),
+    );
+    // Only a real franchise is worth a block; alternate formats alone are
+    // already covered by the section below.
+    if (order.length < 2 ||
+        !order.any((step) =>
+            !step.isCurrent && step.kind != ReadingStepKind.otherFormat)) {
+      return const SizedBox.shrink();
+    }
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      color: AppTokens.surfaceCard,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+        side: const BorderSide(color: AppTokens.borderStrong),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.format_list_numbered_rounded,
+                    size: 18, color: AppTokens.accent),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    isRu ? 'Порядок чтения' : 'Reading order',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              isRu
+                  ? 'Франшиза целиком: от первой части к последней.'
+                  : 'The whole franchise, from the first entry to the last.',
+              style: const TextStyle(fontSize: 11, color: AppTokens.textSecondary),
+            ),
+            const SizedBox(height: 10),
+            for (var index = 0; index < order.length; index++)
+              _buildReadingOrderRow(order[index], index, isRu),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildReadingOrderRow(ReadingStep step, int index, bool isRu) {
+    final label = step.isCurrent
+        ? (isRu ? 'вы здесь' : 'you are here')
+        : (step.relationLabel.isNotEmpty ? step.relationLabel : step.formatLabel);
+    final highlight = step.isCurrent ? AppTokens.accent : AppTokens.textSecondary;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Material(
+        color: step.isCurrent
+            ? AppTokens.accent.withValues(alpha: 0.14)
+            : Colors.transparent,
+        borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+        child: InkWell(
+          onTap: step.isCurrent ? null : () => context.push('/manga/${step.slugUrl}'),
+          borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+              border: Border.all(
+                color: step.isCurrent
+                    ? AppTokens.accent.withValues(alpha: 0.55)
+                    : AppTokens.border,
+              ),
+            ),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 20,
+                  child: Text(
+                    '${index + 1}',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: highlight,
+                      fontFeatures: AppTheme.tabularFigures,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        step.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: step.isCurrent ? FontWeight.bold : FontWeight.w500,
+                          color: Colors.white,
+                        ),
+                      ),
+                      if (label.trim().isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text(
+                            label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(fontSize: 10, color: highlight),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                if (!step.isCurrent)
+                  const Icon(Icons.chevron_right_rounded,
+                      size: 16, color: AppTokens.textSecondary),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Suggests the same story published in another format (manga next to a light novel).
+  /// Relations catch the officially linked ones; a title lookup covers the rest.
+  Widget _buildAlternateEditionsSection(MangaDetails manga, bool isRu) {
+    final relations = _relations(manga.slugUrl);
+    final editions = _otherFormats(manga, relations);
     if (editions.isEmpty) return const SizedBox.shrink();
 
     final formats = editions
@@ -1524,7 +1687,8 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
     final relationsAsync = ref.watch(mangaRelationsProvider(slugUrl));
 
     return relationsAsync.when(
-      data: (relations) {
+      data: (rawRelations) {
+        final relations = ContentFilter.filterRelations(rawRelations);
         if (relations.isEmpty) return const SizedBox.shrink();
 
         return Column(

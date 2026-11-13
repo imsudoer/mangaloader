@@ -126,6 +126,20 @@ class ContentFilter {
         isBlockedText(manga.slugUrl, forceCheck: forceCheck);
   }
 
+  /// Relations render their own cover and title, so they need the same check as
+  /// search results; a blocked title must not reach the screen through them.
+  static bool isBlockedRelation(MangaRelationItem relation, {bool forceCheck = false}) {
+    return isBlockedSearchResult(relation.manga, forceCheck: forceCheck);
+  }
+
+  static List<MangaRelationItem> filterRelations(List<MangaRelationItem> list,
+      {bool forceCheck = false}) {
+    if (!isRuStoreBuild && !forceCheck) return list;
+    return list
+        .where((relation) => !isBlockedRelation(relation, forceCheck: forceCheck))
+        .toList();
+  }
+
   /// Check if MangaDetails is prohibited in RuStore build
   static bool isBlockedDetails(MangaDetails manga, {bool forceCheck = false}) {
     if (!isRuStoreBuild && !forceCheck) return false;
