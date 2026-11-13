@@ -16,7 +16,10 @@ if (keystorePropertiesFile.exists()) {
 android {
     namespace = "bshv.mangaloader.app"
     compileSdk = 36
-    ndkVersion = flutter.ndkVersion
+    // Pinned instead of flutter.ndkVersion: the CI cache key names this exact
+    // directory, so a Flutter upgrade must not silently trigger a 600 MB NDK
+    // download mid-build.
+    ndkVersion = "28.2.13676358"
 
     compileOptions {
         isCoreLibraryDesugaringEnabled = true

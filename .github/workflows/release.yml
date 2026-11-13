@@ -6,6 +6,11 @@ on:
       - 'v*'
   workflow_dispatch:
 
+# Re-pushing the same tag supersedes an in-flight build instead of racing it.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: write
   actions: write
@@ -14,6 +19,7 @@ jobs:
   build-windows:
     name: Build Windows Release
     runs-on: windows-latest
+    timeout-minutes: 25
 
     steps:
       - name: Checkout Code
@@ -24,12 +30,18 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
+      # cargokit builds into build/, never into rust/target, so only the crate
+      # registry is worth caching here.
+      - name: Cache Cargo Registry
+        uses: actions/cache@v4
         with:
-          workspaces: "rust -> rust/target"
-          cache-all-crates: true
-          shared-key: "windows-rust"
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+          key: cargo-registry-windows-${{ hashFiles('rust/Cargo.lock') }}
+          restore-keys: |
+            cargo-registry-windows-
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -37,16 +49,6 @@ jobs:
           channel: 'stable'
           flutter-version: '3.47.1'
           cache: true
-          cache-key: 'flutter-:os:-:channel:-:version:-:arch:-:hash:'
-
-      - name: Cache Flutter Pub Packages
-        uses: actions/cache@v4
-        with:
-          path: |
-            ${{ env.PUB_CACHE || 'C:\Users\runneradmin\AppData\Local\Pub\Cache' }}
-          key: pub-cache-windows-${{ hashFiles('pubspec.lock') }}
-          restore-keys: |
-            pub-cache-windows-
 
       - name: Cache Cargokit Build Directory
         uses: actions/cache@v4
@@ -56,30 +58,14 @@ jobs:
           restore-keys: |
             cargokit-windows-
 
-      - name: Cache Cargo Binaries
-        uses: actions/cache@v4
-        with:
-          path: ~/.cargo/bin
-          key: cargo-bin-windows-${{ hashFiles('rust/Cargo.lock') }}
-          restore-keys: |
-            cargo-bin-windows-
-
-      - name: Install cargo-binstall
-        uses: cargo-bins/cargo-binstall@main
-
-      - name: Install flutter_rust_bridge_codegen
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true
-        run: cargo binstall --no-confirm flutter_rust_bridge_codegen@2.12.0
-
-      - name: Build flutter_rust_bridge_codegen if missing
+      - name: Verify Generated Bindings
+        shell: pwsh
         run: |
-          flutter_rust_bridge_codegen --version \
-            || cargo install flutter_rust_bridge_codegen --version 2.12.0 --locked
-
-      - name: Flutter Rust Bridge Codegen
-        run: flutter_rust_bridge_codegen generate
+          foreach ($path in @('rust/src/frb_generated.rs', 'lib/src/rust/frb_generated.dart')) {
+            if (-not (Test-Path $path)) {
+              throw "Missing $path - run flutter_rust_bridge_codegen generate and commit the result"
+            }
+          }
 
       - name: Get Flutter Dependencies
         run: flutter pub get
@@ -101,6 +87,7 @@ jobs:
   build-android:
     name: Build Android APKs
     runs-on: ubuntu-latest
+    timeout-minutes: 35
 
     steps:
       - name: Checkout Code
@@ -122,12 +109,18 @@ jobs:
         with:
           targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
 
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
+      # cargokit builds into build/, never into rust/target, so only the crate
+      # registry is worth caching here.
+      - name: Cache Cargo Registry
+        uses: actions/cache@v4
         with:
-          workspaces: "rust -> rust/target"
-          cache-all-crates: true
-          shared-key: "android-rust"
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+          key: cargo-registry-ubuntu-${{ hashFiles('rust/Cargo.lock') }}
+          restore-keys: |
+            cargo-registry-ubuntu-
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -135,27 +128,14 @@ jobs:
           channel: 'stable'
           flutter-version: '3.47.1'
           cache: true
-          cache-key: 'flutter-:os:-:channel:-:version:-:arch:-:hash:'
 
-      - name: Cache Flutter Pub Packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.pub-cache
-          key: pub-cache-ubuntu-${{ hashFiles('pubspec.lock') }}
-          restore-keys: |
-            pub-cache-ubuntu-
-
+      # AGP installs this exact NDK into the SDK on demand; caching that directory
+      # is what keeps it from being downloaded on every run.
       - name: Cache Android NDK
-        id: cache-ndk
         uses: actions/cache@v4
         with:
-          path: /usr/local/lib/android/sdk/ndk/26.1.10909125
-          key: ndk-26.1.10909125-${{ runner.os }}
-
-      - name: Install Android NDK
-        uses: nttld/setup-ndk@v1
-        with:
-          ndk-version: r26b
+          path: /usr/local/lib/android/sdk/ndk/28.2.13676358
+          key: ndk-28.2.13676358-${{ runner.os }}
 
       - name: Cache Cargokit Build Directory
         uses: actions/cache@v4
@@ -165,31 +145,11 @@ jobs:
           restore-keys: |
             cargokit-android-
 
-      - name: Cache Cargo Binaries
-        uses: actions/cache@v4
-        with:
-          path: ~/.cargo/bin
-          key: cargo-bin-ubuntu-${{ hashFiles('rust/Cargo.lock') }}
-          restore-keys: |
-            cargo-bin-ubuntu-
-
-      - name: Install cargo-binstall
-        uses: cargo-bins/cargo-binstall@main
-
-      - name: Install Tools (Pre-built Binaries)
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true
-        run: cargo binstall --no-confirm flutter_rust_bridge_codegen@2.12.0 cargo-ndk
-
-      - name: Build missing tools from source
+      - name: Verify Generated Bindings
         run: |
-          flutter_rust_bridge_codegen --version \
-            || cargo install flutter_rust_bridge_codegen --version 2.12.0 --locked
-          cargo ndk --version || cargo install cargo-ndk --locked
-
-      - name: Flutter Rust Bridge Codegen
-        run: flutter_rust_bridge_codegen generate
+          for path in rust/src/frb_generated.rs lib/src/rust/frb_generated.dart; do
+            test -f "$path" || { echo "Missing $path - run flutter_rust_bridge_codegen generate and commit the result"; exit 1; }
+          done
 
       - name: Get Flutter Dependencies
         run: flutter pub get
@@ -231,8 +191,10 @@ jobs:
       - name: Build RuStore Compliant APK (without REQUEST_INSTALL_PACKAGES)
         run: |
           sed -i '/REQUEST_INSTALL_PACKAGES/d' android/app/src/main/AndroidManifest.xml
-          flutter build apk --release --split-per-abi --dart-define=RUSTORE_BUILD=true
-          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk apks/mangaloader-android-arm64-v8a_rustore.apk
+          # RuStore takes arm64 only, so building a single-target APK keeps this
+          # step from rebuilding all three ABIs.
+          flutter build apk --release --target-platform android-arm64 --dart-define=RUSTORE_BUILD=true
+          cp build/app/outputs/flutter-apk/app-release.apk apks/mangaloader-android-arm64-v8a_rustore.apk
           git checkout android/app/src/main/AndroidManifest.xml
 
       - name: Upload Android Artifacts
@@ -244,6 +206,7 @@ jobs:
   build-linux:
     name: Build Linux Release
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
       - name: Checkout Code
@@ -259,12 +222,18 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
+      # cargokit builds into build/, never into rust/target, so only the crate
+      # registry is worth caching here.
+      - name: Cache Cargo Registry
+        uses: actions/cache@v4
         with:
-          workspaces: "rust -> rust/target"
-          cache-all-crates: true
-          shared-key: "linux-rust"
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+          key: cargo-registry-ubuntu-${{ hashFiles('rust/Cargo.lock') }}
+          restore-keys: |
+            cargo-registry-ubuntu-
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -272,32 +241,20 @@ jobs:
           channel: 'stable'
           flutter-version: '3.47.1'
           cache: true
-          cache-key: 'flutter-:os:-:channel:-:version:-:arch:-:hash:'
 
-      - name: Cache Flutter Pub Packages
+      - name: Cache Cargokit Build Directory
         uses: actions/cache@v4
         with:
-          path: ~/.pub-cache
-          key: pub-cache-linux-${{ hashFiles('pubspec.lock') }}
+          path: build/linux/x64/plugins/rust_lib_mangaloader/cargokit_build
+          key: cargokit-linux-${{ hashFiles('rust/Cargo.lock', 'rust_builder/**') }}
           restore-keys: |
-            pub-cache-linux-
+            cargokit-linux-
 
-      - name: Install cargo-binstall
-        uses: cargo-bins/cargo-binstall@main
-
-      - name: Install flutter_rust_bridge_codegen
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true
-        run: cargo binstall --no-confirm flutter_rust_bridge_codegen@2.12.0
-
-      - name: Build flutter_rust_bridge_codegen if missing
+      - name: Verify Generated Bindings
         run: |
-          flutter_rust_bridge_codegen --version \
-            || cargo install flutter_rust_bridge_codegen --version 2.12.0 --locked
-
-      - name: Flutter Rust Bridge Codegen
-        run: flutter_rust_bridge_codegen generate
+          for path in rust/src/frb_generated.rs lib/src/rust/frb_generated.dart; do
+            test -f "$path" || { echo "Missing $path - run flutter_rust_bridge_codegen generate and commit the result"; exit 1; }
+          done
 
       - name: Get Flutter Dependencies
         run: flutter pub get
