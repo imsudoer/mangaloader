@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,6 +10,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'package:mangaloader/services/update_checker.dart';
+import 'package:mangaloader/services/download_queue_service.dart';
 import 'package:mangaloader/services/update_downloader.dart';
 import 'package:mangaloader/services/streak_notification_service.dart';
 import 'package:mangaloader/services/backup_service.dart';
@@ -27,6 +29,8 @@ class SettingsPage extends ConsumerStatefulWidget {
 }
 
 class _SettingsPageState extends ConsumerState<SettingsPage> {
+  static const List<int> _storageLimitOptions = [0, 512, 1024, 2048, 5120, 10240];
+
   String _readerDefaultMode = 'vertical';
   String _readerDefaultBg = 'black';
   bool _smartStatusBar = true;
@@ -43,6 +47,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     super.initState();
     _loadLastBackup();
   }
+
+  int _storageLimitValue(int current) =>
+      _storageLimitOptions.contains(current) ? current : 0;
 
   Future<void> _loadLastBackup() async {
     final at = await BackupService.lastBackupAt();
@@ -656,6 +663,98 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     value: ref.watch(autoDeleteReadChaptersProvider),
                     onChanged: (val) => ref.read(autoDeleteReadChaptersProvider.notifier).setAutoDelete(val),
                   ),
+                  const Divider(height: 1),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    secondary: const Icon(Icons.wifi_rounded, color: AppTokens.accent),
+                    title: Text(s.wifiOnly),
+                    subtitle: Text(
+                      s.wifiOnlySubtitle,
+                      style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
+                    ),
+                    value: ref.watch(wifiOnlyDownloadsProvider),
+                    onChanged: (val) =>
+                        ref.read(wifiOnlyDownloadsProvider.notifier).setEnabled(val),
+                  ),
+                  const Divider(height: 1),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.sd_storage_rounded, color: AppTokens.accent),
+                    title: Text(s.storageLimit),
+                    subtitle: Text(
+                      s.storageLimitSubtitle,
+                      style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
+                    ),
+                    trailing: DropdownButton<int>(
+                      value: _storageLimitValue(ref.watch(downloadsStorageLimitProvider)),
+                      dropdownColor: AppTokens.surfaceRaised,
+                      style: const TextStyle(color: Colors.white, fontSize: 13),
+                      underline: const SizedBox(),
+                      items: [
+                        for (final mb in _storageLimitOptions)
+                          DropdownMenuItem(
+                            value: mb,
+                            child: Text(s.storageLimitOption(mb)),
+                          ),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) {
+                          ref.read(downloadsStorageLimitProvider.notifier).setLimitMb(val);
+                          // Lowering the cap below the current usage should free
+                          // space immediately instead of waiting for the next
+                          // finished download.
+                          unawaited(DownloadQueueService.instance.enforceStorageLimit());
+                        }
+                      },
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    secondary: const Icon(Icons.bedtime_rounded, color: AppTokens.accent),
+                    title: Text(s.downloadSchedule),
+                    subtitle: Text(
+                      s.downloadScheduleSubtitle,
+                      style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
+                    ),
+                    value: ref.watch(downloadScheduleProvider).enabled,
+                    onChanged: (val) => ref.read(downloadScheduleProvider.notifier).update(
+                          ref.read(downloadScheduleProvider).copyWith(enabled: val),
+                        ),
+                  ),
+                  if (ref.watch(downloadScheduleProvider).enabled) ...[
+                    const Divider(height: 1),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.nightlight_round, color: AppTokens.accent),
+                      title: Text(s.scheduleFrom),
+                      trailing: _buildHourDropdown(
+                        ref.watch(downloadScheduleProvider).startHour,
+                        (hour) => ref.read(downloadScheduleProvider.notifier).update(
+                              ref.read(downloadScheduleProvider).copyWith(startHour: hour),
+                            ),
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.wb_sunny_rounded, color: AppTokens.accent),
+                      title: Text(s.scheduleTo),
+                      trailing: _buildHourDropdown(
+                        ref.watch(downloadScheduleProvider).endHour,
+                        (hour) => ref.read(downloadScheduleProvider.notifier).update(
+                              ref.read(downloadScheduleProvider).copyWith(endHour: hour),
+                            ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Text(
+                        s.scheduleHint,
+                        style: const TextStyle(fontSize: 12, color: AppTokens.textSecondary),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),

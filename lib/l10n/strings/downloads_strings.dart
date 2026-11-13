@@ -33,6 +33,20 @@ class DownloadsStrings extends AppStrings {
   String get downloadQueue =>
       isRu ? 'Очередь загрузок' : 'Download queue';
   String get clearFinished => isRu ? 'Очистить готовые' : 'Clear finished';
+  String get pauseQueue => isRu ? 'Приостановить очередь' : 'Pause queue';
+  String get resumeQueue => isRu ? 'Возобновить очередь' : 'Resume queue';
+  String get queuePaused => isRu ? 'Очередь на паузе' : 'Queue paused';
+  String get queuePausedHint => isRu
+      ? 'Текущая глава доскачается, следующие ждут продолжения'
+      : 'The running chapter finishes, the rest waits for you';
+  String get queueScheduledHint =>
+      isRu ? 'Загрузки возобновятся в' : 'Downloads resume at';
+  String get queueWaitingWifi => isRu
+      ? 'Очередь ждёт Wi-Fi'
+      : 'Queue is waiting for Wi-Fi';
+  String queueProgress(String done, String total) =>
+      isRu ? 'Готово $done из $total' : '$done of $total done';
+  String get statusPaused => isRu ? 'На паузе' : 'Paused';
   String get volumeShort => isRu ? 'Том' : 'Vol';
   String get chapterShort => isRu ? 'Гл' : 'Ch';
   String get retry => isRu ? 'Повторить' : 'Retry';

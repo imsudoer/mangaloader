@@ -135,9 +135,14 @@ class DownloadQueueService {
   static final DownloadQueueService instance = DownloadQueueService._();
 
   static const String _storageKey = 'download_queue';
+  static const String _pausedKey = 'downloads_queue_paused';
 
   final ValueNotifier<List<DownloadQueueItem>> queue =
       ValueNotifier<List<DownloadQueueItem>>(const <DownloadQueueItem>[]);
+
+  /// Whether the user stopped the queue. The chapter that is already running
+  /// finishes, nothing new starts.
+  final ValueNotifier<bool> paused = ValueNotifier<bool>(false);
 
   final _DownloadProgressNotification _notification =
       _DownloadProgressNotification();
@@ -145,6 +150,8 @@ class DownloadQueueService {
   ProviderContainer? _container;
   StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
   ProviderSubscription<bool>? _wifiOnlySubscription;
+  ProviderSubscription<DownloadSchedule>? _scheduleSubscription;
+  Timer? _scheduleTimer;
   bool _processing = false;
   bool _dirty = false;
   bool _restored = false;
@@ -168,6 +175,35 @@ class DownloadQueueService {
       .toList();
 
   bool get isProcessing => _processing;
+
+  bool get isPaused => paused.value;
+
+  /// Moment the queue resumes on its own, or `null` when it is not holding for
+  /// the night window.
+  DateTime? get scheduleResumeAt {
+    if (paused.value) return null;
+    if (pendingItems.isEmpty && waitingForWifiItems.isEmpty) return null;
+    final schedule = _schedule;
+    if (!schedule.enabled) return null;
+    return schedule.nextOpening(DateTime.now());
+  }
+
+  /// Stops the queue. The chapter that is already downloading finishes, the
+  /// rest waits until [resumeQueue] is called.
+  Future<void> pauseQueue() async {
+    if (paused.value) return;
+    paused.value = true;
+    _scheduleTimer?.cancel();
+    _scheduleTimer = null;
+    await _persistPaused();
+  }
+
+  Future<void> resumeQueue() async {
+    if (!paused.value) return;
+    paused.value = false;
+    await _persistPaused();
+    unawaited(_process());
+  }
 
   DownloadQueueItem? itemFor({
     required int mangaId,
@@ -196,6 +232,8 @@ class DownloadQueueService {
       return;
     }
     _restored = true;
+
+    await _restorePaused();
 
     final restored = await _loadPersisted();
     if (restored.isNotEmpty) {
@@ -328,8 +366,16 @@ class DownloadQueueService {
   /// Deletes every downloaded chapter that is marked as fully read.
   Future<DownloadStorageCleanup> freeUpSpace() => _deleteReadChapters();
 
+  /// Applies the configured cap right away, which is what the settings screen
+  /// needs when the user lowers the limit below the current usage.
+  Future<DownloadStorageCleanup> enforceStorageLimit() => _enforceStorageLimit();
+
   /// Stops background work. Safe to call from `dispose`.
   Future<void> detach() async {
+    _scheduleTimer?.cancel();
+    _scheduleTimer = null;
+    _scheduleSubscription?.close();
+    _scheduleSubscription = null;
     await _connectivitySubscription?.cancel();
     _connectivitySubscription = null;
     _wifiOnlySubscription?.close();
@@ -360,6 +406,12 @@ class DownloadQueueService {
         while (true) {
           final next = _nextQueued();
           if (next == null) break;
+
+          if (paused.value) break;
+          if (!_scheduleAllowsNow()) {
+            _armScheduleTimer();
+            break;
+          }
 
           if (!await _allowedToDownload()) {
             _markQueuedAsWaiting();
@@ -537,9 +589,10 @@ class DownloadQueueService {
     var freed = 0;
 
     for (final group in groups) {
-      final readKeys = await _completedChapterKeys(group.mangaId);
+      final history = await _chapterHistory(group.mangaId);
       for (final chapter in group.chapters) {
-        if (!readKeys.contains('${chapter.volume}|${chapter.number}')) continue;
+        final entry = history['${chapter.volume}|${chapter.number}'];
+        if (entry == null || !entry.isCompleted) continue;
         if (_isProtected(chapter, protect)) continue;
 
         final sizeBytes = await _chapterSize(chapter, group);
@@ -579,20 +632,22 @@ class DownloadQueueService {
 
     final chapters = <_DownloadedChapter>[];
     for (final group in groups) {
-      final readKeys = await _completedChapterKeys(group.mangaId);
+      final history = await _chapterHistory(group.mangaId);
       for (final chapter in group.chapters) {
+        final entry = history['${chapter.volume}|${chapter.number}'];
         chapters.add(_DownloadedChapter(
           chapter: chapter,
           sizeBytes: await _chapterSize(chapter, group),
-          isRead: readKeys.contains('${chapter.volume}|${chapter.number}'),
+          isRead: entry?.isCompleted ?? false,
+          lastReadAt: _parseLastRead(entry?.lastReadAt),
         ));
       }
     }
 
-    // Oldest first: the least recently fetched chapters are the cheapest to lose.
-    chapters.sort(
-      (a, b) => a.chapter.downloadedAt.compareTo(b.chapter.downloadedAt),
-    );
+    // Least recently touched first: chapters the user has not opened for the
+    // longest time are the cheapest to lose. Never-read chapters fall back to
+    // their download date so freshly downloaded ones stay alive.
+    chapters.sort((a, b) => _lastTouched(a).compareTo(_lastTouched(b)));
 
     var deleted = 0;
     var freed = 0;
@@ -629,6 +684,16 @@ class DownloadQueueService {
     return DownloadStorageCleanup(deletedChapters: deleted, freedBytes: freed);
   }
 
+  DateTime _lastTouched(_DownloadedChapter entry) =>
+      entry.lastReadAt ??
+      DateTime.tryParse(entry.chapter.downloadedAt) ??
+      DateTime.fromMillisecondsSinceEpoch(0);
+
+  DateTime? _parseLastRead(String? raw) {
+    if (raw == null || raw.isEmpty) return null;
+    return DateTime.tryParse(raw);
+  }
+
   Future<int> _chapterSize(
     DownloadedChapterInfo chapter,
     DownloadedMangaGroup group,
@@ -644,16 +709,15 @@ class DownloadQueueService {
     return group.totalSizeBytes.toInt() ~/ count;
   }
 
-  Future<Set<String>> _completedChapterKeys(int mangaId) async {
+  Future<Map<String, ChapterHistory>> _chapterHistory(int mangaId) async {
     try {
       final history = await rust_storage.getChapterHistory(mangaId: mangaId);
       return {
-        for (final entry in history)
-          if (entry.isCompleted) '${entry.volume}|${entry.number}',
+        for (final entry in history) '${entry.volume}|${entry.number}': entry,
       };
     } catch (error) {
       debugPrint('Unable to read chapter history: $error');
-      return <String>{};
+      return <String, ChapterHistory>{};
     }
   }
 
@@ -706,16 +770,80 @@ class DownloadQueueService {
 
   void _attachSettingsListener() {
     final container = _container;
-    if (container == null || _wifiOnlySubscription != null) return;
+    if (container == null) return;
+    if (_wifiOnlySubscription == null) {
+      try {
+        _wifiOnlySubscription = container.listen<bool>(
+          wifiOnlyDownloadsProvider,
+          (_, enabled) {
+            if (!enabled) unawaited(_process());
+          },
+        );
+      } catch (error) {
+        debugPrint('Unable to watch download settings: $error');
+      }
+    }
+    if (_scheduleSubscription == null) {
+      try {
+        _scheduleSubscription = container.listen<DownloadSchedule>(
+          downloadScheduleProvider,
+          (_, schedule) {
+            _scheduleTimer?.cancel();
+            _scheduleTimer = null;
+            if (paused.value) return;
+            if (schedule.enabled && !schedule.contains(DateTime.now())) {
+              _armScheduleTimer();
+              return;
+            }
+            unawaited(_process());
+          },
+        );
+      } catch (error) {
+        debugPrint('Unable to watch the download schedule: $error');
+      }
+    }
+  }
+
+  DownloadSchedule get _schedule =>
+      _read<DownloadSchedule>(downloadScheduleProvider, const DownloadSchedule());
+
+  bool _scheduleAllowsNow() =>
+      !_schedule.enabled || _schedule.contains(DateTime.now());
+
+  /// Wakes the queue up when the night window opens, so a scheduled download
+  /// does not need the app to be reopened.
+  void _armScheduleTimer() {
+    if (paused.value) return;
+    final schedule = _schedule;
+    if (!schedule.enabled) return;
+    final next = schedule.nextOpening(DateTime.now());
+    if (next == null) return;
+    final delay = next.difference(DateTime.now());
+    if (delay <= Duration.zero) return;
+    _scheduleTimer?.cancel();
+    _scheduleTimer = Timer(delay, () {
+      _scheduleTimer = null;
+      unawaited(_process());
+    });
+  }
+
+  Future<void> _restorePaused() async {
     try {
-      _wifiOnlySubscription = container.listen<bool>(
-        wifiOnlyDownloadsProvider,
-        (_, enabled) {
-          if (!enabled) unawaited(_process());
-        },
+      final raw = await rust_storage.getSetting(key: _pausedKey);
+      paused.value = raw == 'true';
+    } catch (error) {
+      debugPrint('Unable to restore the queue pause flag: $error');
+    }
+  }
+
+  Future<void> _persistPaused() async {
+    try {
+      await rust_storage.setSetting(
+        key: _pausedKey,
+        value: paused.value ? 'true' : 'false',
       );
     } catch (error) {
-      debugPrint('Unable to watch download settings: $error');
+      debugPrint('Unable to persist the queue pause flag: $error');
     }
   }
 
@@ -908,11 +1036,13 @@ class _DownloadedChapter {
     required this.chapter,
     required this.sizeBytes,
     required this.isRead,
+    required this.lastReadAt,
   });
 
   final DownloadedChapterInfo chapter;
   final int sizeBytes;
   final bool isRead;
+  final DateTime? lastReadAt;
   bool deleted = false;
 }
 

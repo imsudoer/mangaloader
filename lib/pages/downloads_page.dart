@@ -12,6 +12,7 @@ import 'package:mangaloader/services/content_filter.dart';
 import 'package:mangaloader/services/download_queue_service.dart';
 import 'package:mangaloader/services/update_checker.dart';
 import 'package:mangaloader/theme/app_tokens.dart';
+import 'package:mangaloader/utils/fuzzy_search.dart';
 
 class DownloadsPage extends ConsumerStatefulWidget {
   const DownloadsPage({super.key});
@@ -27,18 +28,28 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
   String _sortBy = 'title'; // 'title', 'chapters', 'size', 'recent'
   final Map<int, bool> _groupAscending = {};
   List<DownloadQueueItem> _queueItems = DownloadQueueService.instance.items;
+  bool _queuePaused = DownloadQueueService.instance.isPaused;
 
   @override
   void initState() {
     super.initState();
     DownloadQueueService.instance.queue.addListener(_syncQueueItems);
+    DownloadQueueService.instance.paused.addListener(_syncPaused);
     _loadDownloaded();
   }
 
   @override
   void dispose() {
     DownloadQueueService.instance.queue.removeListener(_syncQueueItems);
+    DownloadQueueService.instance.paused.removeListener(_syncPaused);
     super.dispose();
+  }
+
+  void _syncPaused() {
+    if (!mounted) return;
+    final next = DownloadQueueService.instance.isPaused;
+    if (next == _queuePaused) return;
+    setState(() => _queuePaused = next);
   }
 
   void _syncQueueItems() {
@@ -80,6 +91,22 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
       return '${(bytes / 1024).toStringAsFixed(1)} KB';
     }
     return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+
+  /// Titles go through the fuzzy matcher (typos, Latin transliteration), while
+  /// chapter numbers stay exact enough to find "12" inside a downloaded set.
+  bool _groupMatches(DownloadedMangaGroup group, String query) {
+    if (query.isEmpty) return true;
+    if (fuzzyScore(group.rusName, query) > 0 ||
+        fuzzyScore(group.name, query) > 0) {
+      return true;
+    }
+    final normalized = normalizeForSearch(query);
+    if (normalized.isEmpty) return true;
+    return group.chapters.any((chapter) {
+      final label = normalizeForSearch('${chapter.volume} ${chapter.number}');
+      return label.contains(normalized);
+    });
   }
 
   Future<void> _deleteChapter(DownloadedMangaGroup group, DownloadedChapterInfo ch, bool isRu) async {
@@ -205,6 +232,7 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
         item.attempts > 1 ? s.attempt('${item.attempts}') : '';
     switch (item.status) {
       case DownloadQueueStatus.queued:
+        if (_queuePaused) return '${s.statusPaused}$attemptsSuffix';
         return '${s.statusQueued}$attemptsSuffix';
       case DownloadQueueStatus.downloading:
         return '${s.statusDownloading}$attemptsSuffix';
@@ -315,6 +343,12 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
 
     final hasCompleted = _queueItems
         .any((item) => item.status == DownloadQueueStatus.completed);
+    final activeCount = _queueItems
+        .where((item) =>
+            item.status == DownloadQueueStatus.queued ||
+            item.status == DownloadQueueStatus.downloading)
+        .length;
+    final resumeAt = DownloadQueueService.instance.scheduleResumeAt;
 
     return [
       Row(
@@ -325,6 +359,18 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
               style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
           ),
+          if (activeCount > 0)
+            IconButton(
+              visualDensity: VisualDensity.compact,
+              tooltip: _queuePaused ? s.resumeQueue : s.pauseQueue,
+              icon: Icon(
+                _queuePaused ? Icons.play_arrow_rounded : Icons.pause_rounded,
+                size: 20,
+              ),
+              onPressed: () => _queuePaused
+                  ? DownloadQueueService.instance.resumeQueue()
+                  : DownloadQueueService.instance.pauseQueue(),
+            ),
           if (hasCompleted)
             TextButton(
               style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
@@ -337,9 +383,71 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
         ],
       ),
       const SizedBox(height: 8),
+      if (_queuePaused)
+        _buildQueueNotice(
+          icon: Icons.pause_circle_outline_rounded,
+          title: s.queuePaused,
+          subtitle: s.queuePausedHint,
+          color: AppTokens.textSecondary,
+        )
+      else if (resumeAt != null)
+        _buildQueueNotice(
+          icon: Icons.bedtime_rounded,
+          title: s.queueScheduledHint,
+          subtitle:
+              '${resumeAt.hour.toString().padLeft(2, '0')}:${resumeAt.minute.toString().padLeft(2, '0')}',
+          color: Colors.amberAccent,
+        ),
+      if (_queuePaused || resumeAt != null) const SizedBox(height: 8),
       for (final item in _queueItems) _buildQueueTile(item, isRu),
       const Divider(height: 32),
     ];
+  }
+
+  Widget _buildQueueNotice({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Color color,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+        color: color.withValues(alpha: 0.06),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppTokens.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildQueueTile(DownloadQueueItem item, bool isRu) {
@@ -425,15 +533,23 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
     ref.listen<int>(downloadCompletionTickProvider, (_, __) => _loadDownloaded(silent: true));
 
     // Filter & Sort manga groups
-    var filteredGroups = _mangaGroups.where((g) {
-      if (_searchQuery.isEmpty) return true;
-      final q = _searchQuery.toLowerCase();
-      final inTitle = g.name.toLowerCase().contains(q) || g.rusName.toLowerCase().contains(q);
-      final inChapters = g.chapters.any((c) => c.number.toLowerCase().contains(q) || c.volume.toLowerCase().contains(q));
-      return inTitle || inChapters;
-    }).toList();
+    final query = _searchQuery.trim();
+    var filteredGroups =
+        _mangaGroups.where((g) => _groupMatches(g, query)).toList();
+
+    int relevance(DownloadedMangaGroup group) {
+      if (query.isEmpty) return 0;
+      return [
+        fuzzyScore(group.rusName, query),
+        fuzzyScore(group.name, query),
+      ].reduce((a, b) => a > b ? a : b);
+    }
 
     filteredGroups.sort((a, b) {
+      if (query.isNotEmpty) {
+        final byRelevance = relevance(b).compareTo(relevance(a));
+        if (byRelevance != 0) return byRelevance;
+      }
       if (_sortBy == 'chapters') {
         return b.chapters.length.compareTo(a.chapters.length);
       } else if (_sortBy == 'size') {
@@ -482,18 +598,16 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
               tooltip: s.retryAllFailed,
               onPressed: () => DownloadQueueService.instance.retryAllFailed(),
             ),
-          if (downloads.isNotEmpty) ...[
+          if (_queueItems.any((item) =>
+              item.status == DownloadQueueStatus.queued ||
+              item.status == DownloadQueueStatus.downloading))
             IconButton(
-              icon: const Icon(Icons.pause_rounded),
-              tooltip: s.pause,
-              onPressed: () => ref.read(downloadProvider.notifier).pauseAll(),
+              icon: Icon(_queuePaused ? Icons.play_arrow_rounded : Icons.pause_rounded),
+              tooltip: _queuePaused ? s.resumeQueue : s.pauseQueue,
+              onPressed: () => _queuePaused
+                  ? DownloadQueueService.instance.resumeQueue()
+                  : DownloadQueueService.instance.pauseQueue(),
             ),
-            IconButton(
-              icon: const Icon(Icons.play_arrow_rounded),
-              tooltip: s.resume,
-              onPressed: () => ref.read(downloadProvider.notifier).resumeAll(),
-            ),
-          ],
           if (downloads.isNotEmpty ||
               _queueItems.any((item) =>
                   item.status == DownloadQueueStatus.queued ||

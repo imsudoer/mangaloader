@@ -117,6 +117,36 @@ class SettingsStrings extends AppStrings {
   String get autoDeleteReadSubtitle => isRu
       ? 'Автоматически удалять скачанную главу с устройства после прочтения'
       : 'Automatically delete downloaded chapter file after finishing reading';
+  String get wifiOnly =>
+      isRu ? 'Скачивать только по Wi-Fi' : 'Download over Wi-Fi only';
+  String get wifiOnlySubtitle => isRu
+      ? 'Мобильная сеть не расходуется: очередь ждёт Wi-Fi и продолжается сама'
+      : 'Mobile data is never used: the queue waits for Wi-Fi and resumes by itself';
+  String get storageLimit =>
+      isRu ? 'Лимит хранилища' : 'Storage limit';
+  String get storageLimitSubtitle => isRu
+      ? 'При превышении удаляются главы, которые дольше всего не открывались'
+      : 'When exceeded, the chapters untouched for the longest time are deleted';
+  String get storageUnlimited => isRu ? 'Без лимита' : 'No limit';
+  String storageLimitOption(int mb) {
+    if (mb <= 0) return storageUnlimited;
+    if (mb >= 1024) {
+      final gb = mb / 1024;
+      final text = gb == gb.roundToDouble() ? '${gb.round()}' : gb.toStringAsFixed(1);
+      return isRu ? '$text ГБ' : '$text GB';
+    }
+    return isRu ? '$mb МБ' : '$mb MB';
+  }
+  String get downloadSchedule =>
+      isRu ? 'Скачивать ночью' : 'Download at night';
+  String get downloadScheduleSubtitle => isRu
+      ? 'Очередь работает только в выбранном окне и возобновляется сама'
+      : 'The queue runs inside the chosen window and resumes by itself';
+  String get scheduleFrom => isRu ? 'Начало окна' : 'Window starts';
+  String get scheduleTo => isRu ? 'Конец окна' : 'Window ends';
+  String get scheduleHint => isRu
+      ? 'Главы, начатые до закрытия окна, доскачиваются до конца'
+      : 'Chapters started before the window closes finish anyway';
 
   // Backups & export
   String get backupsAndExport =>

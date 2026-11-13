@@ -158,6 +158,16 @@ Future<void> loadPersistentSettings(WidgetRef ref) async {
             persist: false,
           );
     }
+    if (has('downloads_schedule')) {
+      try {
+        final raw = map['downloads_schedule']!;
+        if (raw.isNotEmpty) {
+          ref.read(downloadScheduleProvider.notifier).load(
+                DownloadSchedule.fromJson(jsonDecode(raw) as Map<String, dynamic>),
+              );
+        }
+      } catch (_) {}
+    }
 
     // 12.3 Notifications digest and quiet hours
     if (has('quiet_hours')) {
@@ -413,6 +423,10 @@ class ReaderPrefs {
   /// Prepares the next chapter while the end of the current one is in view.
   final bool autoNextChapter;
 
+  /// Warms the first pages of the previous and next chapters right after a
+  /// chapter opens, so switching back and forth does not hit the network.
+  final bool prefetchNeighbours;
+
   const ReaderPrefs({
     this.mode = 'vertical',
     this.background = 'black',
@@ -427,6 +441,7 @@ class ReaderPrefs {
     this.autoScrollSpeed = 1.0,
     this.preloadRadius = 4,
     this.autoNextChapter = false,
+    this.prefetchNeighbours = true,
   });
 
   ReaderPrefs copyWith({
@@ -443,6 +458,7 @@ class ReaderPrefs {
     double? autoScrollSpeed,
     int? preloadRadius,
     bool? autoNextChapter,
+    bool? prefetchNeighbours,
   }) {
     return ReaderPrefs(
       mode: mode ?? this.mode,
@@ -458,6 +474,7 @@ class ReaderPrefs {
       autoScrollSpeed: autoScrollSpeed ?? this.autoScrollSpeed,
       preloadRadius: preloadRadius ?? this.preloadRadius,
       autoNextChapter: autoNextChapter ?? this.autoNextChapter,
+      prefetchNeighbours: prefetchNeighbours ?? this.prefetchNeighbours,
     );
   }
 
@@ -475,6 +492,7 @@ class ReaderPrefs {
         'autoScrollSpeed': autoScrollSpeed,
         'preloadRadius': preloadRadius,
         'autoNextChapter': autoNextChapter,
+        'prefetchNeighbours': prefetchNeighbours,
       };
 
   factory ReaderPrefs.fromJson(Map<String, dynamic> json) {
@@ -507,6 +525,7 @@ class ReaderPrefs {
               : 4)
           .clamp(1, 12),
       autoNextChapter: json['autoNextChapter'] == true,
+      prefetchNeighbours: json['prefetchNeighbours'] != false,
     );
   }
 }
@@ -591,6 +610,84 @@ class DownloadsStorageLimitNotifier extends PersistedSetting<int> {
       : super(defaultValue: 0, storageKey: 'downloads_storage_limit_mb', encode: _intText);
 
   void setLimitMb(int value, {bool persist = true}) => set(value < 0 ? 0 : value, persist: persist);
+}
+
+/// Night window during which the download queue is allowed to run. Downloads
+/// started in the evening continue until the window closes; the queue then
+/// parks and resumes by itself when the window opens again.
+class DownloadSchedule {
+  final bool enabled;
+  final int startHour;
+  final int endHour;
+
+  const DownloadSchedule({
+    this.enabled = false,
+    this.startHour = 1,
+    this.endHour = 7,
+  });
+
+  DownloadSchedule copyWith({bool? enabled, int? startHour, int? endHour}) {
+    return DownloadSchedule(
+      enabled: enabled ?? this.enabled,
+      startHour: startHour ?? this.startHour,
+      endHour: endHour ?? this.endHour,
+    );
+  }
+
+  /// Handles ranges that wrap over midnight (23:00 - 07:00).
+  bool contains(DateTime time) {
+    if (!enabled) return false;
+    final hour = time.hour;
+    if (startHour == endHour) return false;
+    return startHour < endHour
+        ? hour >= startHour && hour < endHour
+        : hour >= startHour || hour < endHour;
+  }
+
+  /// Next moment the window opens, or `null` when it is open right now.
+  DateTime? nextOpening(DateTime now) {
+    if (!enabled) return null;
+    if (contains(now)) return null;
+    final start = DateTime(now.year, now.month, now.day, startHour);
+    return start.isAfter(now) ? start : start.add(const Duration(days: 1));
+  }
+
+  Map<String, dynamic> toJson() => {
+        'enabled': enabled,
+        'startHour': startHour,
+        'endHour': endHour,
+      };
+
+  factory DownloadSchedule.fromJson(Map<String, dynamic> json) {
+    return DownloadSchedule(
+      enabled: json['enabled'] == true,
+      startHour: json['startHour'] is num ? (json['startHour'] as num).toInt() : 1,
+      endHour: json['endHour'] is num ? (json['endHour'] as num).toInt() : 7,
+    );
+  }
+}
+
+final downloadScheduleProvider =
+    StateNotifierProvider<DownloadScheduleNotifier, DownloadSchedule>(
+  (ref) => DownloadScheduleNotifier(),
+);
+
+class DownloadScheduleNotifier extends StateNotifier<DownloadSchedule> {
+  DownloadScheduleNotifier() : super(const DownloadSchedule());
+
+  void update(DownloadSchedule value, {bool persist = true}) {
+    state = value;
+    if (persist) {
+      rust_storage.setSetting(
+        key: 'downloads_schedule',
+        value: jsonEncode(value.toJson()),
+      );
+    }
+  }
+
+  void load(DownloadSchedule value) {
+    state = value;
+  }
 }
 
 /// Quiet hours suppress per-chapter notifications during the night.
