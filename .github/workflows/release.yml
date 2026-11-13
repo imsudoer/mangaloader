@@ -7,6 +7,11 @@ on:
         description: 'Tag to build and publish. Leave empty to build main as a dev release.'
         required: false
         default: ''
+      skip_rustore:
+        description: 'Build the release but do not submit it to RuStore'
+        type: boolean
+        required: false
+        default: false
 
 # Caches are scoped per ref, so a build triggered by a tag would start cold on
 # every release. Tags therefore only dispatch this workflow on main, where all
@@ -377,7 +382,7 @@ jobs:
 
   publish-rustore:
     name: Publish to RuStore
-    if: inputs.release_tag != '' && !contains(inputs.release_tag, '-beta') && !contains(inputs.release_tag, '-alpha') && !contains(inputs.release_tag, '-rc')
+    if: inputs.release_tag != '' && inputs.skip_rustore != true && !contains(inputs.release_tag, '-beta') && !contains(inputs.release_tag, '-alpha') && !contains(inputs.release_tag, '-rc')
     needs: [build-android]
     runs-on: ubuntu-latest
     continue-on-error: true
