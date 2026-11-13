@@ -1,0 +1,25 @@
+name: Release Trigger
+
+# A build started by a tag push can only use caches saved for that same tag, so
+# every release would compile from scratch. This workflow hands the tag to the
+# build workflow running on main, where the cache scope is shared by all releases.
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch:
+    name: Dispatch release build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Start the build on main
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: gh workflow run release.yml --ref main -f release_tag="$RELEASE_TAG"
