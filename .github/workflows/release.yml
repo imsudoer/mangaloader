@@ -197,10 +197,11 @@ jobs:
       - name: Build RuStore Compliant APK (without REQUEST_INSTALL_PACKAGES)
         run: |
           sed -i '/REQUEST_INSTALL_PACKAGES/d' android/app/src/main/AndroidManifest.xml
-          # RuStore takes arm64 only, so building a single-target APK keeps this
-          # step from rebuilding all three ABIs.
-          flutter build apk --release --target-platform android-arm64 --dart-define=RUSTORE_BUILD=true
-          cp build/app/outputs/flutter-apk/app-release.apk apks/mangaloader-android-arm64-v8a_rustore.apk
+          # RuStore takes arm64 only. Splitting is what actually restricts the
+          # packaged native libraries; --target-platform alone still bundles every
+          # ABI that cargokit built.
+          flutter build apk --release --split-per-abi --target-platform android-arm64 --dart-define=RUSTORE_BUILD=true
+          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk apks/mangaloader-android-arm64-v8a_rustore.apk
           git checkout android/app/src/main/AndroidManifest.xml
 
       - name: Upload Android Artifacts
