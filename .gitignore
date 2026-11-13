@@ -22,6 +22,30 @@ scratch/
 release_*/
 test_driver/
 
+# Agent scratch output and local diagnostics
+.agent/
+.agents/
+.agent_notes*
+agent_notes*
+agent_scratch/
+probe_output*
+*_dump.txt
+promo_screens/*_horizontal.*
+
+# Local credential exports: never commit a session
+*ookie*.json
+*ookie*.txt
+cookies.txt
+.env
+.env.*
+!/.env.example
+
+# Editor and patch leftovers
+*.orig
+*.rej
+*.bak
+*.tmp
+
 # IntelliJ / IDE related
 *.iml
 *.ipr
