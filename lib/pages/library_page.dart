@@ -16,6 +16,7 @@ import 'package:go_router/go_router.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:mangaloader/utils/plural.dart';
+import 'package:mangaloader/utils/fuzzy_search.dart';
 import 'package:mangaloader/theme/app_tokens.dart';
 import 'package:mangaloader/widgets/skeleton.dart';
 
@@ -126,8 +127,10 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
       list = list.where((e) => e.listType == filterType).toList();
     }
     if (query.trim().isNotEmpty) {
-      final q = query.trim().toLowerCase();
-      list = list.where((e) => e.name.toLowerCase().contains(q) || e.rusName.toLowerCase().contains(q)).toList();
+      final q = query.trim();
+      list = list
+          .where((e) => fuzzyScore(e.name, q) > 0 || fuzzyScore(e.rusName, q) > 0)
+          .toList();
     }
 
     switch (_sortMode) {
