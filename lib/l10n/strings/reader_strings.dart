@@ -137,6 +137,32 @@ class ReaderStrings extends AppStrings {
       isRu ? 'Далее: Глава $number' : 'Next: Ch. $number';
   String get nextChapterReady => isRu ? 'готово' : 'ready';
   String get youAreHere => isRu ? 'вы здесь' : 'you are here';
+  String get prefetchNeighboursTitle =>
+      isRu ? 'Готовить соседние главы' : 'Warm neighbouring chapters';
+  String get prefetchNeighboursSubtitle => isRu
+      ? 'Первые страницы предыдущей и следующей глав загружаются в фоне'
+      : 'First pages of the previous and next chapters load in the background';
+  String get bookmarks => isRu ? 'Закладки' : 'Bookmarks';
+  String get bookmarkAdd => isRu ? 'Добавить закладку' : 'Add bookmark';
+  String get bookmarkRemove => isRu ? 'Убрать закладку' : 'Remove bookmark';
+  String get bookmarkSaved => isRu ? 'Закладка добавлена' : 'Bookmark added';
+  String get bookmarkRemoved => isRu ? 'Закладка удалена' : 'Bookmark removed';
+  String get bookmarksEmpty => isRu
+      ? 'Закладок пока нет: нажмите и удерживайте страницу'
+      : 'No bookmarks yet: press and hold a page';
+  String bookmarkPage(String page) =>
+      isRu ? 'Страница $page' : 'Page $page';
+  String bookmarkChapter(String volume, String number) =>
+      isRu ? 'Том $volume · Глава $number' : 'Vol $volume · Ch. $number';
+  String get bookmarkJumpHint =>
+      isRu ? 'Открыть страницу' : 'Open page';
+  String get goToPage => isRu ? 'Перейти к странице' : 'Go to page';
+  String get pageJumpTitle =>
+      isRu ? 'Переход по странице' : 'Jump to page';
+  String pagePosition(String current, String total) =>
+      isRu ? 'Страница $current из $total' : 'Page $current of $total';
+  String get jump => isRu ? 'Перейти' : 'Go';
+  String get deleteBookmark => isRu ? 'Удалить закладку' : 'Delete bookmark';
   String get presetWebtoon => isRu ? 'Вебтун' : 'Webtoon';
   String get presetMangaRtl => isRu ? 'Манга RTL' : 'Manga RTL';
   String get presetComicLtr => isRu ? 'Комикс LTR' : 'Comic LTR';

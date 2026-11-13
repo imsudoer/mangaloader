@@ -308,6 +308,8 @@ final _router = GoRouter(
       pageBuilder: (context, state) {
         final branchIdStr = state.uri.queryParameters['branchId'];
         final branchId = branchIdStr != null ? int.tryParse(branchIdStr) : null;
+        final pageStr = state.uri.queryParameters['page'];
+        final initialPage = pageStr != null ? int.tryParse(pageStr) : null;
         return CustomTransitionPage(
           key: state.pageKey,
           child: ReaderPage(
@@ -315,6 +317,7 @@ final _router = GoRouter(
             volume: state.pathParameters['volume']!,
             number: state.pathParameters['number']!,
             branchId: branchId,
+            initialPageIndex: initialPage,
           ),
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             return FadeTransition(opacity: animation, child: child);

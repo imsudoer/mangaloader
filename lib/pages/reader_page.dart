@@ -18,6 +18,7 @@ import 'package:mangaloader/src/rust/api/cbz_export.dart' as rust_cbz;
 import 'package:mangaloader/src/rust/api/models.dart';
 import 'package:mangaloader/services/streak_notification_service.dart';
 import 'package:mangaloader/services/content_filter.dart';
+import 'package:mangaloader/services/reader_bookmarks.dart';
 import 'package:mangaloader/widgets/manga_comments_modal.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -37,6 +38,7 @@ enum _ReaderMenuAction {
   nextChapter,
   chapterList,
   pageGrid,
+  bookmarks,
   autoScroll,
   comments,
   reload,
@@ -53,6 +55,10 @@ class ReaderPage extends ConsumerStatefulWidget {
   final String number;
   final int? branchId;
   final String? localCbzPath;
+
+  /// Page the chapter should open on, used when a bookmark points into another
+  /// chapter. Overrides the saved reading progress for that chapter.
+  final int? initialPageIndex;
   
   const ReaderPage({
     super.key, 
@@ -61,6 +67,7 @@ class ReaderPage extends ConsumerStatefulWidget {
     required this.number,
     this.branchId,
     this.localCbzPath,
+    this.initialPageIndex,
   });
 
   @override
@@ -142,6 +149,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   bool _showNextChapterBanner = false;
   bool _hasAutoAdvanced = false;
   int _nextChapterJob = 0;
+  bool _prefetchNeighbours = true;
+  int _neighbourJob = 0;
 
   // Measured page heights drive offset estimation so that jumping in the webtoon
   // list stays accurate without keeping every page mounted.
@@ -159,6 +168,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   String? _nextLocalCbzPath;
   List<Chapter> _allChapters = [];
   bool _isNextChapterPrefetched = false;
+  List<ReaderBookmark> _bookmarks = const [];
 
   @override
   void initState() {
@@ -270,6 +280,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     _autoScrollSpeed = prefs.autoScrollSpeed.clamp(0.5, 5.0);
     _preloadRadius = prefs.preloadRadius.clamp(1, 12);
     _autoNextChapter = prefs.autoNextChapter;
+    _prefetchNeighbours = prefs.prefetchNeighbours;
   }
 
   /// Snapshot of the live reader state in the persisted [ReaderPrefs] format.
@@ -287,6 +298,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         autoScrollSpeed: _autoScrollSpeed,
         preloadRadius: _preloadRadius,
         autoNextChapter: _autoNextChapter,
+        prefetchNeighbours: _prefetchNeighbours,
       );
 
   /// Titles get their own override so manga (RTL) and webtoon entries can keep
@@ -318,6 +330,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         _appliedDualLayout = null;
       }
       if (modeChanged || !_autoNextChapter) _resetNextChapterTransition();
+      if (!_prefetchNeighbours) _neighbourJob++;
     });
 
     final isVertical = _readMode == ReadMode.vertical;
@@ -569,6 +582,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       rust_storage.recordReadingSession(mangaId: _mangaId, seconds: elapsed);
     }
     _nextChapterJob++;
+    _neighbourJob++;
     _scrollController.removeListener(_onVerticalScroll);
     _stopAutoScroll();
     _saveTimer?.cancel();
@@ -659,6 +673,12 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
             if (progress != null && progress.chapterVolume == widget.volume && progress.chapterNumber == widget.number) {
               _currentPageIndex = progress.pageIndex.toInt();
             }
+            // A bookmark opened from another chapter wins over the saved
+            // progress, otherwise the jump would land on the wrong page.
+            final initialPage = widget.initialPageIndex;
+            if (initialPage != null && initialPage >= 0) {
+              _currentPageIndex = initialPage;
+            }
           }
         }
 
@@ -721,6 +741,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         _jumpToPageIndex(_currentPageIndex);
       });
     }
+    unawaited(_loadBookmarks());
   }
 
   void _jumpToPageIndex(int targetIndex) {
@@ -817,6 +838,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         if (currentIndex != -1) {
           if (currentIndex > 0) {
             _prevChapter = _allChapters[currentIndex - 1];
+            unawaited(_prefetchPreviousChapter(_prevChapter!));
           } else {
             _prevChapter = null;
           }
@@ -836,6 +858,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
           }).toList();
           if (prevList.isNotEmpty) {
             _prevChapter = prevList.last;
+            unawaited(_prefetchPreviousChapter(_prevChapter!));
           } else {
             _prevChapter = null;
           }
@@ -930,31 +953,53 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
   Future<void> _prefetchNextChapter(Chapter next) async {
     _checkSmartAutoDownload();
+    if (!_prefetchNeighbours) return;
+    await _warmChapterPages(next);
+  }
+
+  /// Previous chapters are opened less often than the next one, so they get a
+  /// shallower warm-up: the page list and the first couple of images.
+  Future<void> _prefetchPreviousChapter(Chapter previous) async {
+    if (!_prefetchNeighbours) return;
+    await _warmChapterPages(previous, maxPages: 2);
+  }
+
+  /// Loads the page list of [chapter] and caches its first screens. Nothing is
+  /// written to the visible reader state, so a failure is silent.
+  Future<void> _warmChapterPages(Chapter chapter, {int? maxPages}) async {
+    final job = _neighbourJob;
     try {
-      if (widget.slugUrl.isNotEmpty) {
-        final isDownloaded = await rust_storage.isChapterDownloaded(
-          mangaId: _mangaId, volume: next.volume, number: next.number
+      if (widget.slugUrl.isEmpty || _mangaId <= 0) return;
+      final isDownloaded = await rust_storage.isChapterDownloaded(
+        mangaId: _mangaId,
+        volume: chapter.volume,
+        number: chapter.number,
+      );
+      if (!mounted || job != _neighbourJob) return;
+      if (isDownloaded) return;
+
+      final pages = await rust_api.getChapterPages(
+        slugUrl: widget.slugUrl,
+        volume: chapter.volume,
+        number: chapter.number,
+        branchId: chapter.branchId,
+      );
+      if (!mounted || job != _neighbourJob) return;
+
+      if (pages.isEmpty) return;
+      final prefetchCount = (maxPages ?? _preloadRadius.clamp(1, 6))
+          .clamp(1, pages.length);
+      for (var i = 0; i < prefetchCount && i < pages.length; i++) {
+        if (!mounted || job != _neighbourJob) return;
+        unawaited(
+          precacheImage(
+            CachedNetworkImageProvider(
+              _resolveImageUrl(pages[i].url),
+              headers: const {'Referer': 'https://mangalib.org/'},
+            ),
+            context,
+          ).catchError((_) {}),
         );
-        if (!isDownloaded) {
-          final pages = await rust_api.getChapterPages(
-            slugUrl: widget.slugUrl, 
-            volume: next.volume, 
-            number: next.number,
-            branchId: next.branchId,
-          );
-          if (pages.isNotEmpty) {
-            final prefetchCount = _preloadRadius.clamp(1, 6);
-            for (int i = 0; i < prefetchCount && i < pages.length; i++) {
-              final url = _resolveImageUrl(pages[i].url);
-              if (mounted) {
-                precacheImage(
-                  CachedNetworkImageProvider(url, headers: const {'Referer': 'https://mangalib.org/'}), 
-                  context
-                );
-              }
-            }
-          }
-        }
       }
     } catch (_) {}
   }
@@ -1155,6 +1200,13 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     } else {
       _showControlsNotifier.value = !_showControlsNotifier.value;
     }
+  }
+
+  /// Long press on the page opens the quick jump sheet. It is ignored while the
+  /// chrome is visible so the overlay buttons keep their own long-press meaning.
+  void _handleLongPress(LongPressStartDetails details) {
+    if (_showControlsNotifier.value || _totalPages <= 0) return;
+    _showPageJumpSheet();
   }
 
   void _prevPageAction() {
@@ -1681,6 +1733,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         body: GestureDetector(
           behavior: HitTestBehavior.translucent,
           onTapUp: _handleTap,
+          onLongPressStart: _handleLongPress,
           child: Stack(
             children: [
               _buildReaderContent(isRu),
@@ -1780,6 +1833,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                               _ReaderMenuAction.pageGrid,
                               Icons.grid_view_rounded,
                               s.pageGrid,
+                            ),
+                            _buildMenuItem(
+                              _ReaderMenuAction.bookmarks,
+                              Icons.bookmarks_rounded,
+                              s.bookmarks,
                             ),
                             if (_readMode == ReadMode.vertical)
                               _buildMenuItem(
@@ -2252,6 +2310,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       case _ReaderMenuAction.pageGrid:
         _showPageJumperDialog();
         break;
+      case _ReaderMenuAction.bookmarks:
+        _showBookmarksSheet();
+        break;
       case _ReaderMenuAction.autoScroll:
         _toggleAutoScroll();
         break;
@@ -2311,6 +2372,332 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       relationType: currentChap.id > 0 ? 'chapter' : 'media',
       relationId: currentChap.id > 0 ? currentChap.id : _mangaId,
       title: s.commentsTitle(widget.slugUrl, widget.volume, widget.number),
+    );
+  }
+
+  Future<void> _loadBookmarks() async {
+    if (_mangaId <= 0) return;
+    final bookmarks = await ReaderBookmarkService.forManga(_mangaId);
+    if (!mounted) return;
+    setState(() => _bookmarks = bookmarks);
+  }
+
+  bool _isBookmarkedAt(int pageIndex) =>
+      _mangaId > 0 &&
+      ReaderBookmarkService.contains(
+        _bookmarks,
+        mangaId: _mangaId,
+        volume: widget.volume,
+        number: widget.number,
+        pageIndex: pageIndex,
+      );
+
+  /// Returns the new state of the page so an open sheet can update its button
+  /// without waiting for the parent rebuild.
+  Future<bool> _toggleBookmarkAt(int pageIndex) async {
+    if (_mangaId <= 0 || widget.slugUrl.isEmpty) return false;
+    final s = ReaderStrings.of(context);
+    final existed = _isBookmarkedAt(pageIndex);
+    final bookmark = ReaderBookmark(
+      mangaId: _mangaId,
+      slugUrl: widget.slugUrl,
+      volume: widget.volume,
+      number: widget.number,
+      pageIndex: pageIndex,
+      chapterTitle: _chapterTitle,
+      createdAt: DateTime.now(),
+    );
+    final updated = await ReaderBookmarkService.toggle(bookmark);
+    if (!mounted) return !existed;
+    setState(() {
+      _bookmarks = updated.where((entry) => entry.mangaId == _mangaId).toList()
+        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(existed ? s.bookmarkRemoved : s.bookmarkSaved),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+    return !existed;
+  }
+
+  void _showPageJumpSheet() {
+    if (_totalPages <= 0) return;
+    final s = ReaderStrings.of(context);
+    var target = _currentPageIndex.clamp(0, _totalPages - 1);
+    var marked = _isBookmarkedAt(target);
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppTokens.surfaceBase,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppTokens.radiusXl)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) {
+          return SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 36,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: AppTokens.borderStrong,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      const Icon(Icons.alt_route_rounded, size: 18, color: AppTokens.accent),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          s.pageJumpTitle,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        s.pagePosition('${target + 1}', '$_totalPages'),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppTokens.textPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (_totalPages > 1)
+                    Slider(
+                      value: (target + 1).toDouble().clamp(1, _totalPages.toDouble()),
+                      min: 1,
+                      max: _totalPages.toDouble(),
+                      divisions: _totalPages - 1,
+                      activeColor: AppTokens.accent,
+                      onChanged: (value) {
+                        setSheet(() {
+                          target = value.round().clamp(1, _totalPages) - 1;
+                          marked = _isBookmarkedAt(target);
+                        });
+                      },
+                    )
+                  else
+                    const SizedBox(height: 10),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: marked ? AppTokens.accent : AppTokens.textPrimary,
+                          side: BorderSide(
+                            color: marked ? AppTokens.accent : AppTokens.borderStrong,
+                          ),
+                          minimumSize: const Size(0, 40),
+                        ),
+                        onPressed: () async {
+                          final added = await _toggleBookmarkAt(target);
+                          if (ctx.mounted) setSheet(() => marked = added);
+                        },
+                        icon: Icon(
+                          marked ? Icons.bookmark_remove_rounded : Icons.bookmark_add_outlined,
+                          size: 18,
+                        ),
+                        label: Text(marked ? s.bookmarkRemove : s.bookmarkAdd),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: FilledButton.icon(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppTokens.accent,
+                            foregroundColor: Colors.white,
+                            minimumSize: const Size.fromHeight(40),
+                          ),
+                          onPressed: () {
+                            _jumpToPageIndex(target);
+                            Navigator.pop(ctx);
+                          },
+                          icon: const Icon(Icons.my_location_rounded, size: 18),
+                          label: Text(s.jump),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _removeBookmark(ReaderBookmark bookmark) async {
+    final updated = await ReaderBookmarkService.remove(bookmark);
+    if (!mounted) return;
+    setState(() {
+      _bookmarks = updated.where((entry) => entry.mangaId == _mangaId).toList()
+        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    });
+  }
+
+  void _openBookmark(ReaderBookmark bookmark) {
+    if (bookmark.volume == widget.volume && bookmark.number == widget.number) {
+      _jumpToPageIndex(bookmark.pageIndex);
+      Navigator.pop(context);
+      return;
+    }
+    context.pushReplacement(
+      '/read/${bookmark.slugUrl}/${bookmark.volume}/${bookmark.number}?page=${bookmark.pageIndex}',
+    );
+  }
+
+  void _showBookmarksSheet() {
+    final s = ReaderStrings.of(context);
+    var list = List<ReaderBookmark>.of(_bookmarks);
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppTokens.surfaceBase,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppTokens.radiusXl)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) {
+          return SafeArea(
+            top: false,
+            child: Container(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.sizeOf(ctx).height * 0.7,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 36,
+                    height: 4,
+                    margin: const EdgeInsets.only(top: 10, bottom: 8),
+                    decoration: BoxDecoration(
+                      color: AppTokens.borderStrong,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 8, 8),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.bookmarks_rounded, size: 18, color: AppTokens.accent),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            s.bookmarks,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: s.close,
+                          onPressed: () => Navigator.pop(ctx),
+                          icon: const Icon(Icons.close_rounded, size: 20),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1, color: AppTokens.border),
+                  if (list.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 28, 24, 32),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.bookmark_border_rounded,
+                            size: 32,
+                            color: AppTokens.textSecondary,
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            s.bookmarksEmpty,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              height: 1.4,
+                              color: AppTokens.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    Flexible(
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        itemCount: list.length,
+                        separatorBuilder: (_, __) =>
+                            const Divider(height: 1, indent: 52, color: AppTokens.border),
+                        itemBuilder: (_, index) {
+                          final bookmark = list[index];
+                          return ListTile(
+                            dense: true,
+                            leading: const Icon(
+                              Icons.bookmark_rounded,
+                              size: 19,
+                              color: AppTokens.accent,
+                            ),
+                            title: Text(
+                              bookmark.chapterTitle.isEmpty
+                                  ? s.bookmarkChapter(bookmark.volume, bookmark.number)
+                                  : bookmark.chapterTitle,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                            ),
+                            subtitle: Text(
+                              s.bookmarkPage('${bookmark.pageIndex + 1}'),
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: AppTokens.textSecondary,
+                              ),
+                            ),
+                            trailing: IconButton(
+                              tooltip: s.deleteBookmark,
+                              icon: const Icon(Icons.delete_outline_rounded, size: 19),
+                              onPressed: () async {
+                                await _removeBookmark(bookmark);
+                                if (!ctx.mounted) return;
+                                setSheet(() {
+                                  list = List<ReaderBookmark>.of(_bookmarks);
+                                });
+                              },
+                            ),
+                            onTap: () => _openBookmark(bookmark),
+                          );
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -2851,6 +3238,15 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                                     value: _autoNextChapter,
                                     onChanged: (val) =>
                                         select(_currentPrefs.copyWith(autoNextChapter: val)),
+                                  ),
+                                ),
+                                _ReaderSheetRow(
+                                  label: s.prefetchNeighboursTitle,
+                                  subtitle: s.prefetchNeighboursSubtitle,
+                                  control: Switch(
+                                    value: _prefetchNeighbours,
+                                    onChanged: (val) =>
+                                        select(_currentPrefs.copyWith(prefetchNeighbours: val)),
                                   ),
                                 ),
                               ],
