@@ -410,6 +410,9 @@ class ReaderPrefs {
   /// How many pages ahead of the current one are preloaded (1-12).
   final int preloadRadius;
 
+  /// Prepares the next chapter while the end of the current one is in view.
+  final bool autoNextChapter;
+
   const ReaderPrefs({
     this.mode = 'vertical',
     this.background = 'black',
@@ -423,6 +426,7 @@ class ReaderPrefs {
     this.brightness = 1.0,
     this.autoScrollSpeed = 1.0,
     this.preloadRadius = 4,
+    this.autoNextChapter = false,
   });
 
   ReaderPrefs copyWith({
@@ -438,6 +442,7 @@ class ReaderPrefs {
     double? brightness,
     double? autoScrollSpeed,
     int? preloadRadius,
+    bool? autoNextChapter,
   }) {
     return ReaderPrefs(
       mode: mode ?? this.mode,
@@ -452,6 +457,7 @@ class ReaderPrefs {
       brightness: brightness ?? this.brightness,
       autoScrollSpeed: autoScrollSpeed ?? this.autoScrollSpeed,
       preloadRadius: preloadRadius ?? this.preloadRadius,
+      autoNextChapter: autoNextChapter ?? this.autoNextChapter,
     );
   }
 
@@ -468,6 +474,7 @@ class ReaderPrefs {
         'brightness': brightness,
         'autoScrollSpeed': autoScrollSpeed,
         'preloadRadius': preloadRadius,
+        'autoNextChapter': autoNextChapter,
       };
 
   factory ReaderPrefs.fromJson(Map<String, dynamic> json) {
@@ -499,6 +506,7 @@ class ReaderPrefs {
               ? (json['preloadRadius'] as num).toInt()
               : 4)
           .clamp(1, 12),
+      autoNextChapter: json['autoNextChapter'] == true,
     );
   }
 }

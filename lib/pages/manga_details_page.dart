@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart' hide DownloadProgress;
@@ -10,8 +11,11 @@ import 'package:mangaloader/providers/download_provider.dart';
 import 'package:mangaloader/providers/library_provider.dart';
 import 'package:mangaloader/providers/streak_provider.dart';
 import 'package:mangaloader/providers/continue_reading_provider.dart';
+import 'package:mangaloader/providers/anime_provider.dart';
+import 'package:mangaloader/services/anime_search.dart';
 import 'package:mangaloader/services/download_queue_service.dart';
 import 'package:mangaloader/widgets/download_button.dart';
+import 'package:mangaloader/widgets/skeleton.dart';
 import 'package:mangaloader/widgets/manga_card.dart' show coverHeroTag;
 import 'package:mangaloader/widgets/manga_share_modal.dart';
 import 'package:mangaloader/widgets/manga_comments_modal.dart';
@@ -49,6 +53,9 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
   final Set<String> _selectedChapters = {};
   List<DownloadQueueItem> _queueItems = DownloadQueueService.instance.items;
 
+  static const double _headerRevealRange = 220;
+  final ValueNotifier<double> _headerProgress = ValueNotifier<double>(0);
+
   @override
   void initState() {
     super.initState();
@@ -60,7 +67,18 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
   void dispose() {
     DownloadQueueService.instance.queue.removeListener(_syncQueueItems);
     _tabController.dispose();
+    _headerProgress.dispose();
     super.dispose();
+  }
+
+  bool _handleHeaderScroll(ScrollNotification notification) {
+    if (notification.depth != 0 || notification.metrics.axis != Axis.vertical) return false;
+    if (notification is! ScrollUpdateNotification && notification is! ScrollStartNotification) return false;
+    final metrics = notification.metrics;
+    final range = metrics.maxScrollExtent.clamp(1.0, _headerRevealRange);
+    final progress = (metrics.pixels / range).clamp(0.0, 1.0);
+    if (progress != _headerProgress.value) _headerProgress.value = progress;
+    return false;
   }
 
   void _syncQueueItems() {
@@ -97,53 +115,58 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
           final dynamicAccent = _getDynamicAccentColor(manga);
 
           return SafeArea(
+            top: false,
             bottom: false,
-            child: NestedScrollView(
-              headerSliverBuilder: (context, innerBoxIsScrolled) => [
-                // Collapsible Header (Cover, Badges, Titles, Stats, Action Buttons)
-                SliverToBoxAdapter(
-                  child: _buildStickyHeader(context, ref, manga, isRu, chaptersAsync, historyAsync, isInLibrary, dynamicAccent),
-                ),
-                // Pinned Tab Bar with Dynamic Palette
-                SliverPersistentHeader(
-                  pinned: true,
-                  delegate: _SliverTabBarDelegate(
-                    TabBar(
-                      controller: _tabController,
-                      indicatorSize: TabBarIndicatorSize.tab,
-                      indicator: BoxDecoration(
-                        color: dynamicAccent.withValues(alpha: 0.25),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: dynamicAccent, width: 1.2),
+            child: NotificationListener<ScrollNotification>(
+              onNotification: _handleHeaderScroll,
+              child: NestedScrollView(
+                headerSliverBuilder: (context, innerBoxIsScrolled) => [
+                  // Collapsible Header (Cover, Badges, Titles, Stats, Action Buttons)
+                  SliverToBoxAdapter(
+                    child: _buildStickyHeader(context, ref, manga, isRu, chaptersAsync, historyAsync, isInLibrary, dynamicAccent),
+                  ),
+                  // Pinned Tab Bar with Dynamic Palette
+                  SliverPersistentHeader(
+                    pinned: true,
+                    delegate: _SliverTabBarDelegate(
+                      TabBar(
+                        controller: _tabController,
+                        indicatorSize: TabBarIndicatorSize.tab,
+                        indicator: BoxDecoration(
+                          color: dynamicAccent.withValues(alpha: 0.25),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: dynamicAccent, width: 1.2),
+                        ),
+                        dividerColor: Colors.transparent,
+                        labelColor: Colors.white,
+                        unselectedLabelColor: AppTokens.textSecondary,
+                        labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                        unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.normal, fontSize: 13),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                        tabs: [
+                          Tab(text: s.tabAbout),
+                          Tab(text: s.tabChapters),
+                          Tab(text: s.comments),
+                        ],
                       ),
-                      dividerColor: Colors.transparent,
-                      labelColor: Colors.white,
-                      unselectedLabelColor: AppTokens.textSecondary,
-                      labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                      unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.normal, fontSize: 13),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                      tabs: [
-                        Tab(text: s.tabAbout),
-                        Tab(text: s.tabChapters),
-                        Tab(text: s.comments),
-                      ],
+                      MediaQuery.paddingOf(context).top,
                     ),
                   ),
-                ),
-              ],
-              // Scrollable Tabs Content
-              body: TabBarView(
-                controller: _tabController,
-                children: [
-                  // Tab 1: About / Details
-                  _buildAboutTab(manga, isRu),
-
-                  // Tab 2: Chapters List
-                  _buildChaptersTab(context, ref, manga, chaptersAsync, historyAsync, downloadList, isRu),
-
-                  // Tab 3: Reviews / Comments
-                  _buildCommentsTab(manga.id, isRu),
                 ],
+                // Scrollable Tabs Content
+                body: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    // Tab 1: About / Details
+                    _buildAboutTab(manga, isRu),
+
+                    // Tab 2: Chapters List
+                    _buildChaptersTab(context, ref, manga, chaptersAsync, historyAsync, downloadList, isRu),
+
+                    // Tab 3: Reviews / Comments
+                    _buildCommentsTab(manga.id, isRu),
+                  ],
+                ),
               ),
             ),
           );
@@ -221,6 +244,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
     Color dynamicAccent,
   ) {
     final s = DetailsStrings(isRu);
+    final topInset = MediaQuery.paddingOf(context).top;
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -235,24 +259,13 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
       ),
       child: Stack(
         children: [
-          // Subtle blurred background cover
-          Positioned.fill(
-            child: Opacity(
-              opacity: 0.12,
-              child: CachedNetworkImage(
-                imageUrl: manga.coverUrl,
-                httpHeaders: const {'Referer': 'https://mangalib.org/'},
-                fit: BoxFit.cover,
-                alignment: Alignment.topCenter,
-              ),
-            ),
-          ),
+          Positioned.fill(child: _buildHeaderBackdrop(manga.coverUrl)),
           Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               // Top Nav Bar
               Padding(
-                padding: const EdgeInsets.fromLTRB(6, 4, 6, 2),
+                padding: EdgeInsets.fromLTRB(6, 4 + topInset, 6, 2),
                 child: Row(
                   children: [
                     IconButton(
@@ -557,6 +570,54 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildHeaderBackdrop(String coverUrl) {
+    return ValueListenableBuilder<double>(
+      valueListenable: _headerProgress,
+      builder: (context, progress, child) {
+        // A zero sigma drops the filter and remounts the wrapped image, restarting
+        // its fade; a sub-pixel blur keeps one stable subtree across the whole range.
+        final sigma = ui.lerpDouble(24, 0.01, progress)!;
+        final imageOpacity = ui.lerpDouble(0.35, 0.9, progress)!;
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            Opacity(
+              opacity: imageOpacity,
+              child: ImageFiltered(
+                imageFilter: ui.ImageFilter.blur(
+                  sigmaX: sigma,
+                  sigmaY: sigma,
+                  tileMode: ui.TileMode.clamp,
+                ),
+                child: child,
+              ),
+            ),
+            DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withValues(alpha: ui.lerpDouble(0.3, 0.55, progress)!),
+                    Colors.black.withValues(alpha: ui.lerpDouble(0.55, 0.8, progress)!),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+      child: CachedNetworkImage(
+        imageUrl: coverUrl,
+        httpHeaders: const {'Referer': 'https://mangalib.org/'},
+        fit: BoxFit.cover,
+        alignment: Alignment.topCenter,
+        placeholder: (_, __) => const SizedBox.shrink(),
+        errorWidget: (_, __, ___) => const SizedBox.shrink(),
       ),
     );
   }
@@ -1202,6 +1263,9 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
         // Other formats of the same story (manga / light novel / etc.)
         _buildAlternateEditionsSection(manga, isRu),
 
+        // Anime adaptation lookup plus manual search shortcuts.
+        _buildAnimeSection(manga, isRu),
+
         // Authors & Artists Cards
         if (manga.authors.isNotEmpty || manga.artists.isNotEmpty) ...[
           Card(
@@ -1529,6 +1593,224 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                       size: 16, color: AppTokens.textSecondary),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Anime adaptations, looked up by title in the public Shikimori catalog. The
+  /// chip row stays available when the lookup finds nothing or fails, so the
+  /// block always leads somewhere.
+  Widget _buildAnimeSection(MangaDetails manga, bool isRu) {
+    final s = DetailsStrings(isRu);
+    final title = primaryTitle(
+      name: manga.name,
+      rusName: manga.rusName,
+      engName: manga.engName,
+    );
+    if (title.trim().isEmpty) return const SizedBox.shrink();
+
+    final hitsAsync = ref.watch(animeAdaptationsProvider(AnimeLookupQuery(title)));
+    const hintStyle = TextStyle(fontSize: 11, color: AppTokens.textSecondary);
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      color: AppTokens.surfaceCard,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+        side: const BorderSide(color: AppTokens.borderStrong),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.live_tv_rounded, size: 18, color: AppTokens.accent),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    s.animeSection,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(s.animeSectionHint, style: hintStyle),
+            const SizedBox(height: 10),
+            hitsAsync.when(
+              data: (hits) => hits.isEmpty
+                  ? Text(s.animeNoneFound, style: hintStyle)
+                  : SizedBox(
+                      height: 104,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: hits.length,
+                        separatorBuilder: (_, __) => const SizedBox(width: 10),
+                        itemBuilder: (context, index) => _buildAnimeCard(hits[index], s),
+                      ),
+                    ),
+              loading: () => const Row(
+                children: [
+                  SkeletonBox(width: 188, height: 100),
+                  SizedBox(width: 10),
+                  SkeletonBox(width: 188, height: 100),
+                ],
+              ),
+              error: (_, __) => Text(s.animeLookupFailed, style: hintStyle),
+            ),
+            const SizedBox(height: 12),
+            Text(s.animeSearchHint, style: hintStyle),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                _buildAnimeSearchChip(
+                  'Shikimori',
+                  Uri.https('shikimori.one', '/animes', {'search': title}),
+                ),
+                _buildAnimeSearchChip(
+                  'AniList',
+                  Uri.https('anilist.co', '/search/anime', {'search': title}),
+                ),
+                _buildAnimeSearchChip(
+                  'MyAnimeList',
+                  Uri.https('myanimelist.net', '/anime.php', {'q': title}),
+                ),
+                _buildAnimeSearchChip(
+                  isRu ? 'Яндекс' : 'Yandex',
+                  Uri.https('yandex.ru', '/search', {'text': title}),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAnimeCard(AnimeHit hit, DetailsStrings s) {
+    final meta = s.animeMeta(
+      hit.kind,
+      hit.year > 0 ? '${hit.year}' : '',
+      hit.episodes > 0 ? '${hit.episodes}' : '',
+    );
+
+    return Material(
+      color: AppTokens.surfaceRaised,
+      borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+      child: InkWell(
+        onTap: () => launchUrl(Uri.parse(hit.pageUrl), mode: LaunchMode.externalApplication),
+        borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+        child: Container(
+          width: 244,
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+            border: Border.all(color: AppTokens.border),
+          ),
+          child: Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: SizedBox(
+                  width: 58,
+                  height: 88,
+                  child: hit.imageUrl.isEmpty
+                      ? const ColoredBox(
+                          color: AppTokens.surfaceBase,
+                          child: Icon(Icons.movie_creation_outlined,
+                              size: 20, color: AppTokens.textSecondary),
+                        )
+                      : CachedNetworkImage(
+                          imageUrl: hit.imageUrl,
+                          httpHeaders: const {'Referer': 'https://shikimori.one/'},
+                          fit: BoxFit.cover,
+                          placeholder: (_, __) => const ColoredBox(color: AppTokens.surfaceBase),
+                          errorWidget: (_, __, ___) => const ColoredBox(
+                            color: AppTokens.surfaceBase,
+                            child: Icon(Icons.movie_creation_outlined,
+                                size: 20, color: AppTokens.textSecondary),
+                          ),
+                        ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      hit.displayTitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    if (meta.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        meta,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 10, color: AppTokens.textSecondary),
+                      ),
+                    ],
+                    if (hit.score.isNotEmpty) ...[
+                      const SizedBox(height: 3),
+                      Row(
+                        children: [
+                          const Icon(Icons.star_rounded, size: 12, color: Colors.amberAccent),
+                          const SizedBox(width: 2),
+                          Text(
+                            hit.score,
+                            style: const TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAnimeSearchChip(String label, Uri uri) {
+    return InkWell(
+      onTap: () => launchUrl(uri, mode: LaunchMode.externalApplication),
+      borderRadius: BorderRadius.circular(999),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: AppTokens.borderStrong),
+        ),
+        child: Text(
+          label,
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: AppTokens.textPrimary,
           ),
         ),
       ),
@@ -2147,17 +2429,19 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
 
 class _SliverTabBarDelegate extends SliverPersistentHeaderDelegate {
   final TabBar _tabBar;
+  final double _topInset;
 
-  _SliverTabBarDelegate(this._tabBar);
+  _SliverTabBarDelegate(this._tabBar, this._topInset);
 
   @override
-  double get minExtent => _tabBar.preferredSize.height;
+  double get minExtent => _tabBar.preferredSize.height + _topInset;
   @override
-  double get maxExtent => _tabBar.preferredSize.height;
+  double get maxExtent => _tabBar.preferredSize.height + _topInset;
 
   @override
   Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
     return Container(
+      padding: EdgeInsets.only(top: _topInset),
       decoration: BoxDecoration(
         color: AppTokens.surfaceBase,
         border: Border(
@@ -2173,7 +2457,7 @@ class _SliverTabBarDelegate extends SliverPersistentHeaderDelegate {
 
   @override
   bool shouldRebuild(_SliverTabBarDelegate oldDelegate) {
-    return _tabBar != oldDelegate._tabBar;
+    return _tabBar != oldDelegate._tabBar || _topInset != oldDelegate._topInset;
   }
 }
 

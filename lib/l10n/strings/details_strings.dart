@@ -11,6 +11,26 @@ class DetailsStrings extends AppStrings {
   String get tabChapters => isRu ? 'Главы' : 'Chapters';
   String get comments => isRu ? 'Комментарии' : 'Comments';
 
+  String get animeSection => isRu ? 'Экранизация' : 'Anime adaptation';
+  String get animeSectionHint => isRu
+      ? 'Аниме по этой истории — нажмите, чтобы открыть карточку'
+      : 'Anime of this story — tap to open its page';
+  String get animeNoneFound => isRu
+      ? 'По названию ничего не нашлось, попробуйте поиск ниже'
+      : 'Nothing matched by title, try the search below';
+  String get animeLookupFailed => isRu
+      ? 'Не удалось получить список, доступен только поиск'
+      : 'Could not load the list, search is still available';
+  String get animeSearchHint => isRu ? 'Искать в:' : 'Search in:';
+  String animeMeta(String kind, String year, String episodes) {
+    final parts = <String>[
+      if (kind.isNotEmpty) kind,
+      if (year.isNotEmpty) year,
+      if (episodes.isNotEmpty) (isRu ? '$episodes эп.' : '$episodes ep.'),
+    ];
+    return parts.join(' · ');
+  }
+
   String get contentUnavailable =>
       isRu ? 'Контент недоступен' : 'Content Unavailable';
   String get errorTitle => isRu ? 'Ошибка' : 'Error';

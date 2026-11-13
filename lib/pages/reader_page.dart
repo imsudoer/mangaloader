@@ -22,6 +22,7 @@ import 'package:mangaloader/widgets/manga_comments_modal.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:mangaloader/theme/app_tokens.dart';
+import 'package:mangaloader/theme/app_theme.dart';
 
 enum ReadMode { ltr, rtl, vertical }
 enum ReadBgColor { black, darkGrey, white }
@@ -30,6 +31,21 @@ enum ReadColorFilter { none, invert, sepia }
 enum ReadSharpenMode { off, subtle, high }
 enum DualPageMode { auto, single, dual }
 enum TapZoneLayout { standard, inverted, horizontal, edgesOnly }
+
+enum _ReaderMenuAction {
+  previousChapter,
+  nextChapter,
+  chapterList,
+  pageGrid,
+  autoScroll,
+  comments,
+  reload,
+  fullscreen,
+}
+
+enum _ReaderPreset { webtoon, mangaRtl, comicLtr }
+
+const double _chapterTileExtent = 72;
 
 class ReaderPage extends ConsumerStatefulWidget {
   final String slugUrl;
@@ -52,6 +68,22 @@ class ReaderPage extends ConsumerStatefulWidget {
 }
 
 class _ReaderPageState extends ConsumerState<ReaderPage> {
+  static const ReaderPrefs _defaultReaderPrefs = ReaderPrefs(
+    mode: 'vertical',
+    background: 'black',
+    boxFit: 'contain',
+    dualPage: 'auto',
+    tapZones: 'standard',
+    colorFilter: 'none',
+    sharpen: 'off',
+    cropBorders: false,
+    cropPercent: 3.0,
+    brightness: 1.0,
+    autoScrollSpeed: 1.5,
+    preloadRadius: 3,
+    autoNextChapter: false,
+  );
+
   final ValueNotifier<bool> _showControlsNotifier = ValueNotifier<bool>(false);
   ReadMode _readMode = ReadMode.vertical;
   ReadBgColor _bgColor = ReadBgColor.black;
@@ -102,6 +134,14 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   
   bool _isJumping = false;
   Timer? _sliderDebounceTimer;
+  double _titleDragDx = 0;
+
+  bool _autoNextChapter = false;
+  bool _isNextChapterPreparing = false;
+  bool _isNextChapterReady = false;
+  bool _showNextChapterBanner = false;
+  bool _hasAutoAdvanced = false;
+  int _nextChapterJob = 0;
 
   // Measured page heights drive offset estimation so that jumping in the webtoon
   // list stays accurate without keeping every page mounted.
@@ -181,6 +221,12 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     _applyReaderPrefs(override ?? ref.read(readerPrefsProvider));
   }
 
+  void _resyncPreferencesWhileLoading() {
+    if (!mounted || !_isLoading) return;
+    _restorePreferences();
+    setState(() {});
+  }
+
   void _applyReaderPrefs(ReaderPrefs prefs) {
     _readMode = switch (prefs.mode) {
       'ltr' => ReadMode.ltr,
@@ -223,26 +269,31 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     _brightness = prefs.brightness.clamp(0.2, 1.0);
     _autoScrollSpeed = prefs.autoScrollSpeed.clamp(0.5, 5.0);
     _preloadRadius = prefs.preloadRadius.clamp(1, 12);
+    _autoNextChapter = prefs.autoNextChapter;
   }
+
+  /// Snapshot of the live reader state in the persisted [ReaderPrefs] format.
+  ReaderPrefs get _currentPrefs => ReaderPrefs(
+        mode: _readMode.name,
+        background: _bgColor.name,
+        boxFit: _boxFit.name,
+        dualPage: _dualPageMode.name,
+        tapZones: _tapZoneLayout.name,
+        colorFilter: _filterMode.name,
+        sharpen: _sharpenMode.name,
+        cropBorders: _cropBorders,
+        cropPercent: _cropPercent,
+        brightness: _brightness,
+        autoScrollSpeed: _autoScrollSpeed,
+        preloadRadius: _preloadRadius,
+        autoNextChapter: _autoNextChapter,
+      );
 
   /// Titles get their own override so manga (RTL) and webtoon entries can keep
   /// different profiles; locally opened CBZ files have no slug and only have the
   /// global profile to write to.
   void _persistPreferences() {
-    final prefs = ReaderPrefs(
-      mode: _readMode.name,
-      background: _bgColor.name,
-      boxFit: _boxFit.name,
-      dualPage: _dualPageMode.name,
-      tapZones: _tapZoneLayout.name,
-      colorFilter: _filterMode.name,
-      sharpen: _sharpenMode.name,
-      cropBorders: _cropBorders,
-      cropPercent: _cropPercent,
-      brightness: _brightness,
-      autoScrollSpeed: _autoScrollSpeed,
-      preloadRadius: _preloadRadius,
-    );
+    final prefs = _currentPrefs;
     if (widget.slugUrl.isEmpty) {
       ref.read(readerPrefsProvider.notifier).update(prefs);
     } else {
@@ -253,6 +304,169 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   bool get _hasTitleOverride =>
       widget.slugUrl.isNotEmpty &&
       ref.read(titleReaderPrefsProvider).containsKey(widget.slugUrl);
+
+  /// Rebuilds the whole layout state from [prefs] while staying on the page the
+  /// reader is currently showing, including across a vertical/paged switch.
+  void _applyReaderPrefsKeepingPage(ReaderPrefs prefs) {
+    final wasVertical = _readMode == ReadMode.vertical;
+    setState(() {
+      _applyReaderPrefs(prefs);
+      final modeChanged = wasVertical != (_readMode == ReadMode.vertical);
+      if (modeChanged) {
+        _pageController?.dispose();
+        _pageController = null;
+        _appliedDualLayout = null;
+      }
+      if (modeChanged || !_autoNextChapter) _resetNextChapterTransition();
+    });
+
+    final isVertical = _readMode == ReadMode.vertical;
+    if (!isVertical) _stopAutoScroll();
+    if (isVertical && !wasVertical) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _jumpToPageIndex(_currentPageIndex);
+      });
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _updateNextChapterBanner();
+    });
+  }
+
+  void _updatePrefs(ReaderPrefs next) {
+    _applyReaderPrefsKeepingPage(next);
+    _persistPreferences();
+  }
+
+  void _resetReaderSettings() {
+    _applyReaderPrefsKeepingPage(_defaultReaderPrefs);
+    _persistPreferences();
+  }
+
+  void _clearTitleOverride() {
+    if (!_hasTitleOverride) return;
+    final global = ref.read(readerPrefsProvider);
+    ref.read(titleReaderPrefsProvider.notifier).clearForTitle(widget.slugUrl);
+    _applyReaderPrefsKeepingPage(global);
+  }
+
+  ReaderPrefs _prefsForPreset(_ReaderPreset preset) => switch (preset) {
+        _ReaderPreset.webtoon => _currentPrefs.copyWith(
+            mode: ReadMode.vertical.name,
+            boxFit: ReadBoxFit.fitWidth.name,
+            tapZones: TapZoneLayout.standard.name,
+            autoScrollSpeed: 1.5,
+          ),
+        _ReaderPreset.mangaRtl => _currentPrefs.copyWith(
+            mode: ReadMode.rtl.name,
+            boxFit: ReadBoxFit.contain.name,
+            dualPage: DualPageMode.auto.name,
+            tapZones: TapZoneLayout.standard.name,
+          ),
+        _ReaderPreset.comicLtr => _currentPrefs.copyWith(
+            mode: ReadMode.ltr.name,
+            boxFit: ReadBoxFit.contain.name,
+            dualPage: DualPageMode.single.name,
+          ),
+      };
+
+  void _applyPreset(_ReaderPreset preset) => _updatePrefs(_prefsForPreset(preset));
+
+  void _resetNextChapterTransition() {
+    _nextChapterJob++;
+    _isNextChapterPreparing = false;
+    _isNextChapterReady = false;
+    _showNextChapterBanner = false;
+  }
+
+  bool _isNearChapterEnd() {
+    if (_totalPages <= 0) return false;
+    if (_currentPageIndex >= _totalPages - 2) return true;
+    if (_readMode != ReadMode.vertical || !_scrollController.hasClients) return false;
+    final position = _scrollController.position;
+    return position.maxScrollExtent - position.pixels <=
+        MediaQuery.sizeOf(context).height * 1.5;
+  }
+
+  void _updateNextChapterBanner() {
+    if (!_autoNextChapter || !_hasNextChapter || _hasAutoAdvanced) {
+      if (_showNextChapterBanner) setState(() => _showNextChapterBanner = false);
+      return;
+    }
+    final nearEnd = _isNearChapterEnd();
+    if (nearEnd != _showNextChapterBanner) {
+      setState(() => _showNextChapterBanner = nearEnd);
+    }
+    if (nearEnd) _prepareNextChapter();
+  }
+
+  /// Resolves the next chapter's page list and warms its first screens without
+  /// touching the chapter that is currently on screen.
+  Future<void> _prepareNextChapter() async {
+    final next = _nextChapter;
+    if (!_autoNextChapter) return;
+    if (next == null) {
+      if (_nextLocalCbzPath != null && !_isNextChapterReady && !_isNextChapterPreparing) {
+        setState(() => _isNextChapterReady = true);
+      }
+      return;
+    }
+    if (_isNextChapterPreparing || _isNextChapterReady) return;
+
+    final job = ++_nextChapterJob;
+    setState(() => _isNextChapterPreparing = true);
+    try {
+      final isDownloaded = _mangaId > 0 &&
+          await rust_storage.isChapterDownloaded(
+            mangaId: _mangaId,
+            volume: next.volume,
+            number: next.number,
+          );
+      if (!mounted || job != _nextChapterJob) return;
+
+      if (!isDownloaded) {
+        final pages = await rust_api.getChapterPages(
+          slugUrl: widget.slugUrl,
+          volume: next.volume,
+          number: next.number,
+          branchId: next.branchId,
+        );
+        if (!mounted || job != _nextChapterJob) return;
+
+        for (var i = 0; i < 3 && i < pages.length; i++) {
+          try {
+            await precacheImage(
+              CachedNetworkImageProvider(
+                _resolveImageUrl(pages[i].url),
+                headers: const {'Referer': 'https://mangalib.org/'},
+              ),
+              context,
+            );
+          } catch (_) {}
+          if (!mounted || job != _nextChapterJob) return;
+        }
+      }
+
+      if (!mounted || job != _nextChapterJob) return;
+      setState(() {
+        _isNextChapterPreparing = false;
+        _isNextChapterReady = true;
+      });
+    } catch (_) {
+      if (!mounted || job != _nextChapterJob) return;
+      setState(() => _isNextChapterPreparing = false);
+    }
+  }
+
+  void _maybeAutoAdvanceToNextChapter() {
+    if (!_autoNextChapter || _hasAutoAdvanced) return;
+    if (_readMode != ReadMode.vertical || !_hasNextChapter) return;
+    if (!_scrollController.hasClients) return;
+    final position = _scrollController.position;
+    if (position.pixels < position.maxScrollExtent - 1) return;
+    _hasAutoAdvanced = true;
+    _showNextChapterBanner = false;
+    _navigateToNextChapter();
+  }
 
   int _findVisiblePageIndex() {
     if (_totalPages <= 1 || !_scrollController.hasClients) return 0;
@@ -336,6 +550,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         _prefetchNextChapter(_nextChapter!);
       }
     }
+
+    _updateNextChapterBanner();
   }
 
   void _updateWindowTitle() {
@@ -352,6 +568,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     if (elapsed > 0 && _mangaId > 0) {
       rust_storage.recordReadingSession(mangaId: _mangaId, seconds: elapsed);
     }
+    _nextChapterJob++;
     _scrollController.removeListener(_onVerticalScroll);
     _stopAutoScroll();
     _saveTimer?.cancel();
@@ -656,7 +873,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
           }
         }
       }
-      if (mounted) setState(() {});
+      if (mounted) {
+        setState(() {});
+        _updateNextChapterBanner();
+      }
     } catch (_) {}
   }
 
@@ -809,6 +1029,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       _isNextChapterPrefetched = true;
       _prefetchNextChapter(_nextChapter!);
     }
+
+    _updateNextChapterBanner();
   }
 
   void _scheduleSaveProgress() {
@@ -1308,6 +1530,15 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
   @override
   Widget build(BuildContext context) {
+    // Preferences come from the database on the app's first frame, which can land
+    // after a deep link already mounted the reader. While the chapter is still
+    // loading nothing has been laid out yet, so the stored profile can safely win.
+    ref.listen<ReaderPrefs>(readerPrefsProvider, (_, __) => _resyncPreferencesWhileLoading());
+    ref.listen<Map<String, ReaderPrefs>>(
+      titleReaderPrefsProvider,
+      (_, __) => _resyncPreferencesWhileLoading(),
+    );
+
     final isRu = Localizations.localeOf(context).languageCode == 'ru';
     final s = ReaderStrings(isRu);
 
@@ -1486,88 +1717,97 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                       foregroundColor: Colors.white,
                       elevation: 0,
                       leading: const BackButton(),
-                      title: InkWell(
-                        onTap: _allChapters.isNotEmpty ? _showChapterListDialog : null,
-                        borderRadius: BorderRadius.circular(8),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Flexible(child: Text(_chapterTitle, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
-                              if (_allChapters.isNotEmpty) ...[
-                                const SizedBox(width: 4),
-                                const Icon(Icons.arrow_drop_down_rounded, size: 20, color: AppTokens.accent),
+                      title: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onHorizontalDragStart: _onTitleDragStart,
+                        onHorizontalDragUpdate: _onTitleDragUpdate,
+                        onHorizontalDragEnd: _onTitleDragEnd,
+                        child: InkWell(
+                          onTap: _allChapters.isNotEmpty ? _showChapterListDialog : null,
+                          borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Flexible(child: Text(_chapterTitle, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
+                                if (_allChapters.isNotEmpty) ...[
+                                  const SizedBox(width: 4),
+                                  const Icon(Icons.arrow_drop_down_rounded, size: 20, color: AppTokens.accent),
+                                ],
                               ],
-                            ],
+                            ),
                           ),
                         ),
                       ),
                       actions: [
-                        if (hasPrev)
-                          IconButton(
-                            icon: const Icon(Icons.skip_previous_rounded),
-                            tooltip: s.previousChapter,
-                            onPressed: _navigateToPrevChapter,
-                          ),
-                        if (hasNext)
-                          IconButton(
-                            icon: const Icon(Icons.skip_next_rounded),
-                            tooltip: s.nextChapter,
-                            onPressed: _navigateToNextChapter,
-                          ),
-                        if (_allChapters.isNotEmpty)
-                          IconButton(
-                            icon: const Icon(Icons.format_list_bulleted_rounded),
-                            tooltip: s.chapterList,
-                            onPressed: _showChapterListDialog,
-                          ),
                         IconButton(
-                          icon: const Icon(Icons.grid_view_rounded),
-                          tooltip: s.pageGrid,
-                          onPressed: _showPageJumperDialog,
+                          icon: const Icon(Icons.tune_rounded),
+                          tooltip: s.settings,
+                          onPressed: _showSettingsSheet,
                         ),
-                        if (_readMode == ReadMode.vertical)
-                          IconButton(
-                            icon: Icon(_isAutoScrolling ? Icons.pause_circle_filled_rounded : Icons.play_circle_fill_rounded, color: _isAutoScrolling ? Colors.orange : Colors.white),
-                            tooltip: _isAutoScrolling ? s.stopAutoScroll : s.autoScroll,
-                            onPressed: _toggleAutoScroll,
+                        PopupMenuButton<_ReaderMenuAction>(
+                          tooltip: s.moreActions,
+                          icon: const Icon(Icons.more_vert_rounded),
+                          color: AppTokens.surfaceRaised,
+                          position: PopupMenuPosition.under,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+                            side: const BorderSide(color: AppTokens.borderStrong),
                           ),
-                        IconButton(
-                          icon: Icon(_isFullscreen ? Icons.fullscreen_exit_rounded : Icons.fullscreen_rounded),
-                          tooltip: s.fullscreen,
-                          onPressed: _toggleFullscreen,
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.refresh_rounded),
-                          tooltip: s.reloadChapter,
-                          onPressed: _reloadCurrentChapter,
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.chat_bubble_outline_rounded),
-                          tooltip: s.chapterComments,
-                          onPressed: () {
-                            final currentChap = _allChapters.firstWhere(
-                              (c) => c.volume == widget.volume && c.number == widget.number,
-                              orElse: () => Chapter(
-                                id: _mangaId,
-                                volume: widget.volume,
-                                number: widget.number,
-                                name: null,
-                                branchId: widget.branchId,
-                                branchesCount: 1,
-                                isPaid: false,
+                          onSelected: _handleMenuAction,
+                          itemBuilder: (context) => [
+                            if (hasPrev)
+                              _buildMenuItem(
+                                _ReaderMenuAction.previousChapter,
+                                Icons.skip_previous_rounded,
+                                s.previousChapter,
                               ),
-                            );
-                            MangaCommentsModal.show(
-                              context,
-                              relationType: currentChap.id > 0 ? 'chapter' : 'media',
-                              relationId: currentChap.id > 0 ? currentChap.id : _mangaId,
-                              title: s.commentsTitle(widget.slugUrl, widget.volume, widget.number),
-                            );
-                          },
+                            if (hasNext)
+                              _buildMenuItem(
+                                _ReaderMenuAction.nextChapter,
+                                Icons.skip_next_rounded,
+                                s.nextChapter,
+                              ),
+                            if (hasPrev || hasNext) const PopupMenuDivider(height: 8),
+                            if (_allChapters.isNotEmpty)
+                              _buildMenuItem(
+                                _ReaderMenuAction.chapterList,
+                                Icons.format_list_bulleted_rounded,
+                                s.chapterList,
+                              ),
+                            _buildMenuItem(
+                              _ReaderMenuAction.pageGrid,
+                              Icons.grid_view_rounded,
+                              s.pageGrid,
+                            ),
+                            if (_readMode == ReadMode.vertical)
+                              _buildMenuItem(
+                                _ReaderMenuAction.autoScroll,
+                                _isAutoScrolling
+                                    ? Icons.pause_circle_filled_rounded
+                                    : Icons.play_circle_fill_rounded,
+                                _isAutoScrolling ? s.menuStopAutoScroll : s.menuAutoScroll,
+                                color: _isAutoScrolling ? Colors.orangeAccent : null,
+                              ),
+                            const PopupMenuDivider(height: 8),
+                            _buildMenuItem(
+                              _ReaderMenuAction.comments,
+                              Icons.chat_bubble_outline_rounded,
+                              s.chapterComments,
+                            ),
+                            _buildMenuItem(
+                              _ReaderMenuAction.reload,
+                              Icons.refresh_rounded,
+                              s.reloadChapter,
+                            ),
+                            _buildMenuItem(
+                              _ReaderMenuAction.fullscreen,
+                              _isFullscreen ? Icons.fullscreen_exit_rounded : Icons.fullscreen_rounded,
+                              _isFullscreen ? s.exitFullscreen : s.fullscreen,
+                            ),
+                          ],
                         ),
-                        IconButton(icon: const Icon(Icons.tune_rounded), tooltip: s.settings, onPressed: _showSettingsSheet),
                       ],
                     ),
                   ),
@@ -1708,6 +1948,22 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
             },
           ),
 
+              ValueListenableBuilder<bool>(
+                valueListenable: _showControlsNotifier,
+                builder: (context, showControls, _) {
+                  if (!_showNextChapterBanner) return const SizedBox.shrink();
+                  final bottomInset = MediaQuery.paddingOf(context).bottom;
+                  return Positioned(
+                    left: 16,
+                    right: 16,
+                    // The control bar applies the bottom inset twice, so the banner
+                    // has to clear it twice to stay above the bar.
+                    bottom: showControls ? bottomInset * 2 + 128 : bottomInset + 44,
+                    child: _buildNextChapterBanner(s),
+                  );
+                },
+              ),
+
               // Floating Auto-Scroll Speed Controller
               if (_isAutoScrolling)
                 Positioned(
@@ -1812,6 +2068,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
               notification is ScrollStartNotification &&
               notification.dragDetails != null) {
             _stopAutoScroll();
+          }
+          if (notification is OverscrollNotification &&
+              notification.overscroll > 0) {
+            _maybeAutoAdvanceToNextChapter();
           }
           return false;
         },
@@ -1959,402 +2219,646 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     }
   }
 
+  bool get _hasPrevChapter => _prevChapter != null || _prevLocalCbzPath != null;
+
+  bool get _hasNextChapter => _nextChapter != null || _nextLocalCbzPath != null;
+
+  void _onTitleDragStart(DragStartDetails details) => _titleDragDx = 0;
+
+  void _onTitleDragUpdate(DragUpdateDetails details) => _titleDragDx += details.delta.dx;
+
+  void _onTitleDragEnd(DragEndDetails details) {
+    final dx = _titleDragDx;
+    _titleDragDx = 0;
+    if (dx.abs() < 40) return;
+    if (dx < 0 && _hasNextChapter) {
+      _navigateToNextChapter();
+    } else if (dx > 0 && _hasPrevChapter) {
+      _navigateToPrevChapter();
+    }
+  }
+
+  void _handleMenuAction(_ReaderMenuAction action) {
+    switch (action) {
+      case _ReaderMenuAction.previousChapter:
+        _navigateToPrevChapter();
+        break;
+      case _ReaderMenuAction.nextChapter:
+        _navigateToNextChapter();
+        break;
+      case _ReaderMenuAction.chapterList:
+        _showChapterListDialog();
+        break;
+      case _ReaderMenuAction.pageGrid:
+        _showPageJumperDialog();
+        break;
+      case _ReaderMenuAction.autoScroll:
+        _toggleAutoScroll();
+        break;
+      case _ReaderMenuAction.comments:
+        _showChapterComments();
+        break;
+      case _ReaderMenuAction.reload:
+        unawaited(_reloadCurrentChapter());
+        break;
+      case _ReaderMenuAction.fullscreen:
+        _toggleFullscreen();
+        break;
+    }
+  }
+
+  PopupMenuItem<_ReaderMenuAction> _buildMenuItem(
+    _ReaderMenuAction action,
+    IconData icon,
+    String label, {
+    Color? color,
+  }) {
+    return PopupMenuItem<_ReaderMenuAction>(
+      value: action,
+      height: 44,
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: color ?? AppTokens.textPrimary),
+          const SizedBox(width: AppTokens.spaceMd),
+          Flexible(
+            child: Text(
+              label,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 13, color: color ?? Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showChapterComments() {
+    final s = ReaderStrings.of(context);
+    final currentChap = _allChapters.firstWhere(
+      (c) => c.volume == widget.volume && c.number == widget.number,
+      orElse: () => Chapter(
+        id: _mangaId,
+        volume: widget.volume,
+        number: widget.number,
+        name: null,
+        branchId: widget.branchId,
+        branchesCount: 1,
+        isPaid: false,
+      ),
+    );
+    MangaCommentsModal.show(
+      context,
+      relationType: currentChap.id > 0 ? 'chapter' : 'media',
+      relationId: currentChap.id > 0 ? currentChap.id : _mangaId,
+      title: s.commentsTitle(widget.slugUrl, widget.volume, widget.number),
+    );
+  }
+
   void _showChapterListDialog() {
     if (_allChapters.isEmpty) return;
     final s = ReaderStrings.of(context);
     String filterQuery = '';
+
+    final currentIndex = _allChapters.indexWhere(
+      (c) => c.volume == widget.volume && c.number == widget.number,
+    );
+    final initialOffset = currentIndex <= 2
+        ? 0.0
+        : (currentIndex - 2) * _chapterTileExtent;
 
     showModalBottomSheet(
       context: context,
       backgroundColor: AppTokens.surfaceBase,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppTokens.radiusXl)),
       ),
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setModalState) {
-          final filtered = _allChapters.where((c) {
-            if (filterQuery.isEmpty) return true;
-            final q = filterQuery.toLowerCase();
-            return c.number.contains(q) || c.volume.contains(q) || (c.name ?? '').toLowerCase().contains(q);
-          }).toList();
+      builder: (ctx) => _ChapterListScrollHost(
+        initialOffset: initialOffset,
+        builder: (scrollController) => StatefulBuilder(
+          builder: (ctx, setModalState) {
+            final filtered = _allChapters.where((c) {
+              if (filterQuery.isEmpty) return true;
+              final q = filterQuery.toLowerCase();
+              return c.number.contains(q) || c.volume.contains(q) || (c.name ?? '').toLowerCase().contains(q);
+            }).toList();
 
-          return DraggableScrollableSheet(
-            initialChildSize: 0.65,
-            minChildSize: 0.4,
-            maxChildSize: 0.9,
-            expand: false,
-            builder: (ctx, scrollController) => Column(
-              children: [
-                Container(
-                  width: 40,
-                  height: 4,
-                  margin: const EdgeInsets.symmetric(vertical: 10),
-                  decoration: BoxDecoration(
-                    color: Colors.white24,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.format_list_bulleted_rounded, color: AppTokens.accent, size: 20),
-                      const SizedBox(width: 8),
-                      Text(
-                        s.chapterListTitle('${_allChapters.length}'),
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+            return SafeArea(
+              top: false,
+              child: SizedBox(
+                height: MediaQuery.sizeOf(ctx).height * 0.7,
+                child: Column(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 4,
+                      margin: const EdgeInsets.symmetric(vertical: 10),
+                      decoration: BoxDecoration(
+                        color: AppTokens.borderStrong,
+                        borderRadius: BorderRadius.circular(2),
                       ),
-                      const Spacer(),
-                      IconButton(
-                        icon: const Icon(Icons.close_rounded, size: 20),
-                        onPressed: () => Navigator.pop(ctx),
-                      ),
-                    ],
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: TextField(
-                    decoration: InputDecoration(
-                      hintText: s.searchChapter,
-                      prefixIcon: const Icon(Icons.search_rounded, size: 18),
-                      isDense: true,
-                      filled: true,
-                      fillColor: AppTokens.surfaceRaised,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     ),
-                    onChanged: (val) => setModalState(() => filterQuery = val.trim()),
-                  ),
-                ),
-                Expanded(
-                  child: ListView.builder(
-                    controller: scrollController,
-                    itemCount: filtered.length,
-                    itemBuilder: (ctx, i) {
-                      final c = filtered[i];
-                      final isCurrent = c.volume == widget.volume && c.number == widget.number;
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.format_list_bulleted_rounded, color: AppTokens.accent, size: 20),
+                          const SizedBox(width: 8),
+                          Text(
+                            s.chapterListTitle('${_allChapters.length}'),
+                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                          ),
+                          const Spacer(),
+                          IconButton(
+                            icon: const Icon(Icons.close_rounded, size: 20),
+                            onPressed: () => Navigator.pop(ctx),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      child: TextField(
+                        decoration: InputDecoration(
+                          hintText: s.searchChapter,
+                          prefixIcon: const Icon(Icons.search_rounded, size: 18),
+                          isDense: true,
+                          filled: true,
+                          fillColor: AppTokens.surfaceRaised,
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        ),
+                        onChanged: (val) => setModalState(() => filterQuery = val.trim()),
+                      ),
+                    ),
+                    Expanded(
+                      child: ListView.builder(
+                        controller: scrollController,
+                        padding: EdgeInsets.zero,
+                        itemExtent: _chapterTileExtent,
+                        itemCount: filtered.length,
+                        itemBuilder: (ctx, i) {
+                          final c = filtered[i];
+                          final isCurrent = c.volume == widget.volume && c.number == widget.number;
 
-                      return ListTile(
-                        selected: isCurrent,
-                        selectedTileColor: AppTokens.accent.withValues(alpha: 0.20),
-                        leading: CircleAvatar(
-                          radius: 16,
-                          backgroundColor: isCurrent ? AppTokens.accent : AppTokens.surfaceRaised,
-                          child: Text(
-                            c.number,
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: isCurrent ? Colors.white : AppTokens.textPrimary,
-                            ),
-                          ),
-                        ),
-                        title: Text(
-                          s.volumeChapter(c.volume, c.number),
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
-                            color: isCurrent ? Colors.white : AppTokens.textPrimary,
-                          ),
-                        ),
-                        subtitle: c.name != null && c.name!.isNotEmpty
-                            ? Text(c.name!, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Colors.white54))
-                            : null,
-                        trailing: c.isPaid
-                            ? const Icon(Icons.lock_outline_rounded, size: 16, color: Colors.amber)
-                            : isCurrent
-                                ? const Icon(Icons.bookmark_rounded, size: 18, color: AppTokens.accent)
+                          return ListTile(
+                            selected: isCurrent,
+                            selectedTileColor: AppTokens.accent.withValues(alpha: 0.18),
+                            shape: isCurrent
+                                ? RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+                                    side: BorderSide(color: AppTokens.accent.withValues(alpha: 0.7)),
+                                  )
                                 : null,
-                        onTap: () {
-                          Navigator.pop(ctx);
-                          if (!isCurrent) {
-                            final branchQ = c.branchId != null ? "?branchId=${c.branchId}" : "";
-                            context.pushReplacement('/read/${widget.slugUrl}/${c.volume}/${c.number}$branchQ');
-                          }
+                            leading: CircleAvatar(
+                              radius: 16,
+                              backgroundColor: isCurrent ? AppTokens.accent : AppTokens.surfaceRaised,
+                              child: Text(
+                                c.number,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: isCurrent ? Colors.white : AppTokens.textPrimary,
+                                ),
+                              ),
+                            ),
+                            title: Text(
+                              s.volumeChapter(c.volume, c.number),
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
+                                color: isCurrent ? Colors.white : AppTokens.textPrimary,
+                              ),
+                            ),
+                            subtitle: c.name != null && c.name!.isNotEmpty
+                                ? Text(c.name!, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Colors.white54))
+                                : null,
+                            trailing: c.isPaid
+                                ? const Icon(Icons.lock_outline_rounded, size: 16, color: Colors.amber)
+                                : isCurrent
+                                    ? Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: AppTokens.spaceSm, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: AppTokens.accent.withValues(alpha: 0.18),
+                                          borderRadius: BorderRadius.circular(6),
+                                          border: Border.all(color: AppTokens.accent.withValues(alpha: 0.6)),
+                                        ),
+                                        child: Text(
+                                          s.youAreHere,
+                                          style: const TextStyle(
+                                            fontSize: 10.5,
+                                            fontWeight: FontWeight.w700,
+                                            color: AppTokens.accent,
+                                          ),
+                                        ),
+                                      )
+                                    : null,
+                            onTap: () {
+                              Navigator.pop(ctx);
+                              if (!isCurrent) {
+                                final branchQ = c.branchId != null ? "?branchId=${c.branchId}" : "";
+                                context.pushReplacement('/read/${widget.slugUrl}/${c.volume}/${c.number}$branchQ');
+                              }
+                            },
+                          );
                         },
-                      );
-                    },
-                  ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          );
-        },
+              ),
+            );
+          },
+        ),
       ),
     );
   }
 
   void _showSettingsSheet() {
-    final s = ReaderStrings.of(context);
-
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppTokens.surfaceBase,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
-      builder: (ctx) {
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
         return StatefulBuilder(
-          builder: (context, setModalState) {
-            return SafeArea(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20.0),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(s.readerSettings, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 16),
-                    
-                    Text(s.readingMode, style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 8),
-                    SegmentedButton<ReadMode>(
-                      segments: [
-                        ButtonSegment(value: ReadMode.vertical, label: Text(s.modeWebtoon)),
-                        ButtonSegment(value: ReadMode.ltr, label: Text(s.modeLtr)),
-                        ButtonSegment(value: ReadMode.rtl, label: Text(s.modeRtl)),
-                      ],
-                      selected: {_readMode},
-                      onSelectionChanged: (val) {
-                        final newMode = val.first;
-                        final leavingVertical = _readMode == ReadMode.vertical;
-                        setState(() {
-                          _readMode = newMode;
-                          if (leavingVertical && newMode != ReadMode.vertical) {
-                            // Rebuild the controller with the correct slide mapping.
-                            _pageController?.dispose();
-                            _pageController = null;
-                            _appliedDualLayout = null;
-                          }
-                          if (leavingVertical) _stopAutoScroll();
-                        });
-                        _persistPreferences();
-                        setModalState(() {});
-                        if (newMode == ReadMode.vertical && _currentPageIndex > 0) {
-                          WidgetsBinding.instance.addPostFrameCallback((_) {
-                            _jumpToPageIndex(_currentPageIndex);
-                          });
-                        }
-                      },
+          builder: (sheetContext, setModalState) {
+            final s = ReaderStrings.of(sheetContext);
+            final isVertical = _readMode == ReadMode.vertical;
+
+            void refresh() => setModalState(() {});
+
+            void select(ReaderPrefs next) {
+              _updatePrefs(next);
+              refresh();
+            }
+
+            Widget sliderRow({
+              required String label,
+              required String value,
+              required double min,
+              required double max,
+              required int divisions,
+              required double current,
+              required ValueChanged<double> apply,
+            }) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _ReaderSheetRow(
+                    label: label,
+                    control: _ReaderSheetValueBadge(value),
+                  ),
+                  SliderTheme(
+                    data: SliderTheme.of(sheetContext).copyWith(
+                      trackHeight: 3,
+                      activeTrackColor: AppTokens.accent,
+                      inactiveTrackColor: AppTokens.border,
+                      thumbColor: AppTokens.textPrimary,
+                      overlayColor: AppTokens.accent.withValues(alpha: 0.12),
+                      thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
+                      overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
                     ),
-                    const SizedBox(height: 16),
-
-                    if (_readMode != ReadMode.vertical) ...[
-                      Text(s.pageLayout, style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
-                      const SizedBox(height: 8),
-                      SegmentedButton<DualPageMode>(
-                        segments: [
-                          ButtonSegment(value: DualPageMode.auto, label: Text(s.layoutAuto)),
-                          ButtonSegment(value: DualPageMode.single, label: Text(s.layoutSingle)),
-                          ButtonSegment(value: DualPageMode.dual, label: Text(s.layoutDual)),
-                        ],
-                        selected: {_dualPageMode},
-                        onSelectionChanged: (val) {
-                          setState(() => _dualPageMode = val.first);
-                          _persistPreferences();
-                          setModalState(() {});
-                        },
-                      ),
-                      const SizedBox(height: 16),
-
-                      Text(s.pageScale, style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
-                      const SizedBox(height: 8),
-                      SegmentedButton<ReadBoxFit>(
-                        segments: [
-                          ButtonSegment(value: ReadBoxFit.contain, label: Text(s.scaleFitScreen)),
-                          ButtonSegment(value: ReadBoxFit.fitWidth, label: Text(s.scaleFitWidth)),
-                          ButtonSegment(value: ReadBoxFit.cover, label: Text(s.scaleCover)),
-                        ],
-                        selected: {_boxFit},
-                        onSelectionChanged: (val) {
-                          setState(() => _boxFit = val.first);
-                          _persistPreferences();
-                          setModalState(() {});
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                    ],
-
-                    Text(s.tapZones, style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 8),
-                    SegmentedButton<TapZoneLayout>(
-                      segments: [
-                        ButtonSegment(value: TapZoneLayout.standard, label: Text(s.tapStandard)),
-                        ButtonSegment(value: TapZoneLayout.inverted, label: Text(s.tapInverted)),
-                        ButtonSegment(value: TapZoneLayout.edgesOnly, label: Text(s.tapEdges)),
-                      ],
-                      selected: {_tapZoneLayout},
-                      onSelectionChanged: (val) {
-                        setState(() => _tapZoneLayout = val.first);
-                        _persistPreferences();
-                        setModalState(() {});
-                      },
-                    ),
-                    const SizedBox(height: 16),
-
-                    Text(s.backgroundColor, style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 8),
-                    SegmentedButton<ReadBgColor>(
-                      segments: [
-                        ButtonSegment(value: ReadBgColor.black, label: Text(s.bgBlack)),
-                        ButtonSegment(value: ReadBgColor.darkGrey, label: Text(s.bgGrey)),
-                        ButtonSegment(value: ReadBgColor.white, label: Text(s.bgWhite)),
-                      ],
-                      selected: {_bgColor},
-                      onSelectionChanged: (val) {
-                        setState(() => _bgColor = val.first);
-                        _persistPreferences();
-                        setModalState(() {});
-                      },
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Filter mode
-                    Text(s.colorFilter, style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 8),
-                    SegmentedButton<ReadColorFilter>(
-                      segments: [
-                        ButtonSegment(value: ReadColorFilter.none, label: Text(s.filterNormal)),
-                        ButtonSegment(value: ReadColorFilter.invert, label: Text(s.filterInvert)),
-                        ButtonSegment(value: ReadColorFilter.sepia, label: Text(s.filterSepia)),
-                      ],
-                      selected: {_filterMode},
-                      onSelectionChanged: (val) {
-                        setState(() => _filterMode = val.first);
-                        _persistPreferences();
-                        setModalState(() {});
-                      },
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Sharpening Mode
-                    Text(s.sharpeningFilter, style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 8),
-                    SegmentedButton<ReadSharpenMode>(
-                      segments: [
-                        ButtonSegment(value: ReadSharpenMode.off, label: Text(s.sharpeningOff)),
-                        ButtonSegment(value: ReadSharpenMode.subtle, label: Text(s.sharpeningSubtle)),
-                        ButtonSegment(value: ReadSharpenMode.high, label: Text(s.sharpeningHigh)),
-                      ],
-                      selected: {_sharpenMode},
-                      onSelectionChanged: (val) {
-                        setState(() => _sharpenMode = val.first);
-                        _persistPreferences();
-                        setModalState(() {});
-                      },
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Auto crop borders switch
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(s.cropBorders, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-                      subtitle: Text(
-                        s.cropBordersSubtitle,
-                        style: const TextStyle(color: Colors.white60, fontSize: 12),
-                      ),
-                      value: _cropBorders,
+                    child: Slider(
+                      value: current,
+                      min: min,
+                      max: max,
+                      divisions: divisions,
                       onChanged: (val) {
-                        setState(() => _cropBorders = val);
-                        _persistPreferences();
-                        setModalState(() {});
-                      },
-                    ),
-                    if (_cropBorders) ...[
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(s.cropMargin, style: const TextStyle(color: Colors.white70)),
-                          Text('${_cropPercent.toInt()}%', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                        ],
-                      ),
-                      Slider(
-                        value: _cropPercent,
-                        min: 1.0,
-                        max: 10.0,
-                        divisions: 9,
-                        onChanged: (val) {
-                          setState(() => _cropPercent = val);
-                          setModalState(() {});
-                        },
-                        onChangeEnd: (_) => _persistPreferences(),
-                      ),
-                    ],
-
-                    // Brightness slider
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(s.pageBrightness, style: const TextStyle(color: Colors.white70)),
-                        Text('${(_brightness * 100).toInt()}%', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                      ],
-                    ),
-                    Slider(
-                      value: _brightness,
-                      min: 0.2,
-                      max: 1.0,
-                      divisions: 16,
-                      onChanged: (val) {
-                        setState(() => _brightness = val);
-                        setModalState(() {});
+                        setState(() => apply(val));
+                        refresh();
                       },
                       onChangeEnd: (_) => _persistPreferences(),
                     ),
+                  ),
+                ],
+              );
+            }
 
-                    const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(s.pagePreload, style: const TextStyle(color: Colors.white70)),
-                        Text('${_preloadRadius.clamp(1, 10)}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                      ],
+            return Container(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.92,
+              ),
+              decoration: const BoxDecoration(
+                color: AppTokens.surfaceBase,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(AppTokens.radiusXl)),
+              ),
+              child: SafeArea(
+                top: false,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 4,
+                      margin: const EdgeInsets.only(top: 10, bottom: 6),
+                      decoration: BoxDecoration(
+                        color: AppTokens.borderStrong,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
                     ),
-                    Slider(
-                      value: _preloadRadius.toDouble().clamp(1.0, 10.0),
-                      min: 1,
-                      max: 10,
-                      divisions: 9,
-                      label: '${_preloadRadius.clamp(1, 10)}',
-                      onChanged: (val) {
-                        setState(() => _preloadRadius = val.round().clamp(1, 12));
-                        setModalState(() {});
-                      },
-                      onChangeEnd: (_) {
-                        _persistPreferences();
-                        setModalState(() {});
-                      },
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 8, 4),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.tune_rounded, size: 18, color: AppTokens.accent),
+                          const SizedBox(width: AppTokens.spaceSm),
+                          Expanded(
+                            child: Text(
+                              s.readerSettings,
+                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                            ),
+                          ),
+                          TextButton(
+                            style: TextButton.styleFrom(
+                              foregroundColor: AppTokens.accent,
+                              visualDensity: VisualDensity.compact,
+                              padding: const EdgeInsets.symmetric(horizontal: AppTokens.spaceSm),
+                            ),
+                            onPressed: () {
+                              _resetReaderSettings();
+                              refresh();
+                            },
+                            child: Text(
+                              s.resetSettings,
+                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    if (_hasTitleOverride) ...[
-                      const SizedBox(height: 4),
-                      TextButton.icon(
-                        style: TextButton.styleFrom(foregroundColor: AppTokens.accent),
-                        onPressed: () {
-                          final global = ref.read(readerPrefsProvider);
-                          ref.read(titleReaderPrefsProvider.notifier).clearForTitle(widget.slugUrl);
-                          final wasVertical = _readMode == ReadMode.vertical;
-                          setState(() {
-                            _applyReaderPrefs(global);
-                            if (wasVertical != (_readMode == ReadMode.vertical)) {
-                              _pageController?.dispose();
-                              _pageController = null;
-                              _appliedDualLayout = null;
-                            }
-                          });
-                          if (_readMode != ReadMode.vertical) _stopAutoScroll();
-                          setModalState(() {});
-                          if (_readMode == ReadMode.vertical && _currentPageIndex > 0) {
-                            WidgetsBinding.instance.addPostFrameCallback((_) {
-                              if (mounted) _jumpToPageIndex(_currentPageIndex);
-                            });
-                          }
-                        },
-                        icon: const Icon(Icons.restart_alt_rounded, size: 18),
-                        label: Text(
-                          s.resetTitleSettings,
-                          style: const TextStyle(fontSize: 13),
+                    const Divider(height: 1, color: AppTokens.border),
+                    Flexible(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (_hasTitleOverride) ...[
+                              Container(
+                                padding: const EdgeInsets.fromLTRB(
+                                  AppTokens.spaceMd,
+                                  AppTokens.spaceXs,
+                                  AppTokens.spaceXs,
+                                  AppTokens.spaceXs,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppTokens.accent.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+                                  border: Border.all(color: AppTokens.accent.withValues(alpha: 0.45)),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.bookmark_added_rounded, size: 15, color: AppTokens.accent),
+                                    const SizedBox(width: AppTokens.spaceSm),
+                                    Expanded(
+                                      child: Text(
+                                        s.titleOverrideNotice,
+                                        style: const TextStyle(fontSize: 11.5, height: 1.3, color: AppTokens.textPrimary),
+                                      ),
+                                    ),
+                                    TextButton(
+                                      style: TextButton.styleFrom(
+                                        foregroundColor: AppTokens.accent,
+                                        visualDensity: VisualDensity.compact,
+                                        padding: const EdgeInsets.symmetric(horizontal: AppTokens.spaceSm),
+                                      ),
+                                      onPressed: () {
+                                        _clearTitleOverride();
+                                        refresh();
+                                      },
+                                      child: Text(
+                                        s.resetToGlobalSettings,
+                                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: AppTokens.spaceMd),
+                            ],
+                            _ReaderSheetCard(
+                              icon: Icons.chrome_reader_mode_outlined,
+                              title: s.sectionMode,
+                              children: [
+                                Wrap(
+                                  spacing: AppTokens.spaceSm,
+                                  runSpacing: AppTokens.spaceSm,
+                                  children: [
+                                    _ReaderPresetChip(
+                                      icon: Icons.view_day_rounded,
+                                      label: s.presetWebtoon,
+                                      selected: isVertical &&
+                                          _boxFit == ReadBoxFit.fitWidth &&
+                                          _tapZoneLayout == TapZoneLayout.standard &&
+                                          _autoScrollSpeed == 1.5,
+                                      onTap: () {
+                                        _applyPreset(_ReaderPreset.webtoon);
+                                        refresh();
+                                      },
+                                    ),
+                                    _ReaderPresetChip(
+                                      icon: Icons.menu_book_rounded,
+                                      label: s.presetMangaRtl,
+                                      selected: _readMode == ReadMode.rtl &&
+                                          _boxFit == ReadBoxFit.contain &&
+                                          _dualPageMode == DualPageMode.auto &&
+                                          _tapZoneLayout == TapZoneLayout.standard,
+                                      onTap: () {
+                                        _applyPreset(_ReaderPreset.mangaRtl);
+                                        refresh();
+                                      },
+                                    ),
+                                    _ReaderPresetChip(
+                                      icon: Icons.auto_stories_rounded,
+                                      label: s.presetComicLtr,
+                                      selected: _readMode == ReadMode.ltr &&
+                                          _boxFit == ReadBoxFit.contain &&
+                                          _dualPageMode == DualPageMode.single,
+                                      onTap: () {
+                                        _applyPreset(_ReaderPreset.comicLtr);
+                                        refresh();
+                                      },
+                                    ),
+                                  ],
+                                ),
+                                _ReaderSheetRow(
+                                  label: s.readingMode,
+                                  control: _ReaderSheetSelect<ReadMode>(
+                                    value: _readMode,
+                                    options: [
+                                      _ReaderSheetOption(ReadMode.vertical, s.modeWebtoon),
+                                      _ReaderSheetOption(ReadMode.ltr, s.modeLtr),
+                                      _ReaderSheetOption(ReadMode.rtl, s.modeRtl),
+                                    ],
+                                    onChanged: (mode) =>
+                                        select(_currentPrefs.copyWith(mode: mode.name)),
+                                  ),
+                                ),
+                                if (!isVertical) ...[
+                                  _ReaderSheetRow(
+                                    label: s.pageLayout,
+                                    control: _ReaderSheetSelect<DualPageMode>(
+                                      value: _dualPageMode,
+                                      options: [
+                                        _ReaderSheetOption(DualPageMode.auto, s.layoutAuto),
+                                        _ReaderSheetOption(DualPageMode.single, s.layoutSingle),
+                                        _ReaderSheetOption(DualPageMode.dual, s.layoutDual),
+                                      ],
+                                      onChanged: (layout) =>
+                                          select(_currentPrefs.copyWith(dualPage: layout.name)),
+                                    ),
+                                  ),
+                                  _ReaderSheetRow(
+                                    label: s.pageScale,
+                                    control: _ReaderSheetSelect<ReadBoxFit>(
+                                      value: _boxFit,
+                                      options: [
+                                        _ReaderSheetOption(ReadBoxFit.contain, s.scaleFitScreen),
+                                        _ReaderSheetOption(ReadBoxFit.fitWidth, s.scaleFitWidth),
+                                        _ReaderSheetOption(ReadBoxFit.cover, s.scaleCover),
+                                      ],
+                                      onChanged: (fit) =>
+                                          select(_currentPrefs.copyWith(boxFit: fit.name)),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                            _ReaderSheetCard(
+                              icon: Icons.touch_app_rounded,
+                              title: s.sectionNavigation,
+                              children: [
+                                _ReaderSheetRow(
+                                  label: s.tapZones,
+                                  control: _ReaderSheetSelect<TapZoneLayout>(
+                                    value: _tapZoneLayout,
+                                    options: [
+                                      _ReaderSheetOption(TapZoneLayout.standard, s.tapStandard),
+                                      _ReaderSheetOption(TapZoneLayout.inverted, s.tapInverted),
+                                      _ReaderSheetOption(TapZoneLayout.edgesOnly, s.tapEdges),
+                                    ],
+                                    onChanged: (zones) =>
+                                        select(_currentPrefs.copyWith(tapZones: zones.name)),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            _ReaderSheetCard(
+                              icon: Icons.image_outlined,
+                              title: s.sectionImage,
+                              children: [
+                                _ReaderSheetRow(
+                                  label: s.backgroundColor,
+                                  control: _ReaderSheetSelect<ReadBgColor>(
+                                    value: _bgColor,
+                                    options: [
+                                      _ReaderSheetOption(ReadBgColor.black, s.bgBlack),
+                                      _ReaderSheetOption(ReadBgColor.darkGrey, s.bgGrey),
+                                      _ReaderSheetOption(ReadBgColor.white, s.bgWhite),
+                                    ],
+                                    onChanged: (bg) =>
+                                        select(_currentPrefs.copyWith(background: bg.name)),
+                                  ),
+                                ),
+                                sliderRow(
+                                  label: s.pageBrightness,
+                                  value: '${(_brightness * 100).toInt()}%',
+                                  min: 0.2,
+                                  max: 1.0,
+                                  divisions: 16,
+                                  current: _brightness,
+                                  apply: (val) => _brightness = val,
+                                ),
+                                _ReaderSheetRow(
+                                  label: s.colorFilter,
+                                  control: _ReaderSheetSelect<ReadColorFilter>(
+                                    value: _filterMode,
+                                    options: [
+                                      _ReaderSheetOption(ReadColorFilter.none, s.filterNormal),
+                                      _ReaderSheetOption(ReadColorFilter.invert, s.filterInvert),
+                                      _ReaderSheetOption(ReadColorFilter.sepia, s.filterSepia),
+                                    ],
+                                    onChanged: (filter) =>
+                                        select(_currentPrefs.copyWith(colorFilter: filter.name)),
+                                  ),
+                                ),
+                                _ReaderSheetRow(
+                                  label: s.sharpeningFilter,
+                                  control: _ReaderSheetSelect<ReadSharpenMode>(
+                                    value: _sharpenMode,
+                                    options: [
+                                      _ReaderSheetOption(ReadSharpenMode.off, s.sharpeningOff),
+                                      _ReaderSheetOption(ReadSharpenMode.subtle, s.sharpeningSubtle),
+                                      _ReaderSheetOption(ReadSharpenMode.high, s.sharpeningHigh),
+                                    ],
+                                    onChanged: (sharpen) =>
+                                        select(_currentPrefs.copyWith(sharpen: sharpen.name)),
+                                  ),
+                                ),
+                                _ReaderSheetRow(
+                                  label: s.cropBorders,
+                                  subtitle: s.cropBordersSubtitle,
+                                  control: Switch(
+                                    value: _cropBorders,
+                                    onChanged: (val) =>
+                                        select(_currentPrefs.copyWith(cropBorders: val)),
+                                  ),
+                                ),
+                                if (_cropBorders)
+                                  sliderRow(
+                                    label: s.cropMargin,
+                                    value: '${_cropPercent.toInt()}%',
+                                    min: 1.0,
+                                    max: 10.0,
+                                    divisions: 9,
+                                    current: _cropPercent,
+                                    apply: (val) => _cropPercent = val,
+                                  ),
+                              ],
+                            ),
+                            _ReaderSheetCard(
+                              icon: Icons.swap_vert_rounded,
+                              title: s.sectionScrolling,
+                              children: [
+                                sliderRow(
+                                  label: s.autoScrollSpeed,
+                                  value: '${_autoScrollSpeed.toStringAsFixed(1)}x',
+                                  min: 0.5,
+                                  max: 5.0,
+                                  divisions: 9,
+                                  current: _autoScrollSpeed,
+                                  apply: (val) => _autoScrollSpeed = val,
+                                ),
+                                sliderRow(
+                                  label: s.pagePreload,
+                                  value: '${_preloadRadius.clamp(1, 10)}',
+                                  min: 1,
+                                  max: 10,
+                                  divisions: 9,
+                                  current: _preloadRadius.toDouble().clamp(1.0, 10.0),
+                                  apply: (val) => _preloadRadius = val.round().clamp(1, 12),
+                                ),
+                              ],
+                            ),
+                            _ReaderSheetCard(
+                              icon: Icons.double_arrow_rounded,
+                              title: s.sectionTransitions,
+                              children: [
+                                _ReaderSheetRow(
+                                  label: s.autoNextChapterTitle,
+                                  subtitle: s.autoNextChapterSubtitle,
+                                  control: Switch(
+                                    value: _autoNextChapter,
+                                    onChanged: (val) =>
+                                        select(_currentPrefs.copyWith(autoNextChapter: val)),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                       ),
-                    ],
+                    ),
                   ],
                 ),
               ),
@@ -2362,6 +2866,55 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
           },
         );
       },
+    );
+  }
+
+  Widget _buildNextChapterBanner(ReaderStrings s) {
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: Material(
+        color: AppTokens.surfaceRaised.withValues(alpha: 0.94),
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppTokens.radiusLg),
+          side: BorderSide(color: AppTokens.accent.withValues(alpha: 0.55)),
+        ),
+        child: InkWell(
+          onTap: _navigateToNextChapter,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.skip_next_rounded, size: 16, color: AppTokens.accent),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    _nextChapter != null ? s.nextChapterBanner(_nextChapter!.number) : s.nextChapter,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: Colors.white),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                if (_isNextChapterPreparing)
+                  const SizedBox(
+                    width: 12,
+                    height: 12,
+                    child: CircularProgressIndicator(strokeWidth: 1.8, color: AppTokens.accent),
+                  )
+                else if (_isNextChapterReady) ...[
+                  const Icon(Icons.check_circle_rounded, size: 13, color: AppTokens.accent),
+                  const SizedBox(width: 4),
+                  Text(
+                    s.nextChapterReady,
+                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppTokens.textSecondary),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -3135,4 +3688,294 @@ class _ReaderHudState extends State<_ReaderHud> {
       },
     );
   }
+}
+
+class _ReaderSheetCard extends StatelessWidget {
+  const _ReaderSheetCard({
+    required this.icon,
+    required this.title,
+    required this.children,
+  });
+
+  final IconData icon;
+  final String title;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppTokens.spaceMd),
+      padding: const EdgeInsets.fromLTRB(AppTokens.spaceMd, AppTokens.spaceSm, AppTokens.spaceMd, AppTokens.spaceSm),
+      decoration: BoxDecoration(
+        color: AppTokens.surfaceCard,
+        borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+        border: Border.all(color: AppTokens.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: AppTokens.spaceXs, bottom: AppTokens.spaceXs),
+            child: Row(
+              children: [
+                Icon(icon, size: 16, color: AppTokens.accent),
+                const SizedBox(width: AppTokens.spaceSm),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.6,
+                    color: AppTokens.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          ...children,
+        ],
+      ),
+    );
+  }
+}
+
+class _ReaderSheetRow extends StatelessWidget {
+  const _ReaderSheetRow({
+    required this.label,
+    this.subtitle,
+    required this.control,
+  });
+
+  final String label;
+  final String? subtitle;
+  final Widget control;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppTokens.textPrimary),
+                ),
+                if (subtitle != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle!,
+                    style: const TextStyle(fontSize: 11, height: 1.3, color: AppTokens.textSecondary),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: AppTokens.spaceMd),
+          control,
+        ],
+      ),
+    );
+  }
+}
+
+class _ReaderSheetValueBadge extends StatelessWidget {
+  const _ReaderSheetValueBadge(this.value);
+
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minWidth: 52),
+      padding: const EdgeInsets.symmetric(horizontal: AppTokens.spaceSm, vertical: AppTokens.spaceXs),
+      decoration: BoxDecoration(
+        color: AppTokens.surfaceRaised,
+        borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+        border: Border.all(color: AppTokens.borderStrong),
+      ),
+      child: Text(
+        value,
+        textAlign: TextAlign.center,
+        style: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.4,
+          color: Colors.white,
+          fontFeatures: AppTheme.tabularFigures,
+        ),
+      ),
+    );
+  }
+}
+
+class _ReaderSheetOption<T> {
+  const _ReaderSheetOption(this.value, this.label);
+
+  final T value;
+  final String label;
+}
+
+class _ReaderSheetSelect<T> extends StatelessWidget {
+  const _ReaderSheetSelect({
+    required this.value,
+    required this.options,
+    required this.onChanged,
+  });
+
+  final T value;
+  final List<_ReaderSheetOption<T>> options;
+  final ValueChanged<T> onChanged;
+
+  _ReaderSheetOption<T> get _current {
+    for (final option in options) {
+      if (option.value == value) return option;
+    }
+    return options.first;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<T>(
+      tooltip: '',
+      initialValue: value,
+      color: AppTokens.surfaceRaised,
+      position: PopupMenuPosition.under,
+      padding: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+        side: const BorderSide(color: AppTokens.borderStrong),
+      ),
+      onSelected: onChanged,
+      itemBuilder: (context) => [
+        for (final option in options)
+          PopupMenuItem<T>(
+            value: option.value,
+            height: 40,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  width: 20,
+                  child: option.value == value
+                      ? const Icon(Icons.check_rounded, size: 16, color: AppTokens.accent)
+                      : null,
+                ),
+                Text(
+                  option.label,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: option.value == value ? FontWeight.w600 : FontWeight.normal,
+                    color: option.value == value ? Colors.white : AppTokens.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 180),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(10, 7, 6, 7),
+          decoration: BoxDecoration(
+            color: AppTokens.surfaceRaised,
+            borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+            border: Border.all(color: AppTokens.borderStrong),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: Text(
+                  _current.label,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: Colors.white),
+                ),
+              ),
+              const SizedBox(width: 2),
+              const Icon(Icons.expand_more_rounded, size: 16, color: AppTokens.accent),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ReaderPresetChip extends StatelessWidget {
+  const _ReaderPresetChip({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected ? AppTokens.accent.withValues(alpha: 0.16) : AppTokens.surfaceRaised,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+        side: BorderSide(color: selected ? AppTokens.accent : AppTokens.borderStrong),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 15, color: selected ? AppTokens.accent : AppTokens.textSecondary),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: selected ? Colors.white : AppTokens.textPrimary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ChapterListScrollHost extends StatefulWidget {
+  const _ChapterListScrollHost({
+    required this.initialOffset,
+    required this.builder,
+  });
+
+  final double initialOffset;
+  final Widget Function(ScrollController controller) builder;
+
+  @override
+  State<_ChapterListScrollHost> createState() => _ChapterListScrollHostState();
+}
+
+class _ChapterListScrollHostState extends State<_ChapterListScrollHost> {
+  late final ScrollController _controller =
+      ScrollController(initialScrollOffset: widget.initialOffset);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.builder(_controller);
 }

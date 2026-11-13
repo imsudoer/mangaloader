@@ -117,6 +117,38 @@ class ReaderStrings extends AppStrings {
   String get resetTitleSettings =>
       isRu ? 'Сбросить настройки для этого тайтла' : 'Reset settings for this title';
 
+  String get resetSettings => isRu ? 'Сбросить' : 'Reset';
+  String get resetToGlobalSettings =>
+      isRu ? 'Сбросить к общим' : 'Reset to global';
+  String get titleOverrideNotice => isRu
+      ? 'Для этого тайтла сохранены свои настройки'
+      : 'This title has its own saved settings';
+  String get sectionMode => isRu ? 'Режим' : 'Mode';
+  String get sectionNavigation => isRu ? 'Навигация' : 'Navigation';
+  String get sectionImage => isRu ? 'Изображение' : 'Image';
+  String get sectionScrolling => isRu ? 'Прокрутка' : 'Scrolling';
+  String get sectionTransitions => isRu ? 'Переходы' : 'Transitions';
+  String get autoNextChapterTitle =>
+      isRu ? 'Плавный переход к следующей главе' : 'Seamless next chapter';
+  String get autoNextChapterSubtitle => isRu
+      ? 'Следующая глава готовится заранее, пока вы читаете эту'
+      : 'The next chapter is prepared in advance while you read';
+  String nextChapterBanner(String number) =>
+      isRu ? 'Далее: Глава $number' : 'Next: Ch. $number';
+  String get nextChapterReady => isRu ? 'готово' : 'ready';
+  String get youAreHere => isRu ? 'вы здесь' : 'you are here';
+  String get presetWebtoon => isRu ? 'Вебтун' : 'Webtoon';
+  String get presetMangaRtl => isRu ? 'Манга RTL' : 'Manga RTL';
+  String get presetComicLtr => isRu ? 'Комикс LTR' : 'Comic LTR';
+  String get autoScrollSpeed =>
+      isRu ? 'Скорость автопрокрутки' : 'Autoscroll speed';
+  String get menuAutoScroll => isRu ? 'Автопрокрутка' : 'Autoscroll';
+  String get menuStopAutoScroll =>
+      isRu ? 'Остановить автопрокрутку' : 'Stop autoscroll';
+  String get exitFullscreen =>
+      isRu ? 'Выйти из полноэкранного режима' : 'Exit fullscreen';
+  String get moreActions => isRu ? 'Ещё' : 'More';
+
   String get latestChapterReached =>
       isRu ? 'Вы прочитали последнюю главу!' : 'You reached the latest chapter!';
   String get stayTuned => isRu
