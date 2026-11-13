@@ -6,6 +6,9 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
+// These functions are ignored because they are not marked as `pub`: `comic_info_xml`, `escape_xml_text`, `export_from_archive`, `export_from_directory`, `invalidate_archive_cache`, `is_image_entry`, `lock_cache`, `open_archive`, `paths_refer_to_same_file`, `stored_options`, `with_open_archive`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ArchiveCache`, `CachedArchive`
+
 Future<String> exportChapterAsCbz(
         {required String mangaSlug,
         required String volume,

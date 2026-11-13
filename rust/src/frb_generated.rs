@@ -38,7 +38,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.12.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1567247411;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1685831353;
 
 // Section: executor
 
@@ -3288,6 +3288,44 @@ fn wire__crate__api__storage__save_reading_progress_impl(
         },
     )
 }
+fn wire__crate__api__storage__search_library_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "search_library",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_query = <String>::sse_decode(&mut deserializer);
+            let api_limit = <i64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::storage::search_library(api_query, api_limit).await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__mangalib_client__search_manga_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -3500,7 +3538,7 @@ fn wire__crate__api__download_engine__start_chapter_download_impl(
             let api_chapters =
                 <Vec<crate::api::models::ChapterDownloadRequest>>::sse_decode(&mut deserializer);
             let api_app_dir = <String>::sse_decode(&mut deserializer);
-            let api__concurrent_images = <i64>::sse_decode(&mut deserializer);
+            let api_concurrent_images = <i64>::sse_decode(&mut deserializer);
             let api_sink = <StreamSink<
                 crate::api::models::DownloadProgress,
                 flutter_rust_bridge::for_generated::SseCodec,
@@ -3514,7 +3552,7 @@ fn wire__crate__api__download_engine__start_chapter_download_impl(
                             api_manga_id,
                             api_chapters,
                             api_app_dir,
-                            api__concurrent_images,
+                            api_concurrent_images,
                             api_sink,
                         )
                         .await?;
@@ -5472,47 +5510,48 @@ fn pde_ffi_dispatcher_primary_impl(
         86 => {
             wire__crate__api__storage__save_reading_progress_impl(port, ptr, rust_vec_len, data_len)
         }
-        87 => {
+        87 => wire__crate__api__storage__search_library_impl(port, ptr, rust_vec_len, data_len),
+        88 => {
             wire__crate__api__mangalib_client__search_manga_impl(port, ptr, rust_vec_len, data_len)
         }
-        88 => {
+        89 => {
             wire__crate__api__mangalib_client__search_users_impl(port, ptr, rust_vec_len, data_len)
         }
-        90 => wire__crate__api__mangalib_client__set_manga_bookmark_impl(
+        91 => wire__crate__api__mangalib_client__set_manga_bookmark_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        91 => wire__crate__api__storage__set_setting_impl(port, ptr, rust_vec_len, data_len),
-        92 => wire__crate__api__download_engine__start_chapter_download_impl(
+        92 => wire__crate__api__storage__set_setting_impl(port, ptr, rust_vec_len, data_len),
+        93 => wire__crate__api__download_engine__start_chapter_download_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        93 => {
+        94 => {
             wire__crate__api__storage__sync_reading_streak_impl(port, ptr, rust_vec_len, data_len)
         }
-        94 => wire__crate__api__storage__update_manga_chapters_count_impl(
+        95 => wire__crate__api__storage__update_manga_chapters_count_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        95 => wire__crate__api__mangalib_client__update_user_privacy_impl(
+        96 => wire__crate__api__mangalib_client__update_user_privacy_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        96 => wire__crate__api__mangalib_client__update_user_profile_impl(
+        97 => wire__crate__api__mangalib_client__update_user_profile_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        97 => {
+        98 => {
             wire__crate__api__mangalib_client__vote_comment_impl(port, ptr, rust_vec_len, data_len)
         }
         _ => unreachable!(),
@@ -5536,7 +5575,7 @@ fn pde_ffi_dispatcher_sync_impl(
         76 => wire__crate__api__mangalib_client__parse_manga_url_impl(ptr, rust_vec_len, data_len),
         77 => wire__crate__api__download_engine__pause_downloads_impl(ptr, rust_vec_len, data_len),
         84 => wire__crate__api__download_engine__resume_downloads_impl(ptr, rust_vec_len, data_len),
-        89 => wire__crate__api__mangalib_client__set_cookies_impl(ptr, rust_vec_len, data_len),
+        90 => wire__crate__api__mangalib_client__set_cookies_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }

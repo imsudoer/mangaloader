@@ -7,7 +7,8 @@ import '../frb_generated.dart';
 import 'models.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `extract_text_from_tiptap`, `get_api_headers`, `get_img_headers`, `parse_manga_item`
+// These functions are ignored because they are not marked as `pub`: `cache_etag`, `cache_store`, `cache_value`, `extract_text_from_tiptap`, `get_api_headers`, `get_img_headers`, `get_json_cached`, `get_json_inner`, `get_json`, `is_retryable_status`, `lock_json_cache`, `parse_manga_item`, `response_excerpt`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `CachedJson`, `JsonCache`
 
 String getAppArchitecture() =>
     RustLib.instance.api.crateApiMangalibClientGetAppArchitecture();

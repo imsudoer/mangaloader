@@ -6,9 +6,11 @@ use crate::api::models::{
 use anyhow::{Context, Result};
 use once_cell::sync::Lazy;
 use rusqlite::{params, Connection, OptionalExtension};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 
 static DB: Lazy<Mutex<Option<Connection>>> = Lazy::new(|| Mutex::new(None));
+static FTS_AVAILABLE: AtomicBool = AtomicBool::new(false);
 
 pub async fn init_database(app_dir: String) -> Result<()> {
     let db_path = format!("{}/mangaloader.db", app_dir);
@@ -197,8 +199,89 @@ pub async fn init_database(app_dir: String) -> Result<()> {
          CREATE INDEX IF NOT EXISTS idx_custom_tags_manga ON manga_custom_tags(manga_id);",
     );
 
+    // Full-text index over the locally known titles. Standalone (not external
+    // content) so rows can be maintained explicitly without the REPLACE-trigger
+    // pitfalls of external content tables.
+    let fts_ready = conn
+        .execute_batch(
+            "CREATE VIRTUAL TABLE IF NOT EXISTS manga_fts USING fts5(
+                name, rus_name, eng_name, slug_url,
+                tokenize='unicode61 remove_diacritics 2'
+            );",
+        )
+        .is_ok();
+    if fts_ready {
+        let _ = rebuild_manga_fts(&conn);
+    }
+    FTS_AVAILABLE.store(fts_ready, Ordering::Relaxed);
+
     *DB.lock().unwrap() = Some(conn);
     Ok(())
+}
+
+/// Rebuilds the whole full-text index from the manga table. Cheap for the size of a
+/// personal library and used after bulk writes (imports) where per-row maintenance
+/// would be more expensive than one pass.
+fn rebuild_manga_fts(conn: &Connection) -> rusqlite::Result<()> {
+    conn.execute("DELETE FROM manga_fts", [])?;
+    conn.execute(
+        "INSERT INTO manga_fts(rowid, name, rus_name, eng_name, slug_url)
+         SELECT id, COALESCE(name, ''), COALESCE(rus_name, ''), COALESCE(eng_name, ''), COALESCE(slug_url, '')
+         FROM manga",
+        [],
+    )?;
+    Ok(())
+}
+
+fn upsert_manga_fts_row(conn: &Connection, manga: &MangaDetails) {
+    if !FTS_AVAILABLE.load(Ordering::Relaxed) {
+        return;
+    }
+    let _ = conn.execute("DELETE FROM manga_fts WHERE rowid = ?1", params![manga.id]);
+    let _ = conn.execute(
+        "INSERT INTO manga_fts(rowid, name, rus_name, eng_name, slug_url) VALUES (?1, ?2, ?3, ?4, ?5)",
+        params![
+            manga.id,
+            manga.name,
+            manga.rus_name,
+            manga.eng_name,
+            manga.slug_url
+        ],
+    );
+}
+
+/// FTS5 treats a lot of punctuation as query syntax; user input is reduced to
+/// prefix-matched string literals so a stray quote cannot break the query.
+fn build_fts_query(raw: &str) -> String {
+    let mut tokens = Vec::new();
+    for token in raw.split(|c: char| !c.is_alphanumeric()) {
+        if token.is_empty() {
+            continue;
+        }
+        tokens.push(format!("\"{}\"*", token.replace('"', "\"\"")));
+    }
+    tokens.join(" ")
+}
+
+fn map_local_manga_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<MangaSearchResult> {
+    Ok(MangaSearchResult {
+        id: row.get("id")?,
+        name: row.get("name")?,
+        rus_name: row.get("rus_name").unwrap_or_default(),
+        eng_name: row.get("eng_name").unwrap_or_default(),
+        slug: row.get("slug").unwrap_or_default(),
+        slug_url: row.get("slug_url")?,
+        cover_url: row.get("cover_url").unwrap_or_default(),
+        cover_thumb_url: row.get("cover_thumb_url").unwrap_or_default(),
+        manga_type: row.get("manga_type").unwrap_or_default(),
+        type_id: row.get("type_id").unwrap_or(0),
+        status: row.get("status").unwrap_or_default(),
+        status_id: row.get("status_id").unwrap_or(0),
+        age_restriction: row.get("age_restriction").unwrap_or_default(),
+        rating_average: row.get("rating_average").unwrap_or_else(|_| "0".to_string()),
+        rating_votes: row.get("rating_votes").unwrap_or_else(|_| "0".to_string()),
+        release_date: row.get("release_date").ok(),
+    })
 }
 
 fn get_conn() -> Result<std::sync::MutexGuard<'static, Option<Connection>>> {
@@ -251,6 +334,8 @@ pub async fn save_manga(manga: MangaDetails) -> Result<()> {
             manga.views_formatted, format_labels_json, manga.publisher_name
         ],
     )?;
+
+    upsert_manga_fts_row(conn, &manga);
     Ok(())
 }
 
@@ -301,6 +386,8 @@ pub async fn bulk_import_bookmarks(items: Vec<MangaSearchResult>, list_type: Str
     }
 
     tx.commit()?;
+    // One pass is cheaper than per-row index maintenance for a bulk import.
+    let _ = rebuild_manga_fts(conn);
     Ok(count)
 }
 
@@ -353,6 +440,62 @@ pub async fn get_cached_manga(slug_url: String) -> Result<Option<MangaDetails>> 
     }).optional()?;
 
     Ok(row)
+}
+
+/// Offline full-text search over every title stored locally (library, opened or
+/// downloaded). An empty query lists the most recently touched titles, which keeps
+/// the catalog usable without a network connection.
+pub async fn search_library(query: String, limit: i64) -> Result<Vec<MangaSearchResult>> {
+    let guard = get_conn()?;
+    let conn = guard.as_ref().unwrap();
+    let max_rows = limit.clamp(1, 200);
+    let trimmed = query.trim();
+    let mut results = Vec::new();
+
+    if trimmed.is_empty() {
+        let mut stmt = conn.prepare(
+            "SELECT * FROM manga ORDER BY last_updated DESC, id DESC LIMIT ?1",
+        )?;
+        let iter = stmt.query_map(params![max_rows], map_local_manga_row)?;
+        for row in iter {
+            results.push(row?);
+        }
+        return Ok(results);
+    }
+
+    if FTS_AVAILABLE.load(Ordering::Relaxed) {
+        let fts_query = build_fts_query(trimmed);
+        if !fts_query.is_empty() {
+            if let Ok(mut stmt) = conn.prepare(
+                "SELECT m.* FROM manga_fts f JOIN manga m ON m.id = f.rowid
+                 WHERE manga_fts MATCH ?1
+                 ORDER BY bm25(manga_fts) LIMIT ?2",
+            ) {
+                if let Ok(iter) = stmt.query_map(params![fts_query, max_rows], map_local_manga_row) {
+                    for row in iter.flatten() {
+                        results.push(row);
+                    }
+                }
+            }
+        }
+    }
+
+    // Covers builds whose SQLite lacks FTS5 and queries the tokenizer cannot serve.
+    if results.is_empty() {
+        let pattern = format!("%{}%", trimmed.to_lowercase());
+        let mut stmt = conn.prepare(
+            "SELECT * FROM manga
+             WHERE lower(name) LIKE ?1 OR lower(rus_name) LIKE ?1
+                OR lower(eng_name) LIKE ?1 OR lower(slug_url) LIKE ?1
+             ORDER BY last_updated DESC LIMIT ?2",
+        )?;
+        let iter = stmt.query_map(params![pattern, max_rows], map_local_manga_row)?;
+        for row in iter.flatten() {
+            results.push(row);
+        }
+    }
+
+    Ok(results)
 }
 
 pub async fn add_to_list(manga_id: i64, list_type: String) -> Result<()> {
@@ -1309,6 +1452,7 @@ pub async fn import_backup_json(json_content: String) -> Result<bool> {
         )?;
     }
 
+    let _ = rebuild_manga_fts(conn);
     Ok(true)
 }
 

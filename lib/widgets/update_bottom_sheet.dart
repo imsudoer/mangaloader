@@ -5,6 +5,7 @@ import 'package:mangaloader/providers/settings_provider.dart';
 import 'package:mangaloader/services/update_checker.dart';
 import 'package:mangaloader/services/update_downloader.dart';
 import 'package:mangaloader/src/rust/api/mangalib_client.dart' as rust_client;
+import 'package:mangaloader/widgets/changelog_markdown.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class AppUpdateBottomSheet extends ConsumerWidget {
@@ -259,14 +260,7 @@ class AppUpdateBottomSheet extends ConsumerWidget {
                     border: Border.all(color: const Color(0xFF353535)),
                   ),
                   child: SingleChildScrollView(
-                    child: Text(
-                      update.changelog.trim(),
-                      style: const TextStyle(
-                        fontSize: 12.5,
-                        color: Color(0xFFD2D7DF),
-                        height: 1.5,
-                      ),
-                    ),
+                    child: ChangelogMarkdown(update.changelog.trim()),
                   ),
                 ),
               ),

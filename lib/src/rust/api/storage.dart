@@ -7,7 +7,7 @@ import '../frb_generated.dart';
 import 'models.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `get_conn`, `sort_downloaded_chapters_ascending`
+// These functions are ignored because they are not marked as `pub`: `build_fts_query`, `get_conn`, `local_date`, `map_local_manga_row`, `rebuild_manga_fts`, `sort_downloaded_chapters_ascending`, `upsert_manga_fts_row`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `BackupData`, `BackupUserList`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `fmt`, `fmt`
 
@@ -24,6 +24,14 @@ Future<PlatformInt64> bulkImportBookmarks(
 
 Future<MangaDetails?> getCachedManga({required String slugUrl}) =>
     RustLib.instance.api.crateApiStorageGetCachedManga(slugUrl: slugUrl);
+
+/// Offline full-text search over every title stored locally (library, opened or
+/// downloaded). An empty query lists the most recently touched titles, which keeps
+/// the catalog usable without a network connection.
+Future<List<MangaSearchResult>> searchLibrary(
+        {required String query, required PlatformInt64 limit}) =>
+    RustLib.instance.api
+        .crateApiStorageSearchLibrary(query: query, limit: limit);
 
 Future<void> addToList(
         {required PlatformInt64 mangaId, required String listType}) =>

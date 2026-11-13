@@ -181,6 +181,16 @@ class CatalogState {
 
 final catalogFilterProvider = StateProvider<CatalogFilter>((ref) => const CatalogFilter());
 
+/// Offline full-text search over every locally stored title (library, opened or
+/// downloaded). An empty query returns the most recently touched titles.
+final localSearchProvider =
+    FutureProvider.autoDispose.family<List<MangaSearchResult>, String>(
+  (ref, query) async {
+    final results = await rust_storage.searchLibrary(query: query, limit: 80);
+    return ContentFilter.filterSearchResults(results);
+  },
+);
+
 final searchProvider =
     StateNotifierProvider<SearchNotifier, AsyncValue<CatalogState>>((ref) {
   final notifier = SearchNotifier(ref);

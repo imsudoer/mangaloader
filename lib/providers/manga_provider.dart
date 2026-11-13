@@ -4,6 +4,7 @@ import 'package:mangaloader/src/rust/api/storage.dart' as rust_storage;
 import 'package:mangaloader/src/rust/api/models.dart';
 
 import 'package:mangaloader/services/content_filter.dart';
+import 'package:mangaloader/utils/title_match.dart';
 
 final mangaDetailsProvider = FutureProvider.family<MangaDetails, String>((ref, slugUrl) async {
   if (ContentFilter.isBlockedText(slugUrl)) {
@@ -108,5 +109,54 @@ final mangaConstantsProvider = FutureProvider<MangaConstants>((ref) async {
       genres: [],
       tags: [],
     );
+  }
+});
+
+/// Identifies the catalog entry whose alternate formats should be looked up.
+class AlternateEditionsQuery {
+  final int id;
+  final String title;
+  final EditionKind kind;
+
+  const AlternateEditionsQuery({
+    required this.id,
+    required this.title,
+    required this.kind,
+  });
+
+  @override
+  bool operator ==(Object other) =>
+      other is AlternateEditionsQuery &&
+      other.id == id &&
+      other.title == title &&
+      other.kind == kind;
+
+  @override
+  int get hashCode => Object.hash(id, title, kind);
+}
+
+/// Finds the same story published in another format (a manga next to its light
+/// novel, for instance). Relations cover most cases, but MangaLib does not link
+/// every such pair, so the catalog is also queried by title and compared.
+final alternateEditionsProvider = FutureProvider.autoDispose
+    .family<List<MangaSearchResult>, AlternateEditionsQuery>((ref, query) async {
+  if (query.title.trim().isEmpty || ContentFilter.isBlockedText(query.title)) {
+    return const [];
+  }
+  try {
+    final results = await rust_api.searchManga(query: query.title);
+    return ContentFilter.filterSearchResults(results).where((m) {
+      if (m.id == query.id) return false;
+      final kind = editionKindOf(m.mangaType);
+      if (kind == EditionKind.other || kind == query.kind) return false;
+      final title = primaryTitle(
+        name: m.name,
+        rusName: m.rusName,
+        engName: m.engName,
+      );
+      return isSameStoryTitles(title, query.title);
+    }).toList();
+  } catch (_) {
+    return const [];
   }
 });

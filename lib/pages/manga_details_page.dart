@@ -16,6 +16,7 @@ import 'package:mangaloader/widgets/manga_comments_modal.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mangaloader/src/rust/api/storage.dart' as rust_storage;
 import 'package:mangaloader/src/rust/api/models.dart';
+import 'package:mangaloader/utils/title_match.dart';
 
 final mangaHistoryProvider = FutureProvider.family<List<ChapterHistory>, int>((ref, mangaId) async {
   return rust_storage.getChapterHistory(mangaId: mangaId);
@@ -1188,6 +1189,9 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        // Other formats of the same story (manga / light novel / etc.)
+        _buildAlternateEditionsSection(manga, isRu),
+
         // Authors & Artists Cards
         if (manga.authors.isNotEmpty || manga.artists.isNotEmpty) ...[
           Card(
@@ -1326,6 +1330,191 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
         // Similar manga section
         _buildSimilarSection(manga.slugUrl, isRu),
       ],
+    );
+  }
+
+  /// Suggests the same story published in another format (manga next to a light novel).
+  /// Relations catch the officially linked ones; a title lookup covers the rest.
+  Widget _buildAlternateEditionsSection(MangaDetails manga, bool isRu) {
+    final currentTitle = primaryTitle(
+      name: manga.name,
+      rusName: manga.rusName,
+      engName: manga.engName,
+    );
+    if (currentTitle.trim().isEmpty) return const SizedBox.shrink();
+
+    final currentKind = editionKindOf(manga.mangaType);
+    final query = AlternateEditionsQuery(
+      id: manga.id,
+      title: currentTitle,
+      kind: currentKind,
+    );
+
+    final nameMatches =
+        ref.watch(alternateEditionsProvider(query)).valueOrNull ??
+            const <MangaSearchResult>[];
+    final relations =
+        ref.watch(mangaRelationsProvider(manga.slugUrl)).valueOrNull ??
+            const <MangaRelationItem>[];
+
+    final seen = <String>{manga.slugUrl};
+    final editions = <MangaSearchResult>[];
+
+    void addCandidate(MangaSearchResult candidate) {
+      if (candidate.slugUrl.isEmpty || !seen.add(candidate.slugUrl)) return;
+      final kind = editionKindOf(candidate.mangaType);
+      if (kind == EditionKind.other || kind == currentKind) return;
+      editions.add(candidate);
+    }
+
+    for (final relation in relations) {
+      addCandidate(relation.manga);
+    }
+    for (final candidate in nameMatches) {
+      addCandidate(candidate);
+    }
+    if (editions.isEmpty) return const SizedBox.shrink();
+
+    final formats = editions
+        .map((e) => e.mangaType.trim())
+        .where((label) => label.isNotEmpty)
+        .toSet()
+        .join(' · ');
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      color: const Color(0xFF262620),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: Color(0xFF4A4A3E)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.auto_stories_rounded,
+                    size: 18, color: Color(0xFF8A897C)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    isRu
+                        ? 'Другая версия этой истории'
+                        : 'Another version of this story',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13.5,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (formats.isNotEmpty) ...[
+              const SizedBox(height: 2),
+              Text(
+                isRu ? 'Доступно в формате: $formats' : 'Available as: $formats',
+                style: const TextStyle(fontSize: 11.5, color: Color(0xFFBDBBB0)),
+              ),
+            ],
+            const SizedBox(height: 10),
+            SizedBox(
+              height: 168,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: editions.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 10),
+                itemBuilder: (ctx, index) {
+                  final edition = editions[index];
+                  final title = primaryTitle(
+                    name: edition.name,
+                    rusName: edition.rusName,
+                    engName: edition.engName,
+                  );
+                  final cover = edition.coverThumbUrl.isNotEmpty
+                      ? edition.coverThumbUrl
+                      : edition.coverUrl;
+
+                  return SizedBox(
+                    width: 104,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(10),
+                      onTap: () => ctx.push('/manga/${edition.slugUrl}'),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Stack(
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(10),
+                                child: SizedBox(
+                                  width: 104,
+                                  height: 128,
+                                  child: cover.isNotEmpty
+                                      ? CachedNetworkImage(
+                                          imageUrl: cover,
+                                          fit: BoxFit.cover,
+                                          memCacheWidth: 240,
+                                          errorWidget: (_, __, ___) =>
+                                              const ColoredBox(
+                                            color: Color(0xFF333333),
+                                            child: Icon(Icons.broken_image,
+                                                size: 20, color: Colors.white54),
+                                          ),
+                                        )
+                                      : const ColoredBox(
+                                          color: Color(0xFF333333),
+                                          child: Icon(Icons.menu_book_rounded,
+                                              size: 20, color: Colors.white54),
+                                        ),
+                                ),
+                              ),
+                              if (edition.mangaType.isNotEmpty)
+                                Positioned(
+                                  left: 4,
+                                  top: 4,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 5, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withValues(alpha: 0.72),
+                                      borderRadius: BorderRadius.circular(5),
+                                    ),
+                                    child: Text(
+                                      edition.mangaType,
+                                      style: const TextStyle(
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 5),
+                          Text(
+                            title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              height: 1.25,
+                              color: Color(0xFFD2D7DF),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

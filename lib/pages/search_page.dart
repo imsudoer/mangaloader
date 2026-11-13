@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mangaloader/providers/search_provider.dart';
@@ -23,6 +25,30 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   final List<MangaCollectionItem> _collections = [];
   bool _isLoadingCollections = false;
   String? _collectionsError;
+
+  // Offline mode: search only what is already stored on the device.
+  bool _localOnly = false;
+  String _localQuery = '';
+  Timer? _localDebounce;
+
+  void _scheduleLocalSearch(String value) {
+    _localDebounce?.cancel();
+    _localDebounce = Timer(const Duration(milliseconds: 250), () {
+      if (!mounted) return;
+      setState(() => _localQuery = value.trim());
+    });
+  }
+
+  void _toggleLocalOnly(bool value) {
+    setState(() {
+      _localOnly = value;
+      _localQuery = _searchController.text.trim();
+    });
+    if (!value) {
+      // Switching back to the online catalog must re-run the remote query.
+      ref.read(searchProvider.notifier).search(_searchController.text);
+    }
+  }
 
   final List<Map<String, dynamic>> _sortOptions = [
     {'id': 'views', 'labelRu': 'Популярность', 'labelEn': 'Popularity'},
@@ -54,6 +80,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   @override
   void dispose() {
     _searchController.dispose();
+    _localDebounce?.cancel();
     super.dispose();
   }
 
@@ -91,10 +118,32 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     final isRu = Localizations.localeOf(context).languageCode == 'ru';
     final activeCount = filter.activeFiltersCount;
 
+    // In offline mode the same grid renders local FTS hits instead of the remote
+    // catalog, so pagination, empty and error states stay identical.
+    final AsyncValue<CatalogState> effectiveState = _localOnly
+        ? ref.watch(localSearchProvider(_localQuery)).when(
+              data: (items) => AsyncValue.data(
+                CatalogState(items: items, hasMore: false),
+              ),
+              loading: () => const AsyncValue.loading(),
+              error: AsyncValue.error,
+            )
+        : searchState;
+
     return Scaffold(
       appBar: AppBar(
         title: Text(isRu ? 'Каталог и поиск' : 'Catalog & Search'),
         actions: [
+          IconButton(
+            icon: Icon(
+              _localOnly ? Icons.offline_pin_rounded : Icons.offline_pin_outlined,
+              color: _localOnly ? const Color(0xFF8A897C) : null,
+            ),
+            tooltip: _localOnly
+                ? (isRu ? 'Искать в каталоге онлайн' : 'Search the online catalog')
+                : (isRu ? 'Искать только сохранённое' : 'Search saved titles only'),
+            onPressed: () => _toggleLocalOnly(!_localOnly),
+          ),
           IconButton(
             icon: const Icon(Icons.link_rounded),
             tooltip: isRu ? 'Вставить ссылку' : 'Paste Link',
@@ -153,7 +202,11 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                               icon: const Icon(Icons.clear_rounded),
                               onPressed: () {
                                 _searchController.clear();
-                                ref.read(searchProvider.notifier).search('');
+                                if (_localOnly) {
+                                  _scheduleLocalSearch('');
+                                } else {
+                                  ref.read(searchProvider.notifier).search('');
+                                }
                                 setState(() {});
                               },
                             )
@@ -170,7 +223,11 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                       },
                       onChanged: (val) {
                         setState(() {});
-                        ref.read(searchProvider.notifier).search(val);
+                        if (_localOnly) {
+                          _scheduleLocalSearch(val);
+                        } else {
+                          ref.read(searchProvider.notifier).search(val);
+                        }
                       },
                     ),
                   ),
@@ -259,6 +316,33 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 children: [
+                  Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: FilterChip(
+                      selected: _localOnly,
+                      showCheckmark: false,
+                      avatar: Icon(
+                        Icons.offline_pin_rounded,
+                        size: 15,
+                        color: _localOnly ? Colors.white : const Color(0xFF8A897C),
+                      ),
+                      label: Text(
+                        isRu ? 'Оффлайн-поиск' : 'Offline search',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: _localOnly ? FontWeight.bold : FontWeight.normal,
+                          color: _localOnly ? Colors.white : const Color(0xFFD2D7DF),
+                        ),
+                      ),
+                      selectedColor: const Color(0xFF8A897C),
+                      backgroundColor: const Color(0xFF2C2C2C),
+                      side: BorderSide(
+                        color: _localOnly ? const Color(0xFF8A897C) : const Color(0xFF3E3E3E),
+                      ),
+                      visualDensity: VisualDensity.compact,
+                      onSelected: _toggleLocalOnly,
+                    ),
+                  ),
                   // Sort Dropdown Menu
                   PopupMenuButton<String>(
                     initialValue: filter.sortBy,
@@ -396,7 +480,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 
           // Results Grid
           Expanded(
-            child: searchState.when(
+            child: effectiveState.when(
               data: (catalog) {
                 final items = catalog.items;
                 if (items.isEmpty) {

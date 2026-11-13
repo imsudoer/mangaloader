@@ -7,7 +7,7 @@ import '../frb_generated.dart';
 import 'models.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `is_valid_image_data`
+// These functions are ignored because they are not marked as `pub`: `fetch_page`, `is_valid_image_data`, `normalize_page_path`
 
 void pauseDownloads() =>
     RustLib.instance.api.crateApiDownloadEnginePauseDownloads();
