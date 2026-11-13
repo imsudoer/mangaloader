@@ -245,7 +245,9 @@ jobs:
       - name: Cache Cargokit Build Directory
         uses: actions/cache@v4
         with:
-          path: build/linux/x64/plugins/rust_lib_mangaloader/cargokit_build
+          # Flutter puts Linux plugin build dirs under the build-mode directory,
+          # so the exact depth depends on the tool version; the glob stays valid.
+          path: build/linux/**/cargokit_build
           key: cargokit-linux-${{ hashFiles('rust/Cargo.lock', 'rust_builder/**') }}
           restore-keys: |
             cargokit-linux-
