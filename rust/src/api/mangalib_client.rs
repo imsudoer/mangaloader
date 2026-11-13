@@ -13,6 +13,9 @@ use crate::api::models::{
 };
 
 static COOKIES: Lazy<Mutex<Option<String>>> = Lazy::new(|| Mutex::new(None));
+/// Laravel compares mutating requests against the URL-decoded `XSRF-TOKEN` cookie,
+/// which is not a fixed value per account, so it is cached next to the header.
+static XSRF_TOKEN: Lazy<Mutex<Option<String>>> = Lazy::new(|| Mutex::new(None));
 static HTTP_CLIENT: Lazy<Client> = Lazy::new(|| {
     ClientBuilder::new()
         .timeout(std::time::Duration::from_secs(30))
@@ -32,6 +35,10 @@ const HEADERS_API: &[(&str, &str)] = &[
     ("Site-Id", "1"),
     ("Content-Type", "application/json"),
     ("Client-Time-Zone", "Europe/Moscow"),
+    // Without this Laravel answers an unauthenticated API call with a 302 to the
+    // login page instead of a 401 JSON body, and the redirect target (the site
+    // homepage payload) would be parsed as if it were the requested resource.
+    ("X-Requested-With", "XMLHttpRequest"),
     ("Origin", "https://mangalib.org"),
     ("Referer", "https://mangalib.org/"),
     ("Sec-Fetch-Dest", "empty"),
@@ -75,6 +82,220 @@ fn get_img_headers() -> HeaderMap {
         headers.insert(*k, HeaderValue::from_static(v));
     }
     headers
+}
+
+const XSRF_COOKIE_NAME: &str = "XSRF-TOKEN";
+const SESSION_COOKIE_PREFIXES: [&str; 2] = ["mangalib_session", "remember_web_"];
+const DDG_COOKIE_PREFIX: &str = "__ddg";
+const LOGIN_REQUIRED_MSG: &str =
+    "Требуется вход в MangaLib: сессия не найдена или истекла. Войдите заново.";
+
+fn cookie_pair_from_export(entry: &Value) -> Option<(String, String)> {
+    let name = entry.get("name")?.as_str()?.trim();
+    let value = entry.get("value")?.as_str()?.trim();
+    (!name.is_empty() && !value.is_empty()).then(|| (name.to_string(), value.to_string()))
+}
+
+/// Reads both supported cookie formats: a ready `a=b; c=d` header and the JSON
+/// array produced by cookie-export browser extensions.
+fn parse_cookie_pairs(raw: &str) -> Vec<(String, String)> {
+    let trimmed = raw.trim();
+    if trimmed.starts_with('[') {
+        return match serde_json::from_str::<Value>(trimmed) {
+            Ok(Value::Array(entries)) => entries.iter().filter_map(cookie_pair_from_export).collect(),
+            _ => Vec::new(),
+        };
+    }
+
+    trimmed
+        .split(';')
+        .filter_map(|chunk| {
+            let (name, value) = chunk.split_once('=')?;
+            let name = name.trim();
+            let value = value.trim();
+            (!name.is_empty() && !value.is_empty()).then(|| (name.to_string(), value.to_string()))
+        })
+        .collect()
+}
+
+/// Collapses duplicates (last value wins) and keeps the host-scoped cookies the
+/// new input may not carry: DDoS-Guard issues `__ddg*` per host and the CSRF
+/// token is only present in the export, so a partial paste must not drop them.
+fn normalize_cookie_header(raw: &str, previous: Option<&str>) -> String {
+    let mut pairs: Vec<(String, String)> = Vec::new();
+    for (name, value) in parse_cookie_pairs(raw) {
+        match pairs.iter_mut().find(|(existing, _)| existing == &name) {
+            Some(slot) => slot.1 = value,
+            None => pairs.push((name, value)),
+        }
+    }
+
+    if let Some(previous) = previous {
+        for (name, value) in parse_cookie_pairs(previous) {
+            let carries_host_scope =
+                name.starts_with(DDG_COOKIE_PREFIX) || name.eq_ignore_ascii_case(XSRF_COOKIE_NAME);
+            if carries_host_scope && !pairs.iter().any(|(existing, _)| existing == &name) {
+                pairs.push((name, value));
+            }
+        }
+    }
+
+    pairs
+        .into_iter()
+        .map(|(name, value)| format!("{}={}", name, value))
+        .collect::<Vec<_>>()
+        .join("; ")
+}
+
+fn extract_xsrf_token(header: &str) -> Option<String> {
+    parse_cookie_pairs(header).into_iter().find_map(|(name, value)| {
+        name.eq_ignore_ascii_case(XSRF_COOKIE_NAME).then(|| {
+            urlencoding::decode(&value)
+                .map(|decoded| decoded.into_owned())
+                .unwrap_or(value)
+        })
+    })
+}
+
+fn stored_cookie_header() -> Option<String> {
+    COOKIES.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).clone()
+}
+
+fn stored_xsrf_token() -> Option<String> {
+    XSRF_TOKEN.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).clone()
+}
+
+fn has_session() -> bool {
+    stored_cookie_header()
+        .map(|header| {
+            parse_cookie_pairs(&header).iter().any(|(name, _)| {
+                SESSION_COOKIE_PREFIXES
+                    .iter()
+                    .any(|prefix| name.starts_with(prefix))
+            })
+        })
+        .unwrap_or(false)
+}
+
+fn login_required_error(detail: &str) -> anyhow::Error {
+    let detail = detail.trim();
+    if detail.is_empty() {
+        anyhow::anyhow!("{}", LOGIN_REQUIRED_MSG)
+    } else {
+        anyhow::anyhow!("{} ({})", LOGIN_REQUIRED_MSG, response_excerpt(detail))
+    }
+}
+
+/// Server messages are nested under `data.toast` for handled API errors and
+/// under `message` for framework-level failures. HTML pages (login/home) and
+/// JSON payloads without a message yield an empty string so error text stays
+/// readable instead of turning into markup.
+fn api_message(body: &str) -> String {
+    let trimmed = body.trim_start();
+    if trimmed.starts_with('{') {
+        if let Ok(value) = serde_json::from_str::<Value>(trimmed) {
+            let message = value
+                .get("data")
+                .and_then(|data| data.get("toast"))
+                .and_then(|toast| toast.get("message"))
+                .or_else(|| value.get("message"))
+                .and_then(|message| message.as_str());
+            return message.unwrap_or("").to_string();
+        }
+    }
+    if trimmed.starts_with('<') {
+        return String::new();
+    }
+    response_excerpt(body)
+}
+
+fn redirected_away(requested: &str, final_url: &reqwest::Url) -> bool {
+    let Ok(requested) = reqwest::Url::parse(requested) else {
+        return false;
+    };
+    let same_host = requested.host_str() == final_url.host_str();
+    let same_path = requested.path().trim_end_matches('/') == final_url.path().trim_end_matches('/');
+    !(same_host && same_path)
+}
+
+fn is_html_response(headers: &HeaderMap) -> bool {
+    headers
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .map(|value| value.to_ascii_lowercase().starts_with("text/html"))
+        .unwrap_or(false)
+}
+
+fn api_status_error(status: reqwest::StatusCode, url: &str, body: &str) -> anyhow::Error {
+    let message = api_message(body);
+    let describe = |prefix: &str| -> anyhow::Error {
+        if message.is_empty() {
+            anyhow::anyhow!("{}{}", prefix, url)
+        } else {
+            anyhow::anyhow!("{}{}: {}", prefix, url, message)
+        }
+    };
+
+    match status.as_u16() {
+        401 | 419 => login_required_error(&message),
+        403 => describe("Доступ запрещён (HTTP 403): "),
+        404 => describe("Не найдено (HTTP 404): "),
+        _ => describe(&format!("HTTP {} для ", status)),
+    }
+}
+
+fn mutation_headers(action: &str) -> Result<HeaderMap> {
+    if !has_session() {
+        return Err(login_required_error(&format!("действие: {}", action)));
+    }
+
+    let mut headers = get_api_headers();
+    let token = stored_xsrf_token().ok_or_else(|| {
+        anyhow::anyhow!(
+            "Не найден XSRF-TOKEN: перелогиньтесь в MangaLib, чтобы обновить CSRF-токен (действие: {})",
+            action
+        )
+    })?;
+    headers.insert(
+        "X-XSRF-TOKEN",
+        HeaderValue::from_str(&token).context("XSRF-TOKEN содержит недопустимые символы")?,
+    );
+    Ok(headers)
+}
+
+/// Sends a state-changing request and turns auth/CSRF failures into readable
+/// errors instead of returning "false" for every possible cause.
+async fn send_mutation(
+    method: reqwest::Method,
+    url: &str,
+    payload: &Value,
+    action: &str,
+) -> Result<Value> {
+    let headers = mutation_headers(action)?;
+    let response = HTTP_CLIENT
+        .request(method, url)
+        .headers(headers)
+        .json(payload)
+        .send()
+        .await
+        .with_context(|| format!("Не удалось отправить запрос {} ({})", url, action))?;
+
+    let status = response.status();
+    let answer_url = response.url().clone();
+    let body = response.text().await.unwrap_or_default();
+
+    if redirected_away(url, &answer_url) {
+        return Err(login_required_error(&api_message(&body)));
+    }
+    if status.is_success() {
+        if body.trim().is_empty() {
+            return Ok(Value::Null);
+        }
+        return serde_json::from_str::<Value>(&body)
+            .with_context(|| format!("Некорректный JSON в ответе {}", url));
+    }
+
+    Err(api_status_error(status, url, &body))
 }
 
 const RETRY_BACKOFF_MS: [u64; 3] = [300, 900, 1800];
@@ -193,6 +414,7 @@ async fn get_json_inner(url: &str, use_etag_cache: bool) -> Result<Value> {
         match request.send().await {
             Ok(response) => {
                 let status = response.status();
+                let answer_url = response.url().clone();
 
                 if status == reqwest::StatusCode::NOT_MODIFIED {
                     if let Some(value) = cache_value(url) {
@@ -208,7 +430,19 @@ async fn get_json_inner(url: &str, use_etag_cache: bool) -> Result<Value> {
                     anyhow::bail!("HTTP 304 for {} without a cached body", url);
                 }
 
+                // The client follows redirects, so an unauthenticated call surfaces
+                // as a 200 carrying the login page or the homepage payload. The URL
+                // is the only reliable signal that this is not the requested route.
+                if redirected_away(url, &answer_url) {
+                    let body = response.text().await.unwrap_or_default();
+                    return Err(login_required_error(&api_message(&body)));
+                }
+
                 if status.is_success() {
+                    if is_html_response(response.headers()) {
+                        let body = response.text().await.unwrap_or_default();
+                        return Err(login_required_error(&api_message(&body)));
+                    }
                     let etag = response
                         .headers()
                         .get(reqwest::header::ETAG)
@@ -233,7 +467,7 @@ async fn get_json_inner(url: &str, use_etag_cache: bool) -> Result<Value> {
                 }
 
                 let body = response.text().await.unwrap_or_default();
-                anyhow::bail!("HTTP {} for {}: {}", status, url, response_excerpt(&body));
+                return Err(api_status_error(status, url, &body));
             }
             Err(error) => {
                 if retries < RETRY_BACKOFF_MS.len() {
@@ -249,9 +483,20 @@ async fn get_json_inner(url: &str, use_etag_cache: bool) -> Result<Value> {
 
 #[flutter_rust_bridge::frb(sync)]
 pub fn set_cookies(cookies: String) {
-    let mut guard = COOKIES.lock().unwrap();
-    *guard = Some(cookies);
-    drop(guard);
+    let previous = stored_cookie_header();
+    let trimmed = cookies.trim();
+
+    if trimmed.is_empty() {
+        *COOKIES.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) = None;
+        *XSRF_TOKEN.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) = None;
+    } else {
+        let header = normalize_cookie_header(trimmed, previous.as_deref());
+        let token = extract_xsrf_token(&header);
+        *COOKIES.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) =
+            (!header.is_empty()).then_some(header);
+        *XSRF_TOKEN.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) = token;
+    }
+
     // Cached bodies can embed per-account fields (bookmark state, private flags), so
     // they must not survive an identity change.
     lock_json_cache().entries.clear();
@@ -946,33 +1191,21 @@ pub async fn vote_comment(comment_id: i64, vote: i64) -> Result<CommentVoteResul
         "vote": vote
     });
 
-    let res = HTTP_CLIENT
-        .post(&url)
-        .headers(get_api_headers())
-        .json(&payload)
-        .send()
-        .await
-        .context("Failed to vote comment")?;
+    let json = send_mutation(
+        reqwest::Method::POST,
+        &url,
+        &payload,
+        "голосование за комментарий",
+    )
+    .await?;
 
-    if res.status().is_success() {
-        let json: Value = res.json().await.unwrap_or(serde_json::json!({}));
-        let votes_up = json["data"]["votes"]["up"].as_i64().unwrap_or(0);
-        let votes_down = json["data"]["votes"]["down"].as_i64().unwrap_or(0);
-        let user_vote = json["data"]["votes"]["user"].as_i64().or(Some(vote));
-        Ok(CommentVoteResult {
-            success: true,
-            votes_up,
-            votes_down,
-            user_vote,
-        })
-    } else {
-        Ok(CommentVoteResult {
-            success: false,
-            votes_up: 0,
-            votes_down: 0,
-            user_vote: None,
-        })
-    }
+    let votes = &json["data"]["votes"];
+    Ok(CommentVoteResult {
+        success: true,
+        votes_up: votes["up"].as_i64().unwrap_or(0),
+        votes_down: votes["down"].as_i64().unwrap_or(0),
+        user_vote: votes["user"].as_i64().or(Some(vote)),
+    })
 }
 
 pub async fn add_comment(relation_type: String, relation_id: i64, comment: String, parent_id: Option<i64>) -> Result<CommentItem> {
@@ -986,20 +1219,14 @@ pub async fn add_comment(relation_type: String, relation_id: i64, comment: Strin
         payload["parent_id"] = serde_json::json!(pid);
     }
 
-    let res = HTTP_CLIENT
-        .post(url)
-        .headers(get_api_headers())
-        .json(&payload)
-        .send()
-        .await
-        .context("Failed to add comment")?;
+    let json = send_mutation(
+        reqwest::Method::POST,
+        url,
+        &payload,
+        "отправка комментария",
+    )
+    .await?;
 
-    if !res.status().is_success() {
-        let err_text = res.text().await.unwrap_or_default();
-        anyhow::bail!("Failed to post comment: {}", err_text);
-    }
-
-    let json: Value = res.json().await.context("Failed to parse response")?;
     let data = &json["data"];
     let id = data["id"].as_i64().context("Missing comment ID")?;
     let clean_text = data["comment"].as_str().unwrap_or(&comment).to_string();
@@ -1211,19 +1438,14 @@ pub async fn get_manga_similar(slug_url: String) -> Result<Vec<MangaSimilarItem>
 }
 
 pub async fn search_users(query: String) -> Result<Vec<UserProfile>> {
-    let url = format!("https://api.cdnlibs.org/api/user?q={}", urlencoding::encode(&query));
-    let res = HTTP_CLIENT
-        .get(&url)
-        .headers(get_api_headers())
-        .send()
-        .await
-        .context("Failed to search users")?;
-
-    if !res.status().is_success() {
+    // The API rejects queries shorter than two characters (HTTP 422), which is not
+    // an error worth surfacing for an incremental search box.
+    if query.trim().chars().count() < 2 {
         return Ok(Vec::new());
     }
 
-    let json: Value = res.json().await.unwrap_or(Value::Null);
+    let url = format!("https://api.cdnlibs.org/api/user?q={}", urlencoding::encode(&query));
+    let json = get_json(&url).await?;
     let mut users = Vec::new();
 
     if let Some(arr) = json.get("data").and_then(|d| d.as_array()) {
@@ -1237,7 +1459,7 @@ pub async fn search_users(query: String) -> Result<Vec<UserProfile>> {
                 .to_string();
             let created_at = u.get("created_at").and_then(|v| v.as_str()).map(|s| s.to_string());
             let streak = u.get("login_streak")
-                .and_then(|s| s.get("streak"))
+                .and_then(|s| s.get("login_streak"))
                 .and_then(|v| v.as_i64())
                 .unwrap_or(0);
 
@@ -1258,15 +1480,10 @@ pub async fn search_users(query: String) -> Result<Vec<UserProfile>> {
 
 pub async fn get_user_profile(user_id: i64) -> Result<UserProfile> {
     let url = format!("https://api.cdnlibs.org/api/user/{}", user_id);
-    let res = HTTP_CLIENT
-        .get(&url)
-        .headers(get_api_headers())
-        .send()
-        .await
-        .context("Failed to fetch user profile")?;
-
-    let json: Value = res.json().await.context("Failed to parse user profile JSON")?;
-    let data = json.get("data").context("Missing data in user profile")?;
+    let json = get_json(&url).await?;
+    let data = json
+        .get("data")
+        .context("В ответе MangaLib нет данных пользователя")?;
 
     let id = data.get("id").and_then(|v| v.as_i64()).unwrap_or(user_id);
     let username = data.get("username").and_then(|v| v.as_str()).unwrap_or("User").to_string();
@@ -1277,7 +1494,7 @@ pub async fn get_user_profile(user_id: i64) -> Result<UserProfile> {
         .to_string();
     let created_at = data.get("created_at").and_then(|v| v.as_str()).map(|s| s.to_string());
     let streak = data.get("login_streak")
-        .and_then(|s| s.get("streak"))
+        .and_then(|s| s.get("login_streak"))
         .and_then(|v| v.as_i64())
         .unwrap_or(0);
 
@@ -1291,22 +1508,12 @@ pub async fn get_user_profile(user_id: i64) -> Result<UserProfile> {
 }
 
 pub async fn get_user_bookmarks_page(user_id: i64, status: i64, page: i64) -> Result<Vec<MangaSearchResult>> {
+    let p = if page < 1 { 1 } else { page };
     let url = format!(
-        "https://api.cdnlibs.org/api/bookmarks?user_id={}&status={}&site_id=1&page={}",
-        user_id, status, page
+        "https://api.cdnlibs.org/api/bookmarks?user_id={}&status={}&site_id[]=1&page={}",
+        user_id, status, p
     );
-    let res = HTTP_CLIENT
-        .get(&url)
-        .headers(get_api_headers())
-        .send()
-        .await
-        .context("Failed to fetch user bookmarks page")?;
-
-    if !res.status().is_success() {
-        return Ok(Vec::new());
-    }
-
-    let json: Value = res.json().await.unwrap_or(Value::Null);
+    let json = get_json(&url).await?;
     let mut results = Vec::new();
 
     if let Some(arr) = json.get("data").and_then(|d| d.as_array()) {
@@ -1377,15 +1584,10 @@ pub async fn get_user_detailed_profile(user_id: i64) -> Result<UserDetailedProfi
         "https://api.cdnlibs.org/api/user/{}?fields[]=about&fields[]=gender&fields[]=background&fields[]=avatar_frame_id&fields[]=premium_background_id&fields[]=points",
         user_id
     );
-    let res = HTTP_CLIENT
-        .get(&url)
-        .headers(get_api_headers())
-        .send()
-        .await
-        .context("Failed to fetch user detailed profile")?;
-
-    let json: Value = res.json().await.context("Failed to parse user profile JSON")?;
-    let data = json.get("data").context("Missing data in user profile")?;
+    let json = get_json(&url).await?;
+    let data = json
+        .get("data")
+        .context("В ответе MangaLib нет данных пользователя")?;
 
     let id = data.get("id").and_then(|v| v.as_i64()).unwrap_or(user_id);
     let username = data.get("username").and_then(|v| v.as_str()).unwrap_or("User").to_string();
@@ -1405,7 +1607,7 @@ pub async fn get_user_detailed_profile(user_id: i64) -> Result<UserDetailedProfi
     let about = data.get("about").and_then(|v| v.as_str()).unwrap_or("").to_string();
     let points = data.get("points").and_then(|v| v.as_i64()).unwrap_or(0);
     let streak = data.get("login_streak")
-        .and_then(|s| s.get("streak"))
+        .and_then(|s| s.get("login_streak"))
         .and_then(|v| v.as_i64())
         .unwrap_or(0);
     let created_at = data.get("created_at").and_then(|v| v.as_str()).map(|s| s.to_string());
@@ -1446,6 +1648,7 @@ pub async fn update_user_profile(
     avatar: Option<String>,
     cover: Option<String>,
 ) -> Result<bool> {
+    // The route accepts PUT/PATCH only; POST answers 405.
     let url = format!("https://api.cdnlibs.org/api/user/{}", user_id);
     let mut payload = serde_json::json!({
         "update_type": "info"
@@ -1467,42 +1670,26 @@ pub async fn update_user_profile(
         payload["cover"] = serde_json::json!(c);
     }
 
-    let res = HTTP_CLIENT
-        .post(&url)
-        .headers(get_api_headers())
-        .json(&payload)
-        .send()
-        .await
-        .context("Failed to update user profile")?;
+    send_mutation(
+        reqwest::Method::PUT,
+        &url,
+        &payload,
+        "обновление профиля",
+    )
+    .await?;
 
-    Ok(res.status().is_success())
+    Ok(true)
 }
 
 pub async fn get_user_privacy(user_id: i64) -> Result<UserPrivacySettings> {
     let url = format!("https://api.cdnlibs.org/api/user/{}/settings/privacy", user_id);
-    let res = HTTP_CLIENT
-        .get(&url)
-        .headers(get_api_headers())
-        .send()
-        .await
-        .context("Failed to fetch privacy settings")?;
-
-    if !res.status().is_success() {
-        return Ok(UserPrivacySettings {
-            profile_visibility: 0,
-            statistics_visibility: 3,
-            statistics_site_ids: vec![1],
-            previous_usernames_visibility: 0,
-        });
-    }
-
-    let json: Value = res.json().await.unwrap_or(Value::Null);
+    let json = get_json(&url).await?;
     let data = json.get("data").unwrap_or(&json);
 
     let profile_visibility = data.get("profile_visibility").and_then(|v| v.as_i64()).unwrap_or(0);
     let statistics_visibility = data.get("statistics_visibility").and_then(|v| v.as_i64()).unwrap_or(3);
     let previous_usernames_visibility = data.get("previous_usernames_visibility").and_then(|v| v.as_i64()).unwrap_or(0);
-    
+
     let mut stats_sites = vec![1];
     if let Some(arr) = data.get("statistics_site_ids").and_then(|a| a.as_array()) {
         stats_sites = arr.iter().filter_map(|v| v.as_i64()).collect();
@@ -1530,67 +1717,150 @@ pub async fn update_user_privacy(
         "statistics_site_ids": [1]
     });
 
-    let res = HTTP_CLIENT
-        .put(&url)
-        .headers(get_api_headers())
-        .json(&payload)
-        .send()
-        .await
-        .context("Failed to update privacy settings")?;
+    send_mutation(
+        reqwest::Method::PUT,
+        &url,
+        &payload,
+        "обновление настроек приватности",
+    )
+    .await?;
 
-    Ok(res.status().is_success())
+    Ok(true)
 }
 
 pub async fn get_notification_count() -> Result<NotificationCountInfo> {
+    // `data.unread` is a map of notification type -> unread count, and `all` is the
+    // total the badge needs.
     let url = "https://api.cdnlibs.org/api/notifications/count";
-    let res = HTTP_CLIENT
-        .get(url)
-        .headers(get_api_headers())
-        .send()
-        .await
-        .context("Failed to fetch notifications count")?;
-
-    if !res.status().is_success() {
-        return Ok(NotificationCountInfo { count: 0, unread_cards: 0 });
-    }
-
-    let json: Value = res.json().await.unwrap_or(Value::Null);
+    let json = get_json(url).await?;
     let data = json.get("data").unwrap_or(&json);
+    let unread = data.get("unread");
 
-    let count = data.get("count").or_else(|| data.get("unread")).and_then(|v| v.as_i64()).unwrap_or(0);
-    let unread_cards = data.get("unread_cards").and_then(|v| v.as_i64()).unwrap_or(0);
+    let count = unread
+        .and_then(|value| value.get("all"))
+        .and_then(|value| value.as_i64())
+        .or_else(|| unread.and_then(|value| value.as_i64()))
+        .or_else(|| data.get("count").and_then(|value| value.as_i64()))
+        .unwrap_or(0);
+    let unread_cards = unread
+        .and_then(|value| value.get("card"))
+        .and_then(|value| value.as_i64())
+        .unwrap_or(0);
 
     Ok(NotificationCountInfo { count, unread_cards })
 }
 
 pub async fn set_manga_bookmark(media_slug: String, status_id: i64) -> Result<bool> {
     let url = "https://api.cdnlibs.org/api/bookmarks";
+    // The bookmark state lives under `bookmark`; `meta` is always sent by the site
+    // and the endpoint rejects the flat `{status}` shape used before.
     let payload = serde_json::json!({
         "media_type": "manga",
         "media_slug": media_slug,
-        "status": status_id
+        "bookmark": {
+            "status": status_id
+        },
+        "meta": {}
     });
 
-    let res = HTTP_CLIENT
-        .post(url)
-        .headers(get_api_headers())
-        .json(&payload)
-        .send()
-        .await
-        .context("Failed to update bookmark on MangaLib")?;
+    send_mutation(
+        reqwest::Method::POST,
+        url,
+        &payload,
+        "добавление закладки",
+    )
+    .await?;
 
-    Ok(res.status().is_success())
+    Ok(true)
 }
 
 pub async fn delete_manga_bookmark(bookmark_id: i64) -> Result<bool> {
     let url = format!("https://api.cdnlibs.org/api/bookmarks/{}", bookmark_id);
-    let res = HTTP_CLIENT
-        .delete(&url)
-        .headers(get_api_headers())
-        .send()
-        .await
-        .context("Failed to delete bookmark on MangaLib")?;
+    // DELETE carries the media type in the body, as the site does.
+    let payload = serde_json::json!({ "media_type": "manga" });
 
-    Ok(res.status().is_success())
+    send_mutation(
+        reqwest::Method::DELETE,
+        &url,
+        &payload,
+        "удаление закладки",
+    )
+    .await?;
+
+    Ok(true)
+}
+
+#[cfg(test)]
+mod cookie_tests {
+    use super::*;
+
+    fn pairs(value: &[(&str, &str)]) -> Vec<(String, String)> {
+        value
+            .iter()
+            .map(|(name, value)| (name.to_string(), value.to_string()))
+            .collect()
+    }
+
+    #[test]
+    fn parses_raw_cookie_header() {
+        let parsed = parse_cookie_pairs("a=1; b=2; broken; c=; d=x=y");
+        assert_eq!(parsed, pairs(&[("a", "1"), ("b", "2"), ("d", "x=y")]));
+    }
+
+    #[test]
+    fn parses_json_export_and_skips_empty_entries() {
+        let raw = r#"[{"name":"mangalib_session","value":"abc","domain":"mangalib.org"},
+                      {"name":"XSRF-TOKEN","value":"t%3D%3D"},
+                      {"name":"","value":"x"},
+                      {"name":"empty","value":""}]"#;
+        let parsed = parse_cookie_pairs(raw);
+        assert_eq!(parsed, pairs(&[("mangalib_session", "abc"), ("XSRF-TOKEN", "t%3D%3D")]));
+    }
+
+    #[test]
+    fn normalizes_export_to_header_and_decodes_xsrf() {
+        let raw = r#"[{"name":"mangalib_session","value":"s"},
+                      {"name":"XSRF-TOKEN","value":"abc%2Fdef%3D"}]"#;
+        let header = normalize_cookie_header(raw, None);
+        assert_eq!(header, "mangalib_session=s; XSRF-TOKEN=abc%2Fdef%3D");
+        assert_eq!(extract_xsrf_token(&header).as_deref(), Some("abc/def="));
+    }
+
+    #[test]
+    fn partial_paste_keeps_host_scoped_cookies() {
+        let previous = "__ddg1_=old; XSRF-TOKEN=stale; mangalib_session=old";
+        let header = normalize_cookie_header("mangalib_session=new", Some(previous));
+        assert!(header.contains("__ddg1_=old"));
+        assert!(header.contains("XSRF-TOKEN=stale"));
+        assert!(header.contains("mangalib_session=new"));
+        assert!(!header.contains("mangalib_session=old"));
+    }
+
+    #[test]
+    fn duplicate_names_keep_the_last_value() {
+        let header = normalize_cookie_header("a=1; a=2", None);
+        assert_eq!(header, "a=2");
+    }
+
+    #[test]
+    fn redirect_detection_ignores_trailing_slash() {
+        let requested = "https://api.cdnlibs.org/api/notifications/count";
+        let login_redirect = reqwest::Url::parse("https://api.cdnlibs.org/api").unwrap();
+        let same_route = reqwest::Url::parse(requested).unwrap();
+        let trailing_slash = reqwest::Url::parse(&format!("{}/", requested)).unwrap();
+
+        assert!(redirected_away(requested, &login_redirect));
+        assert!(!redirected_away(requested, &same_route));
+        assert!(!redirected_away(requested, &trailing_slash));
+    }
+
+    #[test]
+    fn reads_toast_message_from_error_body() {
+        let body = r#"{"data":{"toast":{"type":"error","message":"Вы не авторизованы"}}}"#;
+        assert_eq!(api_message(body), "Вы не авторизованы");
+        assert_eq!(api_message("plain text"), "plain text");
+        assert_eq!(api_message(r#"{"data":{"popular":[]}}"#), "");
+        assert_eq!(api_message("<!DOCTYPE html><html></html>"), "");
+    }
 }
 

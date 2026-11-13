@@ -15,9 +15,13 @@ class LoginWebviewPage extends ConsumerStatefulWidget {
 }
 
 class _LoginWebviewPageState extends ConsumerState<LoginWebviewPage> {
+  static final Uri _siteUri = Uri.parse('https://mangalib.org');
+
   WebViewController? _webViewController;
   bool _isLoading = true;
   bool _isProcessingLogin = false;
+  bool _isProbingSession = false;
+  String? _lastProbedHeader;
   final TextEditingController _cookieInputController = TextEditingController();
 
   @override
@@ -60,22 +64,104 @@ class _LoginWebviewPageState extends ConsumerState<LoginWebviewPage> {
   }
 
   Future<void> _checkCookies() async {
-    if (_webViewController == null || _isProcessingLogin) return;
+    if (_webViewController == null || _isProcessingLogin || _isProbingSession) return;
+
+    _isProbingSession = true;
     try {
-      final cookies = await _webViewController!.runJavaScriptReturningResult('document.cookie') as String;
-      final cleanCookies = cookies.replaceAll('"', '').trim();
-      if (cleanCookies.contains('mangalib_session') || cleanCookies.contains('remember_web') || cleanCookies.contains('token')) {
-        _applyCookies(cleanCookies);
+      final header = await _readCookieHeader();
+      if (header.isEmpty || !_carriesSession(header)) return;
+      if (header == ref.read(cookiesProvider) || header == _lastProbedHeader) return;
+
+      _lastProbedHeader = header;
+      if (!await _confirmSession(header)) return;
+      await _applyCookies(header);
+    } finally {
+      _isProbingSession = false;
+    }
+  }
+
+  /// Reads the WebView cookie jar, which is the only place that sees httpOnly
+  /// cookies. `document.cookie` cannot: `mangalib_session` and `remember_web_*`
+  /// are both httpOnly, so the JS-only capture never produced a usable session.
+  Future<String> _readCookieHeader() async {
+    final controller = _webViewController;
+    if (controller == null) return '';
+
+    try {
+      final cookies = await WebViewCookieManager().getCookies(domain: _siteUri);
+      final header = cookies
+          .where((cookie) => cookie.name.isNotEmpty && cookie.value.isNotEmpty)
+          .map((cookie) => '${cookie.name}=${cookie.value}')
+          .join('; ');
+      if (header.isNotEmpty) return header;
+    } catch (_) {
+      // Platforms without `getCookies` support fall through to the JS subset,
+      // which stays incomplete because the session cookies are httpOnly.
+    }
+
+    try {
+      final raw = await controller.runJavaScriptReturningResult('document.cookie');
+      if (raw is String) {
+        return _normalizeCookieInput(raw.replaceAll('"', '').trim());
       }
     } catch (_) {}
+    return '';
+  }
+
+  bool _carriesSession(String header) =>
+      header.contains('mangalib_session=') || header.contains('remember_web_');
+
+  /// `mangalib_session` is handed to anonymous visitors as well, so its presence
+  /// proves nothing. The API answers 401 for a session that is not authenticated,
+  /// which makes it the only available proof of a real login.
+  Future<bool> _confirmSession(String header) async {
+    final previous = ref.read(cookiesProvider);
+    rust_api.setCookies(cookies: header);
+
+    try {
+      await rust_api.getNotificationCount();
+      return true;
+    } catch (_) {
+      rust_api.setCookies(cookies: previous);
+      // A remember-web cookie is only issued by a successful sign-in, so keep it
+      // as a fallback when the probe itself is unavailable.
+      return header.contains('remember_web_');
+    }
+  }
+
+  /// Accepts a ready `name=value; ...` header or the JSON array produced by
+  /// cookie-export extensions and returns the header form the app stores.
+  String _normalizeCookieInput(String raw) {
+    final trimmed = raw.trim();
+    if (!trimmed.startsWith('[')) return trimmed;
+
+    try {
+      final decoded = jsonDecode(trimmed);
+      if (decoded is! List) return trimmed;
+      final pairs = <String>[];
+      for (final entry in decoded) {
+        if (entry is! Map) continue;
+        final name = entry['name'];
+        final value = entry['value'];
+        if (name is String && value is String && name.isNotEmpty && value.isNotEmpty) {
+          pairs.add('$name=$value');
+        }
+      }
+      return pairs.join('; ');
+    } on FormatException {
+      return trimmed;
+    }
   }
 
   Future<void> _applyCookies(String cookieString) async {
     if (_isProcessingLogin) return;
+
+    final header = _normalizeCookieInput(cookieString);
+    if (header.isEmpty) return;
     setState(() => _isProcessingLogin = true);
 
     try {
-      ref.read(cookiesProvider.notifier).setCookies(cookieString);
+      ref.read(cookiesProvider.notifier).setCookies(header);
 
       // Extract user info from webview if available
       int? extractedUserId;
@@ -86,22 +172,44 @@ class _LoginWebviewPageState extends ConsumerState<LoginWebviewPage> {
           final jsResult = await _webViewController!.runJavaScriptReturningResult('''
             (function() {
               try {
-                var auth = JSON.parse(localStorage.getItem("auth") || "{}");
-                var user = auth.user || (window.__NUXT__ && window.__NUXT__.data && window.__NUXT__.data[0] && window.__NUXT__.data[0].user) || null;
-                if (user) {
-                  return JSON.stringify({ id: user.id, username: user.username });
+                var found = null;
+                var visited = 0;
+                function visit(node, depth) {
+                  if (found || !node || typeof node !== 'object' || depth > 6 || visited > 4000) return;
+                  visited++;
+                  if (typeof node.id === 'number' && typeof node.username === 'string' && node.username) {
+                    found = node;
+                    return;
+                  }
+                  if (Array.isArray(node)) {
+                    for (var i = 0; i < node.length; i++) visit(node[i], depth + 1);
+                    return;
+                  }
+                  var keys = ['user', 'currentUser', 'auth', 'profile'];
+                  for (var k = 0; k < keys.length; k++) visit(node[keys[k]], depth + 1);
                 }
-              } catch(e) {}
-              return "";
+                visit(window.__NUXT__, 0);
+                if (!found) {
+                  try { visit(JSON.parse(localStorage.getItem('auth') || '{}'), 0); } catch (e) {}
+                }
+                if (!found) return '';
+                return JSON.stringify({ id: found.id, username: found.username });
+              } catch (e) {
+                return '';
+              }
             })()
-          ''') as String;
+          ''');
 
-          final cleanStr = jsResult.replaceAll(r'\"', '"').replaceAll(r'\', '');
-          if (cleanStr.isNotEmpty && cleanStr != '""') {
-            final unquoted = cleanStr.startsWith('"') && cleanStr.endsWith('"')
-                ? cleanStr.substring(1, cleanStr.length - 1)
-                : cleanStr;
-            final data = jsonDecode(unquoted);
+          final jsPayload = jsResult is String ? jsResult.trim() : '';
+          if (jsPayload.isNotEmpty) {
+            // Android may hand back a JSON-quoted string; decode it so escaped
+            // quotes do not break the map parse.
+            final decodedPayload = jsPayload.startsWith('"') && jsPayload.endsWith('"')
+                ? jsonDecode(jsPayload)
+                : jsPayload;
+            final data = decodedPayload is String && decodedPayload.trim().isNotEmpty
+                ? jsonDecode(decodedPayload)
+                : null;
             if (data is Map) {
               extractedUserId = data['id'] as int?;
               extractedUsername = data['username'] as String?;
@@ -218,8 +326,8 @@ class _LoginWebviewPageState extends ConsumerState<LoginWebviewPage> {
                         const SizedBox(height: 16),
                         Text(
                           isRu 
-                            ? 'Для входа на десктопе откройте страницу авторизации в браузере, пройдите капчу и скопируйте Cookie (или значение mangalib_session) сюда:'
-                            : 'Open login in browser, solve captcha, and paste your Cookie string below:',
+                            ? 'Для входа на десктопе откройте страницу авторизации в браузере, пройдите капчу и вставьте сюда Cookie-строку (mangalib_session=...; XSRF-TOKEN=...) или JSON-экспорт cookie:'
+                            : 'Open login in browser, solve captcha, then paste the Cookie header or the JSON cookie export below:',
                           style: const TextStyle(color: Color(0xFFBDBBB0), fontSize: 13, height: 1.4),
                         ),
                         const SizedBox(height: 16),
@@ -243,7 +351,7 @@ class _LoginWebviewPageState extends ConsumerState<LoginWebviewPage> {
                           controller: _cookieInputController,
                           maxLines: 3,
                           decoration: InputDecoration(
-                            hintText: 'mangalib_session=...; XSRF-TOKEN=...',
+                            hintText: 'mangalib_session=...; XSRF-TOKEN=...  |  [{"name":...}]',
                             filled: true,
                             fillColor: const Color(0xFF1E1E1E),
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
@@ -286,7 +394,7 @@ class _LoginWebviewPageState extends ConsumerState<LoginWebviewPage> {
           controller: textController,
           maxLines: 4,
           decoration: const InputDecoration(
-            hintText: 'mangalib_session=...; XSRF-TOKEN=...',
+            hintText: 'mangalib_session=...; XSRF-TOKEN=...  |  [{"name":...}]',
           ),
         ),
         actions: [
