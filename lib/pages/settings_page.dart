@@ -12,6 +12,7 @@ import 'package:mangaloader/services/update_checker.dart';
 import 'package:mangaloader/services/update_downloader.dart';
 import 'package:mangaloader/services/streak_notification_service.dart';
 import 'package:mangaloader/services/backup_service.dart';
+import 'package:mangaloader/l10n/strings/settings_strings.dart';
 import 'package:mangaloader/pages/profile_page.dart' show showMalUrlImportDialog;
 import 'package:mangaloader/utils/plural.dart';
 import 'package:mangaloader/widgets/update_bottom_sheet.dart';
@@ -49,6 +50,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   Future<void> _createBackupNow(bool isRu) async {
+    final s = SettingsStrings(isRu);
     if (_isBackingUp) return;
     setState(() => _isBackingUp = true);
     final path = await BackupService.backupNow();
@@ -63,11 +65,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-          path == null
-              ? (isRu ? 'Не удалось создать резервную копию' : 'Could not create a backup')
-              : (isRu ? 'Копия сохранена: $path' : 'Backup saved: $path'),
-        ),
+        content: Text(path == null ? s.backupFailed : s.backupSaved(path)),
       ),
     );
   }
@@ -85,6 +83,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   Future<void> _clearAllCaches(bool isRu) async {
+    final s = SettingsStrings(isRu);
     setState(() => _isClearingCache = true);
     try {
       int bytesFreed = 0;
@@ -130,13 +129,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
       final mbFreed = (bytesFreed / (1024 * 1024)).toStringAsFixed(1);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            isRu 
-              ? 'Кэш очищен ($mbFreed МБ освобождено)' 
-              : 'Cache cleared ($mbFreed MB freed)'
-          ),
-        ),
+        SnackBar(content: Text(s.cacheCleared(mbFreed))),
       );
     } catch (e) {
       if (mounted) {
@@ -149,6 +142,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   Future<void> _checkUpdates(bool isRu) async {
+    final s = SettingsStrings(isRu);
     setState(() => _isCheckingUpdates = true);
     try {
       final channel = ref.read(updateChannelProvider);
@@ -158,7 +152,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
       if (updateInfo == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(isRu ? 'Не удалось проверить обновления' : 'Failed to check for updates')),
+          SnackBar(content: Text(s.updateCheckFailed)),
         );
         return;
       }
@@ -169,9 +163,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       if (!updateInfo.hasUpdate) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(isRu 
-              ? 'У вас установлена последняя версия ($currentVer)' 
-              : 'You have the latest version ($currentVer)'),
+            content: Text(s.latestVersion(currentVer)),
           ),
         );
         return;
@@ -196,6 +188,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
 
   Future<void> _exportBackup(bool isRu) async {
+    final s = SettingsStrings(isRu);
     try {
       final jsonStr = await rust_storage.exportBackupJson();
       final tempDir = await getTemporaryDirectory();
@@ -205,7 +198,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
       if (mounted) {
         await SharePlus.instance.share(ShareParams(
-          text: isRu ? 'Резервная копия библиотеки MangaLoader' : 'MangaLoader Backup',
+          text: s.backupShareText,
           files: [XFile(file.path)],
         ));
       }
@@ -219,6 +212,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   Future<void> _importBackup(bool isRu) async {
+    final s = SettingsStrings(isRu);
     try {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
@@ -232,7 +226,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           await ref.read(libraryProvider.notifier).loadAll();
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(isRu ? 'Резервная копия успешно восстановлена!' : 'Backup restored successfully!')),
+              SnackBar(content: Text(s.backupRestored)),
             );
           }
         }
@@ -247,6 +241,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   Future<void> _exportMalXml(bool isRu) async {
+    final s = SettingsStrings(isRu);
     try {
       final xmlStr = await rust_storage.exportMalXml();
       final tempDir = await getTemporaryDirectory();
@@ -256,7 +251,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
       if (mounted) {
         await SharePlus.instance.share(ShareParams(
-          text: isRu ? 'Экспорт библиотеки MyAnimeList (MAL)' : 'MyAnimeList Export (XML)',
+          text: s.malExportShareText,
           files: [XFile(file.path)],
         ));
       }
@@ -270,6 +265,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   Future<void> _importMalXml(bool isRu) async {
+    final s = SettingsStrings(isRu);
     try {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
@@ -284,9 +280,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                isRu
-                    ? 'Импорт MAL завершен: добавлено ${res.importedCount}, обновлено ${res.updatedCount}'
-                    : 'MAL Import done: ${res.importedCount} added, ${res.updatedCount} updated',
+                s.malImportDone(
+                  '${res.importedCount}',
+                  '${res.updatedCount}',
+                ),
               ),
             ),
           );
@@ -305,6 +302,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   Widget build(BuildContext context) {
     final selectedLocale = ref.watch(localeProvider);
     final isRu = (selectedLocale?.languageCode ?? Localizations.localeOf(context).languageCode) == 'ru';
+    final s = SettingsStrings(isRu);
     final currentTheme = ref.watch(themeModeProvider);
     final currentLocaleCode = selectedLocale == null ? 'system' : selectedLocale.languageCode;
     final availableUpdate = ref.watch(availableUpdateProvider);
@@ -317,12 +315,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         const [0, 1, 3, 7, 30].contains(backupInterval) ? backupInterval : 0;
 
     return Scaffold(
-      appBar: AppBar(title: Text(isRu ? 'Настройки' : 'Settings')),
+      appBar: AppBar(title: Text(s.title)),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           // 1. Theme & Appearance
-          _buildSectionHeader(isRu ? 'Оформление и язык' : 'Appearance & Language', Icons.palette_outlined),
+          _buildSectionHeader(s.appearanceAndLanguage, Icons.palette_outlined),
           Card(
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14),
@@ -334,7 +332,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    isRu ? 'Режим темы' : 'Theme Mode',
+                    s.themeMode,
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white),
                   ),
                   const SizedBox(height: 10),
@@ -345,9 +343,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       foregroundColor: AppTokens.textPrimary,
                     ),
                     segments: [
-                      ButtonSegment(value: ThemeMode.system, label: Text(isRu ? 'Система' : 'System')),
-                      ButtonSegment(value: ThemeMode.dark, label: Text(isRu ? 'Тёмная' : 'Dark')),
-                      ButtonSegment(value: ThemeMode.light, label: Text(isRu ? 'Светлая' : 'Light')),
+                      ButtonSegment(value: ThemeMode.system, label: Text(s.themeSystem)),
+                      ButtonSegment(value: ThemeMode.dark, label: Text(s.themeDark)),
+                      ButtonSegment(value: ThemeMode.light, label: Text(s.themeLight)),
                     ],
                     selected: {currentTheme},
                     onSelectionChanged: (val) {
@@ -356,7 +354,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    isRu ? 'Язык интерфейса' : 'Interface Language',
+                    s.interfaceLanguage,
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white),
                   ),
                   const SizedBox(height: 10),
@@ -367,7 +365,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       foregroundColor: AppTokens.textPrimary,
                     ),
                     segments: [
-                      ButtonSegment(value: 'system', label: Text(isRu ? 'Авто' : 'Auto')),
+                      ButtonSegment(value: 'system', label: Text(s.languageAuto)),
                       const ButtonSegment(value: 'ru', label: Text('Русский')),
                       const ButtonSegment(value: 'en', label: Text('English')),
                     ],
@@ -386,9 +384,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     secondary: const Icon(Icons.brightness_2_rounded, color: AppTokens.accent),
-                    title: Text(isRu ? 'Режим Pure AMOLED' : 'Pure AMOLED Black'),
+                    title: Text(s.amoledMode),
                     subtitle: Text(
-                      isRu ? 'Глубокий черный фон для OLED экранов' : 'Pitch black background for OLED screens',
+                      s.amoledSubtitle,
                       style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
                     ),
                     value: ref.watch(amoledModeProvider),
@@ -399,9 +397,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     secondary: const Icon(Icons.local_fire_department_rounded, color: Color(0xFFFF9800)),
-                    title: Text(isRu ? 'Напоминания об огоньке' : 'Daily Streak Reminders'),
+                    title: Text(s.streakReminders),
                     subtitle: Text(
-                      isRu ? 'Ежедневное напоминание почитать главу и сохранить стрик' : 'Daily reminder to read a chapter and keep flame burning',
+                      s.streakRemindersSubtitle,
                       style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
                     ),
                     value: ref.watch(streakNotificationsEnabledProvider),
@@ -419,9 +417,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.auto_awesome_rounded, color: AppTokens.accent),
-                    title: Text(isRu ? 'Manga Recap / Итоги чтения' : 'Manga Recap Summary'),
+                    title: Text(s.mangaRecap),
                     subtitle: Text(
-                      isRu ? 'Красивая карточка с вашей статистикой чтения и топами' : 'Beautiful summary card with reading stats & tops',
+                      s.mangaRecapSubtitle,
                       style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
                     ),
                     trailing: const Icon(Icons.chevron_right_rounded),
@@ -432,9 +430,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.emoji_events_rounded, color: Color(0xFFFFD700)),
-                    title: Text(isRu ? 'Достижения' : 'Achievements'),
+                    title: Text(s.achievements),
                     subtitle: Text(
-                      isRu ? 'Просмотр всех наград, уровней и прогресса' : 'View all rewards, levels & progress',
+                      s.achievementsSubtitle,
                       style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
                     ),
                     trailing: const Icon(Icons.chevron_right_rounded),
@@ -445,9 +443,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.bar_chart_rounded, color: Color(0xFF64B5F6)),
-                    title: Text(isRu ? 'Статистика чтения' : 'Reading Statistics'),
+                    title: Text(s.readingStatistics),
                     subtitle: Text(
-                      isRu ? 'Аналитика жанров, времени активности и прогресса' : 'Analytics of genres, activity time & progress',
+                      s.readingStatisticsSubtitle,
                       style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
                     ),
                     trailing: const Icon(Icons.chevron_right_rounded),
@@ -458,9 +456,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     secondary: const Icon(Icons.notifications_active_rounded, color: AppTokens.accent),
-                    title: Text(isRu ? 'Уведомления о новых главах' : 'New Chapters Notifications'),
+                    title: Text(s.chapterNotifications),
                     subtitle: Text(
-                      isRu ? 'Отслеживание выхода свежих глав для тайтлов в библиотеке' : 'Track newly uploaded chapters for bookmarked titles',
+                      s.chapterNotificationsSubtitle,
                       style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
                     ),
                     value: ref.watch(chapterNotificationsEnabledProvider),
@@ -474,14 +472,14 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
           // 2. Notification timing
           _buildSectionHeader(
-            isRu ? 'Уведомления и тихие часы' : 'Notifications & Quiet Hours',
+            s.notificationsAndQuietHours,
             Icons.notifications_none_rounded,
           ),
           _buildNotificationTimingCard(isRu),
           const SizedBox(height: 20),
 
           // 3. Reader Defaults
-          _buildSectionHeader(isRu ? 'Читалка по умолчанию' : 'Reader Defaults', Icons.chrome_reader_mode_outlined),
+          _buildSectionHeader(s.readerDefaults, Icons.chrome_reader_mode_outlined),
           Card(
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14),
@@ -491,13 +489,13 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               children: [
                 ListTile(
                   leading: const Icon(Icons.swap_vert_rounded, color: AppTokens.accent),
-                  title: Text(isRu ? 'Направление чтения' : 'Reading Direction'),
+                  title: Text(s.readingDirection),
                   subtitle: Text(
                     _readerDefaultMode == 'vertical'
-                      ? (isRu ? 'Вертикальный вебтун (Сверху вниз)' : 'Vertical Webtoon')
+                      ? s.readingDirectionVerticalWebtoon
                       : (_readerDefaultMode == 'rtl'
-                          ? (isRu ? 'Справа налево (Манга)' : 'Right to Left')
-                          : (isRu ? 'Слева направо' : 'Left to Right')),
+                          ? s.readingDirectionRightToLeft
+                          : s.readingDirectionLeftToRight),
                     style: const TextStyle(color: AppTokens.textPrimary, fontSize: 12),
                   ),
                   trailing: PopupMenuButton<String>(
@@ -506,18 +504,18 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     onSelected: (val) => setState(() => _readerDefaultMode = val),
                     itemBuilder: (ctx) => [
-                      PopupMenuItem(value: 'vertical', child: Text(isRu ? 'Вертикальный вебтун' : 'Vertical Webtoon')),
-                      PopupMenuItem(value: 'rtl', child: Text(isRu ? 'Справа налево (Манга)' : 'Right to Left')),
-                      PopupMenuItem(value: 'ltr', child: Text(isRu ? 'Слева направо' : 'Left to Right')),
+                      PopupMenuItem(value: 'vertical', child: Text(s.verticalWebtoon)),
+                      PopupMenuItem(value: 'rtl', child: Text(s.readingDirectionRightToLeft)),
+                      PopupMenuItem(value: 'ltr', child: Text(s.readingDirectionLeftToRight)),
                     ],
                   ),
                 ),
                 const Divider(height: 1, indent: 56),
                 ListTile(
                   leading: const Icon(Icons.format_color_fill_rounded, color: AppTokens.accent),
-                  title: Text(isRu ? 'Фон читалки' : 'Reader Background'),
+                  title: Text(s.readerBackground),
                   subtitle: Text(
-                    _readerDefaultBg == 'black' ? (isRu ? 'Чёрный' : 'Black') : (_readerDefaultBg == 'darkGrey' ? (isRu ? 'Тёмно-серый' : 'Dark Grey') : (isRu ? 'Белый' : 'White')),
+                    _readerDefaultBg == 'black' ? s.readerBackgroundBlack : (_readerDefaultBg == 'darkGrey' ? s.readerBackgroundDarkGrey : s.readerBackgroundWhite),
                     style: const TextStyle(color: AppTokens.textPrimary, fontSize: 12),
                   ),
                   trailing: PopupMenuButton<String>(
@@ -526,18 +524,18 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     onSelected: (val) => setState(() => _readerDefaultBg = val),
                     itemBuilder: (ctx) => [
-                      PopupMenuItem(value: 'black', child: Text(isRu ? 'Чёрный' : 'Black')),
-                      PopupMenuItem(value: 'darkGrey', child: Text(isRu ? 'Тёмно-серый' : 'Dark Grey')),
-                      PopupMenuItem(value: 'white', child: Text(isRu ? 'Белый' : 'White')),
+                      PopupMenuItem(value: 'black', child: Text(s.readerBackgroundBlack)),
+                      PopupMenuItem(value: 'darkGrey', child: Text(s.readerBackgroundDarkGrey)),
+                      PopupMenuItem(value: 'white', child: Text(s.readerBackgroundWhite)),
                     ],
                   ),
                 ),
                 const Divider(height: 1, indent: 56),
                 ListTile(
                   leading: const Icon(Icons.auto_awesome_rounded, color: AppTokens.accent),
-                  title: Text(isRu ? 'Фильтр резкости' : 'Sharpening Filter'),
+                  title: Text(s.sharpeningFilter),
                   subtitle: Text(
-                    _sharpeningMode == 'subtle' ? (isRu ? 'Мягкая резкость' : 'Subtle') : (_sharpeningMode == 'high' ? (isRu ? 'Высокая резкость' : 'High') : (isRu ? 'Отключено' : 'Off')),
+                    _sharpeningMode == 'subtle' ? s.sharpeningSubtle : (_sharpeningMode == 'high' ? s.sharpeningHigh : s.off),
                     style: const TextStyle(color: AppTokens.textPrimary, fontSize: 12),
                   ),
                   trailing: PopupMenuButton<String>(
@@ -546,25 +544,25 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     onSelected: (val) => setState(() => _sharpeningMode = val),
                     itemBuilder: (ctx) => [
-                      PopupMenuItem(value: 'off', child: Text(isRu ? 'Отключено' : 'Off')),
-                      PopupMenuItem(value: 'subtle', child: Text(isRu ? 'Мягкая резкость' : 'Subtle')),
-                      PopupMenuItem(value: 'high', child: Text(isRu ? 'Высокая резкость' : 'High')),
+                      PopupMenuItem(value: 'off', child: Text(s.off)),
+                      PopupMenuItem(value: 'subtle', child: Text(s.sharpeningSubtle)),
+                      PopupMenuItem(value: 'high', child: Text(s.sharpeningHigh)),
                     ],
                   ),
                 ),
                 const Divider(height: 1, indent: 56),
                 SwitchListTile(
                   secondary: const Icon(Icons.crop_free_rounded, color: AppTokens.accent),
-                  title: Text(isRu ? 'Обрезка белых полей' : 'Crop White Borders'),
-                  subtitle: Text(isRu ? 'Автоматически удаляет белые поля' : 'Trim empty borders', style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary)),
+                  title: Text(s.cropBorders),
+                  subtitle: Text(s.cropBordersSubtitle, style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary)),
                   value: _cropBorders,
                   onChanged: (val) => setState(() => _cropBorders = val),
                 ),
                 const Divider(height: 1, indent: 56),
                 SwitchListTile(
                   secondary: const Icon(Icons.battery_charging_full_rounded, color: AppTokens.accent),
-                  title: Text(isRu ? 'Умный статус-бар' : 'Smart Status Bar'),
-                  subtitle: Text(isRu ? 'Отображение времени и заряда батареи' : 'Show clock and battery', style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary)),
+                  title: Text(s.smartStatusBar),
+                  subtitle: Text(s.smartStatusBarSubtitle, style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary)),
                   value: _smartStatusBar,
                   onChanged: (val) => setState(() => _smartStatusBar = val),
                 ),
@@ -574,7 +572,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           const SizedBox(height: 20),
 
           // 4. Downloads Configuration
-          _buildSectionHeader(isRu ? 'Движок загрузки' : 'Download Engine', Icons.downloading_rounded),
+          _buildSectionHeader(s.downloadEngine, Icons.downloading_rounded),
           Card(
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14),
@@ -588,7 +586,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(isRu ? 'Параллельные потоки изображений:' : 'Concurrent images:', style: const TextStyle(fontWeight: FontWeight.bold)),
+                      Text(s.concurrentImages, style: const TextStyle(fontWeight: FontWeight.bold)),
                       Text('${ref.watch(downloadConcurrencyImagesProvider)}', style: const TextStyle(color: AppTokens.accent, fontWeight: FontWeight.bold, fontSize: 16)),
                     ],
                   ),
@@ -604,7 +602,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(isRu ? 'Параллельные главы:' : 'Concurrent chapters:', style: const TextStyle(fontWeight: FontWeight.bold)),
+                      Text(s.concurrentChapters, style: const TextStyle(fontWeight: FontWeight.bold)),
                       Text('${ref.watch(downloadConcurrencyChaptersProvider)}', style: const TextStyle(color: AppTokens.accent, fontWeight: FontWeight.bold, fontSize: 16)),
                     ],
                   ),
@@ -621,9 +619,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.offline_pin_outlined, color: AppTokens.accent),
-                    title: Text(isRu ? 'Умный оффлайн' : 'Smart Offline'),
+                    title: Text(s.smartOffline),
                     subtitle: Text(
-                      isRu ? 'Автоскачивание следующих глав во время чтения' : 'Auto-download next chapters while reading',
+                      s.smartOfflineSubtitle,
                       style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
                     ),
                     trailing: DropdownButton<int>(
@@ -632,11 +630,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       style: const TextStyle(color: Colors.white, fontSize: 13),
                       underline: const SizedBox(),
                       items: [
-                        DropdownMenuItem(value: 0, child: Text(isRu ? 'Отключено' : 'Disabled')),
-                        DropdownMenuItem(value: 1, child: Text(isRu ? '1 след. глава' : '1 next chapter')),
-                        DropdownMenuItem(value: 2, child: Text(isRu ? '2 главы' : '2 chapters')),
-                        DropdownMenuItem(value: 3, child: Text(isRu ? '3 главы' : '3 chapters')),
-                        DropdownMenuItem(value: 5, child: Text(isRu ? '5 глав' : '5 chapters')),
+                        DropdownMenuItem(value: 0, child: Text(s.disabled)),
+                        DropdownMenuItem(value: 1, child: Text(s.smartOfflineOneChapter)),
+                        DropdownMenuItem(value: 2, child: Text(s.smartOfflineTwoChapters)),
+                        DropdownMenuItem(value: 3, child: Text(s.smartOfflineThreeChapters)),
+                        DropdownMenuItem(value: 5, child: Text(s.smartOfflineFiveChapters)),
                       ],
                       onChanged: (val) {
                         if (val != null) {
@@ -650,9 +648,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     secondary: const Icon(Icons.auto_delete_rounded, color: AppTokens.accent),
-                    title: Text(isRu ? 'Автоудаление прочитанного' : 'Auto-Delete Read Chapters'),
+                    title: Text(s.autoDeleteRead),
                     subtitle: Text(
-                      isRu ? 'Автоматически удалять скачанную главу с устройства после прочтения' : 'Automatically delete downloaded chapter file after finishing reading',
+                      s.autoDeleteReadSubtitle,
                       style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
                     ),
                     value: ref.watch(autoDeleteReadChaptersProvider),
@@ -665,7 +663,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           const SizedBox(height: 20),
 
           // 5. Backups & Restore
-          _buildSectionHeader(isRu ? 'Резервные копии и экспорт' : 'Backups & Export', Icons.backup_rounded),
+          _buildSectionHeader(s.backupsAndExport, Icons.backup_rounded),
           Card(
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14),
@@ -675,7 +673,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               children: [
                 ListTile(
                   leading: const Icon(Icons.schedule_send_rounded, color: AppTokens.accent),
-                  title: Text(isRu ? 'Автоматические копии' : 'Automatic Backups'),
+                  title: Text(s.automaticBackups),
                   subtitle: Text(
                     _backupIntervalLabel(selectedBackupInterval, isRu),
                     style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
@@ -691,7 +689,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                           value: days,
                           child: Text(
                             days == 0
-                                ? (isRu ? 'Отключено' : 'Off')
+                                ? s.off
                                 : Plural.days(days, isRu ? 'ru' : 'en'),
                           ),
                         ),
@@ -706,18 +704,18 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 const Divider(height: 1, indent: 56),
                 ListTile(
                   leading: const Icon(Icons.save_alt_rounded, color: AppTokens.accent),
-                  title: Text(isRu ? 'Создать копию сейчас' : 'Create Backup Now'),
+                  title: Text(s.createBackupNow),
                   subtitle: Text(
                     _lastBackupAt == null
-                        ? (isRu ? 'Копий пока не было' : 'No backups yet')
-                        : '${isRu ? 'Последняя копия' : 'Last backup'}: ${_formatBackupMoment(_lastBackupAt!)}',
+                        ? s.noBackupsYet
+                        : s.lastBackup(_formatBackupMoment(_lastBackupAt!)),
                     style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
                   ),
                   trailing: OutlinedButton(
                     onPressed: _isBackingUp ? null : () => _createBackupNow(isRu),
                     child: _isBackingUp
                         ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                        : Text(isRu ? 'Создать' : 'Create'),
+                        : Text(s.create),
                   ),
                 ),
                 if (_lastBackupPath != null) ...[
@@ -733,41 +731,41 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 const Divider(height: 1, indent: 56),
                 ListTile(
                   leading: const Icon(Icons.file_download_outlined, color: AppTokens.accent),
-                  title: Text(isRu ? 'Экспорт базы данных (JSON)' : 'Export Backup (JSON)'),
-                  subtitle: Text(isRu ? 'Сохраняет библиотеку, историю и закладки' : 'Save library, history & bookmarks', style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary)),
+                  title: Text(s.exportBackupJson),
+                  subtitle: Text(s.exportBackupJsonSubtitle, style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary)),
                   trailing: const Icon(Icons.chevron_right_rounded),
                   onTap: () => _exportBackup(isRu),
                 ),
                 const Divider(height: 1, indent: 56),
                 ListTile(
                   leading: const Icon(Icons.file_upload_outlined, color: AppTokens.accent),
-                  title: Text(isRu ? 'Импорт базы данных (JSON)' : 'Import Backup (JSON)'),
-                  subtitle: Text(isRu ? 'Восстановить библиотеку из JSON-файла' : 'Restore library from JSON file', style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary)),
+                  title: Text(s.importBackupJson),
+                  subtitle: Text(s.importBackupJsonSubtitle, style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary)),
                   trailing: const Icon(Icons.chevron_right_rounded),
                   onTap: () => _importBackup(isRu),
                 ),
                 const Divider(height: 1, indent: 56),
                 ListTile(
                   leading: const Icon(Icons.import_export_rounded, color: Color(0xFF2E7D32)),
-                  title: Text(isRu ? 'Экспорт в MyAnimeList (XML)' : 'Export to MyAnimeList (XML)'),
-                  subtitle: Text(isRu ? 'Экспорт библиотеки в формат MAL' : 'Export library to MAL format', style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary)),
+                  title: Text(s.exportMal),
+                  subtitle: Text(s.exportMalSubtitle, style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary)),
                   trailing: const Icon(Icons.chevron_right_rounded),
                   onTap: () => _exportMalXml(isRu),
                 ),
                 const Divider(height: 1, indent: 56),
                 ListTile(
                   leading: const Icon(Icons.download_for_offline_outlined, color: Color(0xFF2E7D32)),
-                  title: Text(isRu ? 'Импорт из MyAnimeList (XML)' : 'Import from MyAnimeList (XML)'),
-                  subtitle: Text(isRu ? 'Импорт манги из экспорта MyAnimeList' : 'Import manga from MyAnimeList export', style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary)),
+                  title: Text(s.importMal),
+                  subtitle: Text(s.importMalSubtitle, style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary)),
                   trailing: const Icon(Icons.chevron_right_rounded),
                   onTap: () => _importMalXml(isRu),
                 ),
                 const Divider(height: 1, indent: 56),
                 ListTile(
                   leading: const Icon(Icons.link_rounded, color: Color(0xFF2E7D32)),
-                  title: Text(isRu ? 'Импорт из MyAnimeList по ссылке' : 'Import from MyAnimeList (URL)'),
+                  title: Text(s.importMalUrl),
                   subtitle: Text(
-                    isRu ? 'Скачать XML-экспорт по прямой ссылке' : 'Download an XML export from a direct link',
+                    s.importMalUrlSubtitle,
                     style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
                   ),
                   trailing: const Icon(Icons.chevron_right_rounded),
@@ -779,7 +777,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           const SizedBox(height: 20),
 
           // 6. Cache & Storage
-          _buildSectionHeader(isRu ? 'Хранилище и кэш' : 'Storage & Cache', Icons.storage_rounded),
+          _buildSectionHeader(s.storageAndCache, Icons.storage_rounded),
           Card(
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14),
@@ -789,9 +787,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               children: [
                 ListTile(
                   leading: const Icon(Icons.auto_delete_outlined, color: AppTokens.accent),
-                  title: Text(isRu ? 'Автоочистка кэша' : 'Auto-Clear Cache'),
+                  title: Text(s.autoClearCache),
                   subtitle: Text(
-                    isRu ? 'Удалять кэшированные страницы старше выбранного срока' : 'Remove cached pages older than selected period',
+                    s.autoClearCacheSubtitle,
                     style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
                   ),
                   trailing: DropdownButton<int>(
@@ -800,11 +798,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     style: const TextStyle(color: Colors.white, fontSize: 13),
                     underline: const SizedBox(),
                     items: [
-                      DropdownMenuItem(value: 0, child: Text(isRu ? 'Отключено' : 'Disabled')),
-                      DropdownMenuItem(value: 3, child: Text(isRu ? '3 дня' : '3 days')),
-                      DropdownMenuItem(value: 7, child: Text(isRu ? '7 дней (рек.)' : '7 days (rec.)')),
-                      DropdownMenuItem(value: 14, child: Text(isRu ? '14 дней' : '14 days')),
-                      DropdownMenuItem(value: 30, child: Text(isRu ? '30 дней' : '30 days')),
+                      DropdownMenuItem(value: 0, child: Text(s.disabled)),
+                      DropdownMenuItem(value: 3, child: Text(s.cacheThreeDays)),
+                      DropdownMenuItem(value: 7, child: Text(s.cacheSevenDaysRecommended)),
+                      DropdownMenuItem(value: 14, child: Text(s.cacheFourteenDays)),
+                      DropdownMenuItem(value: 30, child: Text(s.cacheThirtyDays)),
                     ],
                     onChanged: (val) {
                       if (val != null) {
@@ -816,16 +814,16 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 const Divider(height: 1, indent: 56),
                 ListTile(
                   leading: const Icon(Icons.cleaning_services_rounded, color: AppTokens.accent),
-                  title: Text(isRu ? 'Очистить кэш приложения' : 'Clear Application Cache'),
+                  title: Text(s.clearCache),
                   subtitle: Text(
-                    isRu ? 'Очищает сетевой дисковый кэш и оперативную память' : 'Clears disk network cache & RAM memory',
+                    s.clearCacheSubtitle,
                     style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
                   ),
                   trailing: OutlinedButton(
                     onPressed: _isClearingCache ? null : () => _clearAllCaches(isRu),
                     child: _isClearingCache
                       ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                      : Text(isRu ? 'Очистить' : 'Clear'),
+                      : Text(s.clear),
                   ),
                 ),
               ],
@@ -834,7 +832,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           const SizedBox(height: 20),
 
           // 7. Updates
-          _buildSectionHeader(isRu ? 'Обновления' : 'Updates', Icons.system_update_rounded),
+          _buildSectionHeader(s.updates, Icons.system_update_rounded),
           if (isRuStoreBuild)
             Card(
               shape: RoundedRectangleBorder(
@@ -844,13 +842,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               child: ListTile(
                 leading: const Icon(Icons.storefront_rounded, color: AppTokens.accent),
                 title: Text(
-                  isRu ? 'Версия: v$currentVersionStr (RuStore)' : 'Version: v$currentVersionStr (RuStore)',
+                  s.versionWithStore(currentVersionStr),
                   style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white),
                 ),
                 subtitle: Text(
-                  isRu
-                      ? 'Обновления приложения управляются через магазин RuStore'
-                      : 'App updates are managed via RuStore',
+                  s.storeUpdatesNote,
                   style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
                 ),
               ),
@@ -874,7 +870,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                               Row(
                                 children: [
                                   Text(
-                                    isRu ? 'Версия: v$currentVersionStr' : 'Version: v$currentVersionStr',
+                                    s.versionLabel(currentVersionStr),
                                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white),
                                   ),
                                   if (availableUpdate != null && availableUpdate.hasUpdate) ...[
@@ -896,7 +892,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                               const SizedBox(height: 4),
                               if (downloadState.status == UpdateDownloadStatus.downloading) ...[
                                 Text(
-                                  '${isRu ? "Загрузка:" : "Downloading:"} ${(downloadState.progress * 100).toStringAsFixed(0)}%',
+                                  s.downloading((downloadState.progress * 100).toStringAsFixed(0)),
                                   style: const TextStyle(color: AppTokens.accent, fontSize: 12, fontWeight: FontWeight.bold),
                                 ),
                                 const SizedBox(height: 6),
@@ -911,12 +907,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                                 ),
                               ] else if (downloadState.status == UpdateDownloadStatus.completed) ...[
                                 Text(
-                                  isRu ? 'Обновление готово к установке' : 'Update ready to install',
+                                  s.updateReady,
                                   style: const TextStyle(color: Colors.greenAccent, fontSize: 12, fontWeight: FontWeight.bold),
                                 ),
                               ] else ...[
                                 Text(
-                                  isRu ? 'Проверка новых релизов на GitHub' : 'Check for new releases on GitHub',
+                                  s.checkReleasesNote,
                                   style: const TextStyle(color: AppTokens.textSecondary, fontSize: 12),
                                 ),
                               ],
@@ -934,7 +930,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                                 ),
                                 onPressed: () => AppUpdateDownloader.installOrOpen(downloadState.downloadedFile!),
                                 icon: const Icon(Icons.install_mobile_rounded, size: 18),
-                                label: Text(isRu ? 'Установить' : 'Install'),
+                                label: Text(s.install),
                               );
                             }
                             if (downloadState.status == UpdateDownloadStatus.downloading) {
@@ -947,7 +943,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                                   AppUpdateDownloader.cancel();
                                   ref.read(updateDownloadStateProvider.notifier).state = const UpdateDownloadState();
                                 },
-                                child: Text(isRu ? 'Отмена' : 'Cancel'),
+                                child: Text(s.cancel),
                               );
                             }
                             if (availableUpdate != null && availableUpdate.hasUpdate) {
@@ -958,7 +954,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                                 ),
                                 onPressed: () => _showUpdateSheet(context, availableUpdate, isRu),
                                 icon: const Icon(Icons.system_update_rounded, size: 18),
-                                label: Text(isRu ? 'Обновить' : 'Update'),
+                                label: Text(s.update),
                               );
                             }
                             return FilledButton.icon(
@@ -970,7 +966,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                               icon: _isCheckingUpdates 
                                 ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                                 : const Icon(Icons.refresh_rounded, size: 18),
-                              label: Text(isRu ? 'Проверить' : 'Check'),
+                              label: Text(s.check),
                             );
                           },
                         ),
@@ -987,10 +983,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(isRu ? 'Канал обновлений' : 'Update Channel', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                              Text(s.updateChannel, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
                               const SizedBox(height: 2),
                               Text(
-                                isRu ? 'Стабильные релизы или Dev/Beta' : 'Stable releases or Dev/Beta',
+                                s.updateChannelSubtitle,
                                 style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
                               ),
                             ],
@@ -1018,9 +1014,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   const Divider(height: 1, indent: 16, endIndent: 16),
                   SwitchListTile(
                     secondary: const Icon(Icons.schedule_rounded, color: AppTokens.accent),
-                    title: Text(isRu ? 'Проверять при запуске' : 'Check updates on launch'),
+                    title: Text(s.checkOnLaunch),
                     subtitle: Text(
-                      isRu ? 'Тихий поиск свежих версий на главной' : 'Silent background check on startup',
+                      s.checkOnLaunchSubtitle,
                       style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
                     ),
                     value: ref.watch(autoCheckUpdatesProvider),
@@ -1032,7 +1028,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           const SizedBox(height: 20),
 
           // 8. About
-          _buildSectionHeader(isRu ? 'О приложении' : 'About App', Icons.info_outline_rounded),
+          _buildSectionHeader(s.aboutApp, Icons.info_outline_rounded),
           Card(
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14),
@@ -1046,14 +1042,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   const Text('Manga Loader', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
                   const SizedBox(height: 4),
                   Text(
-                    isRu ? 'Версия $currentVersionStr' : 'Version $currentVersionStr',
+                    s.version(currentVersionStr),
                     style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    isRu
-                      ? 'Современный загрузчик и ридер манги с аппаратным декодированием, масштабированием, автоскроллом и оффлайн-режимом CBZ.'
-                      : 'Modern manga reader and downloader with hardware decoding, scaling, auto-scroll and offline CBZ mode.',
+                    s.aboutDescription,
                     style: const TextStyle(fontSize: 12, color: AppTokens.textSecondary, height: 1.4),
                   ),
                 ],
@@ -1067,6 +1061,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   Widget _buildNotificationTimingCard(bool isRu) {
+    final s = SettingsStrings(isRu);
     final quiet = ref.watch(quietHoursProvider);
     final digestEnabled = ref.watch(chapterDigestProvider);
 
@@ -1079,11 +1074,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         children: [
           SwitchListTile(
             secondary: const Icon(Icons.bedtime_rounded, color: AppTokens.accent),
-            title: Text(isRu ? 'Тихие часы' : 'Quiet Hours'),
+            title: Text(s.quietHours),
             subtitle: Text(
-              isRu
-                  ? 'Не присылать уведомления о главах ночью'
-                  : 'Hold chapter notifications during the night',
+              s.quietHoursSubtitle,
               style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
             ),
             value: quiet.enabled,
@@ -1094,7 +1087,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             const Divider(height: 1, indent: 56),
             ListTile(
               leading: const Icon(Icons.nightlight_round, color: AppTokens.accent),
-              title: Text(isRu ? 'Начало' : 'Starts at'),
+              title: Text(s.quietHoursStart),
               trailing: _buildHourDropdown(
                 quiet.startHour,
                 (hour) =>
@@ -1104,7 +1097,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             const Divider(height: 1, indent: 56),
             ListTile(
               leading: const Icon(Icons.wb_sunny_rounded, color: AppTokens.accent),
-              title: Text(isRu ? 'Конец' : 'Ends at'),
+              title: Text(s.quietHoursEnd),
               trailing: _buildHourDropdown(
                 quiet.endHour,
                 (hour) =>
@@ -1115,11 +1108,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           const Divider(height: 1, indent: 56),
           SwitchListTile(
             secondary: const Icon(Icons.mark_email_unread_rounded, color: AppTokens.accent),
-            title: Text(isRu ? 'Один дайджест в день' : 'One Daily Digest'),
+            title: Text(s.dailyDigest),
             subtitle: Text(
-              isRu
-                  ? 'Вместо уведомления на каждую главу — одна сводка «Новые главы: N»'
-                  : 'One summary («New chapters: N») instead of a ping per chapter',
+              s.dailyDigestSubtitle,
               style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
             ),
             value: digestEnabled,
@@ -1151,12 +1142,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   String _backupIntervalLabel(int days, bool isRu) {
+    final s = SettingsStrings(isRu);
     if (days <= 0) {
-      return isRu ? 'Копии отключены — создавайте вручную' : 'Backups off — create them manually';
+      return s.backupsOff;
     }
-    return isRu
-        ? 'Копия раз в ${Plural.days(days, 'ru')}'
-        : 'Backup every ${Plural.days(days, 'en')}';
+    return s.backupEvery(Plural.days(days, isRu ? 'ru' : 'en'));
   }
 
   Widget _buildSectionHeader(String title, IconData icon) {

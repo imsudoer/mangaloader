@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:go_router/go_router.dart';
+import 'package:mangaloader/l10n/strings/profile_strings.dart';
 import 'package:mangaloader/providers/settings_provider.dart';
 import 'package:mangaloader/providers/library_provider.dart';
 import 'package:mangaloader/providers/streak_provider.dart';
@@ -63,6 +64,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     final profile = ref.read(currentUserProfileProvider);
     if (profile == null) return;
 
+    final s = ProfileStrings(isRu);
     setState(() => _isSyncing = true);
     try {
       int imported = 0;
@@ -88,16 +90,15 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(isRu ? 'Синхронизировано $imported тайтлов из MangaLib' : 'Synced $imported titles from MangaLib'),
+            content: Text(s.syncedTitles('$imported')),
             backgroundColor: Colors.green.shade800,
           ),
         );
       }
     } catch (e) {
       if (mounted) {
-        final isRu = Localizations.localeOf(context).languageCode == 'ru';
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(isRu ? 'Ошибка синхронизации: $e' : 'Sync error: $e')),
+          SnackBar(content: Text(ProfileStrings.of(context).syncError('$e'))),
         );
       }
     } finally {
@@ -106,6 +107,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   }
 
   void _showEditProfileDialog(BuildContext context, bool isRu) {
+    final s = ProfileStrings(isRu);
     final profile = _detailedProfile;
     final basicProfile = ref.read(currentUserProfileProvider);
     if (basicProfile == null) return;
@@ -120,7 +122,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         builder: (ctx, setDialogState) => AlertDialog(
           backgroundColor: const Color(0xFF222222),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Text(isRu ? 'Редактировать профиль' : 'Edit Profile'),
+          title: Text(s.editProfile),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -129,7 +131,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                 TextField(
                   controller: usernameCtrl,
                   decoration: InputDecoration(
-                    labelText: isRu ? 'Никнейм' : 'Username',
+                    labelText: s.usernameLabel,
                     prefixIcon: const Icon(Icons.person_outline_rounded),
                     filled: true,
                     fillColor: AppTokens.surfaceRaised,
@@ -137,7 +139,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                Text(isRu ? 'Пол' : 'Gender', style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary)),
+                Text(s.gender, style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary)),
                 const SizedBox(height: 6),
                 SegmentedButton<int>(
                   style: SegmentedButton.styleFrom(
@@ -145,9 +147,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     selectedForegroundColor: Colors.white,
                   ),
                   segments: [
-                    ButtonSegment(value: 0, label: Text(isRu ? 'Не указан' : 'None')),
-                    ButtonSegment(value: 1, label: Text(isRu ? 'Мужской' : 'Male')),
-                    ButtonSegment(value: 2, label: Text(isRu ? 'Женский' : 'Female')),
+                    ButtonSegment(value: 0, label: Text(s.genderNone)),
+                    ButtonSegment(value: 1, label: Text(s.genderMale)),
+                    ButtonSegment(value: 2, label: Text(s.genderFemale)),
                   ],
                   selected: {selectedGender},
                   onSelectionChanged: (val) => setDialogState(() => selectedGender = val.first),
@@ -157,7 +159,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   controller: aboutCtrl,
                   maxLines: 3,
                   decoration: InputDecoration(
-                    labelText: isRu ? 'О себе' : 'Bio / About',
+                    labelText: s.bioLabel,
                     alignLabelWithHint: true,
                     filled: true,
                     fillColor: AppTokens.surfaceRaised,
@@ -170,7 +172,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(),
-              child: Text(isRu ? 'Отмена' : 'Cancel'),
+              child: Text(s.cancel),
             ),
             FilledButton(
               style: FilledButton.styleFrom(backgroundColor: AppTokens.accent),
@@ -190,18 +192,18 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   _loadProfileDetails();
                   if (mounted) {
                     messenger.showSnackBar(
-                      SnackBar(content: Text(isRu ? 'Профиль успешно обновлен' : 'Profile updated successfully')),
+                      SnackBar(content: Text(s.profileUpdated)),
                     );
                   }
                 } catch (e) {
                   if (mounted) {
                     messenger.showSnackBar(
-                      SnackBar(content: Text(isRu ? 'Ошибка обновления профиля: $e' : 'Failed to update profile: $e')),
+                      SnackBar(content: Text(s.profileUpdateFailed('$e'))),
                     );
                   }
                 }
               },
-              child: Text(isRu ? 'Сохранить' : 'Save'),
+              child: Text(s.save),
             ),
           ],
         ),
@@ -210,6 +212,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   }
 
   void _showPrivacyDialog(BuildContext context, bool isRu) async {
+    final s = ProfileStrings(isRu);
     final basicProfile = ref.read(currentUserProfileProvider);
     if (basicProfile == null) return;
 
@@ -236,12 +239,12 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         builder: (ctx, setDialogState) => AlertDialog(
           backgroundColor: const Color(0xFF222222),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Text(isRu ? 'Настройки приватности' : 'Privacy Settings'),
+          title: Text(s.privacySettings),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(isRu ? 'Видимость профиля' : 'Profile Visibility', style: const TextStyle(fontWeight: FontWeight.bold)),
+              Text(s.profileVisibility, style: const TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
               DropdownButtonFormField<int>(
                 initialValue: profileVis,
@@ -252,16 +255,16 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                 ),
                 items: [
-                  DropdownMenuItem(value: 0, child: Text(isRu ? 'Виден всем' : 'Public to everyone')),
-                  DropdownMenuItem(value: 1, child: Text(isRu ? 'Только друзьям' : 'Friends only')),
-                  DropdownMenuItem(value: 2, child: Text(isRu ? 'Скрытый профиль' : 'Hidden / Private')),
+                  DropdownMenuItem(value: 0, child: Text(s.visibilityEveryone)),
+                  DropdownMenuItem(value: 1, child: Text(s.visibilityFriends)),
+                  DropdownMenuItem(value: 2, child: Text(s.visibilityHidden)),
                 ],
                 onChanged: (val) {
                   if (val != null) setDialogState(() => profileVis = val);
                 },
               ),
               const SizedBox(height: 16),
-              Text(isRu ? 'Видимость статистики' : 'Statistics Visibility', style: const TextStyle(fontWeight: FontWeight.bold)),
+              Text(s.statisticsVisibility, style: const TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
               DropdownButtonFormField<int>(
                 initialValue: statsVis,
@@ -272,9 +275,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                 ),
                 items: [
-                  DropdownMenuItem(value: 0, child: Text(isRu ? 'Скрыта' : 'Hidden')),
-                  DropdownMenuItem(value: 1, child: Text(isRu ? 'Только друзьям' : 'Friends only')),
-                  DropdownMenuItem(value: 3, child: Text(isRu ? 'Видна всем' : 'Public to all')),
+                  DropdownMenuItem(value: 0, child: Text(s.statsHidden)),
+                  DropdownMenuItem(value: 1, child: Text(s.visibilityFriends)),
+                  DropdownMenuItem(value: 3, child: Text(s.statsPublic)),
                 ],
                 onChanged: (val) {
                   if (val != null) setDialogState(() => statsVis = val);
@@ -285,7 +288,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(),
-              child: Text(isRu ? 'Отмена' : 'Cancel'),
+              child: Text(s.cancel),
             ),
             FilledButton(
               style: FilledButton.styleFrom(backgroundColor: AppTokens.accent),
@@ -302,18 +305,18 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   );
                   if (mounted) {
                     messenger.showSnackBar(
-                      SnackBar(content: Text(isRu ? 'Настройки приватности обновлены' : 'Privacy settings updated')),
+                      SnackBar(content: Text(s.privacyUpdated)),
                     );
                   }
                 } catch (e) {
                   if (mounted) {
                     messenger.showSnackBar(
-                      SnackBar(content: Text(isRu ? 'Ошибка обновления приватности: $e' : 'Failed to update privacy: $e')),
+                      SnackBar(content: Text(s.privacyUpdateFailed('$e'))),
                     );
                   }
                 }
               },
-              child: Text(isRu ? 'Сохранить' : 'Save'),
+              child: Text(s.save),
             ),
           ],
         ),
@@ -332,28 +335,29 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   Widget build(BuildContext context) {
     final selectedLocale = ref.watch(localeProvider);
     final isRu = (selectedLocale?.languageCode ?? Localizations.localeOf(context).languageCode) == 'ru';
+    final s = ProfileStrings(isRu);
     final basicProfile = ref.watch(currentUserProfileProvider);
     final streakAsync = ref.watch(streakProvider);
     final streakCount = streakAsync.value?.currentStreak ?? 0;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(isRu ? 'Профиль' : 'Profile'),
+        title: Text(s.title),
         actions: [
           IconButton(
             icon: const Icon(Icons.person_search_rounded),
-            tooltip: isRu ? 'Поиск пользователей' : 'Search Users',
+            tooltip: s.searchUsers,
             onPressed: () => UserSearchModal.show(context),
           ),
           Stack(
             children: [
               IconButton(
                 icon: const Icon(Icons.notifications_outlined),
-                tooltip: isRu ? 'Уведомления' : 'Notifications',
+                tooltip: s.notifications,
                 onPressed: () {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text(isRu ? 'Уведомлений: $_unreadNotifications' : 'Notifications: $_unreadNotifications'),
+                      content: Text(s.notificationCount('$_unreadNotifications')),
                       duration: const Duration(seconds: 2),
                     ),
                   );
@@ -378,7 +382,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           ),
           IconButton(
             icon: const Icon(Icons.settings_outlined),
-            tooltip: isRu ? 'Настройки' : 'Settings',
+            tooltip: s.settings,
             onPressed: () => context.push('/settings'),
           ),
         ],
@@ -404,7 +408,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             const SizedBox(height: 18),
 
             // 4. Data import from a MyAnimeList export link
-            _buildSectionTitle(isRu ? 'Данные и экспорт' : 'Data & Export'),
+            _buildSectionTitle(s.dataAndExport),
             Card(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),
@@ -412,11 +416,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               ),
               child: ListTile(
                 leading: const Icon(Icons.link_rounded, color: Color(0xFF2E7D32)),
-                title: Text(isRu ? 'Импорт из ссылки' : 'Import from URL'),
+                title: Text(s.importFromUrl),
                 subtitle: Text(
-                  isRu
-                      ? 'Загрузить XML-экспорт MyAnimeList по прямой ссылке'
-                      : 'Load a MyAnimeList XML export from a direct link',
+                  s.importFromUrlSubtitle,
                   style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
                 ),
                 trailing: const Icon(Icons.chevron_right_rounded),
@@ -427,7 +429,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
             // 5. Account Settings & MangaLib Actions
             if (basicProfile != null) ...[
-              _buildSectionTitle(isRu ? 'Управление аккаунтом MangaLib' : 'MangaLib Account Management'),
+              _buildSectionTitle(s.accountManagement),
               Card(
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
@@ -437,9 +439,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   children: [
                     ListTile(
                       leading: const Icon(Icons.edit_outlined, color: AppTokens.accent),
-                      title: Text(isRu ? 'Редактировать профиль' : 'Edit Profile'),
+                      title: Text(s.editProfile),
                       subtitle: Text(
-                        isRu ? 'Изменить никнейм, пол и описание' : 'Change username, gender & bio',
+                        s.editProfileSubtitle,
                         style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
                       ),
                       trailing: const Icon(Icons.chevron_right_rounded),
@@ -448,9 +450,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     const Divider(height: 1, indent: 56),
                     ListTile(
                       leading: const Icon(Icons.privacy_tip_outlined, color: AppTokens.accent),
-                      title: Text(isRu ? 'Приватность профиля' : 'Privacy Settings'),
+                      title: Text(s.privacyTitle),
                       subtitle: Text(
-                        isRu ? 'Настройка видимости профиля и статистики' : 'Configure visibility of profile & stats',
+                        s.privacySubtitle,
                         style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
                       ),
                       trailing: const Icon(Icons.chevron_right_rounded),
@@ -461,9 +463,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                       leading: _isSyncing
                           ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppTokens.accent))
                           : const Icon(Icons.sync_rounded, color: AppTokens.accent),
-                      title: Text(isRu ? 'Синхронизировать закладки' : 'Sync MangaLib Bookmarks'),
+                      title: Text(s.syncBookmarks),
                       subtitle: Text(
-                        isRu ? 'Импортировать все списки закладок в библиотеку' : 'Import all bookmark lists into library',
+                        s.syncBookmarksSubtitle,
                         style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
                       ),
                       trailing: const Icon(Icons.chevron_right_rounded),
@@ -481,6 +483,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   }
 
   Widget _buildUserHeaderCard(BuildContext context, bool isRu, UserProfile? basicProfile, int streakCount) {
+    final s = ProfileStrings(isRu);
     if (basicProfile == null) {
       return Card(
         shape: RoundedRectangleBorder(
@@ -505,12 +508,12 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          isRu ? 'Гостевой режим' : 'Guest Mode',
+                          s.guestMode,
                           style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          isRu ? 'Войдите для синхронизации с MangaLib' : 'Sign in to sync with MangaLib',
+                          s.guestSubtitle,
                           style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
                         ),
                       ],
@@ -527,7 +530,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                 ),
                 onPressed: () => context.push('/login'),
                 icon: const Icon(Icons.login_rounded, size: 18),
-                label: Text(isRu ? 'Войти в аккаунт MangaLib' : 'Sign in to MangaLib'),
+                label: Text(s.signIn),
               ),
             ],
           ),
@@ -656,7 +659,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                 TextButton.icon(
                   onPressed: () => _showEditProfileDialog(context, isRu),
                   icon: const Icon(Icons.edit_rounded, size: 16),
-                  label: Text(isRu ? 'Редактировать' : 'Edit'),
+                  label: Text(s.edit),
                 ),
                 TextButton.icon(
                   style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
@@ -666,7 +669,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     setState(() => _detailedProfile = null);
                   },
                   icon: const Icon(Icons.logout_rounded, size: 16),
-                  label: Text(isRu ? 'Выйти' : 'Logout'),
+                  label: Text(s.logout),
                 ),
               ],
             ),
@@ -677,6 +680,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   }
 
   Widget _buildRecapSpotlightCard(BuildContext context, bool isRu) {
+    final s = ProfileStrings(isRu);
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
@@ -707,12 +711,12 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  isRu ? 'Manga Recap / Итоги чтения' : 'Manga Recap Summary',
+                  s.recapTitle,
                   style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  isRu ? 'Годовая сводка, рекорды и экспорт карточки' : 'Annual summary, tops & card export',
+                  s.recapSubtitle,
                   style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
                 ),
               ],
@@ -726,7 +730,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
             onPressed: () => MangaRecapModal.show(context),
-            child: Text(isRu ? 'Открыть' : 'View', style: const TextStyle(fontSize: 12)),
+            child: Text(s.view, style: const TextStyle(fontSize: 12)),
           ),
         ],
       ),
@@ -734,6 +738,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   }
 
   Widget _buildQuickActionsGrid(BuildContext context, bool isRu) {
+    final s = ProfileStrings(isRu);
     return Row(
       children: [
         Expanded(
@@ -752,12 +757,12 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     const Icon(Icons.history_rounded, color: Color(0xFF81C784), size: 26),
                     const SizedBox(height: 6),
                     Text(
-                      isRu ? 'История' : 'History',
+                      s.history,
                       style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      isRu ? 'Прочитанное' : 'Recent reads',
+                      s.historySubtitle,
                       style: const TextStyle(fontSize: 10, color: AppTokens.textPrimary),
                     ),
                   ],
@@ -783,12 +788,12 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     const Icon(Icons.emoji_events_rounded, color: Color(0xFFFFD700), size: 26),
                     const SizedBox(height: 6),
                     Text(
-                      isRu ? 'Достижения' : 'Awards',
+                      s.awardsTitle,
                       style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      isRu ? 'Награды' : 'Levels & XP',
+                      s.awardsSubtitle,
                       style: const TextStyle(fontSize: 10, color: AppTokens.textPrimary),
                     ),
                   ],
@@ -814,12 +819,12 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     const Icon(Icons.bar_chart_rounded, color: Color(0xFF64B5F6), size: 26),
                     const SizedBox(height: 6),
                     Text(
-                      isRu ? 'Статистика' : 'Statistics',
+                      s.statistics,
                       style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      isRu ? 'Аналитика' : 'Analytics',
+                      s.statisticsSubtitle,
                       style: const TextStyle(fontSize: 10, color: AppTokens.textPrimary),
                     ),
                   ],
@@ -849,6 +854,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 /// Failures stay inside the dialog: a mistyped link is the common case and
 /// retyping beats reopening the whole flow.
 Future<bool> showMalUrlImportDialog(BuildContext context, {required bool isRu}) async {
+  final s = ProfileStrings(isRu);
   final controller = TextEditingController();
   final messenger = ScaffoldMessenger.of(context);
   var busy = false;
@@ -858,7 +864,7 @@ Future<bool> showMalUrlImportDialog(BuildContext context, {required bool isRu}) 
     final url = controller.text.trim();
     if (url.isEmpty) {
       setDialogState(
-        () => errorText = isRu ? 'Вставьте ссылку на XML-экспорт' : 'Paste a link to the XML export',
+        () => errorText = s.pasteLinkError,
       );
       return;
     }
@@ -870,15 +876,15 @@ Future<bool> showMalUrlImportDialog(BuildContext context, {required bool isRu}) 
     try {
       final result = await MalUrlImporter.importFromUrl(url);
       final parts = <String>[
-        isRu ? 'добавлено ${result.importedCount}' : '${result.importedCount} added',
-        isRu ? 'обновлено ${result.updatedCount}' : '${result.updatedCount} updated',
+        s.addedTitles('${result.importedCount}'),
+        s.updatedTitles('${result.updatedCount}'),
       ];
       if (result.failedCount > 0) {
-        parts.add(isRu ? 'с ошибками ${result.failedCount}' : '${result.failedCount} failed');
+        parts.add(s.failedTitles('${result.failedCount}'));
       }
       messenger.showSnackBar(
         SnackBar(
-          content: Text('${isRu ? 'Импорт MAL по ссылке' : 'MAL URL import'}: ${parts.join(', ')}'),
+          content: Text(s.malUrlImport(parts.join(', '))),
           backgroundColor: Colors.green.shade800,
         ),
       );
@@ -893,7 +899,7 @@ Future<bool> showMalUrlImportDialog(BuildContext context, {required bool isRu}) 
       if (!dialogContext.mounted) return;
       setDialogState(() {
         busy = false;
-        errorText = isRu ? 'Не удалось импортировать файл' : 'Import failed';
+        errorText = s.importFailed;
       });
     }
   }
@@ -904,15 +910,13 @@ Future<bool> showMalUrlImportDialog(BuildContext context, {required bool isRu}) 
       builder: (dialogContext, setDialogState) => AlertDialog(
         backgroundColor: const Color(0xFF222222),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(isRu ? 'Импорт из ссылки' : 'Import from URL'),
+        title: Text(s.importFromUrl),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              isRu
-                  ? 'Прямая ссылка на XML-экспорт MyAnimeList. Размер файла до 5 МБ.'
-                  : 'Direct link to a MyAnimeList XML export. Files up to 5 MB.',
+              s.importDialogDescription,
               style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
             ),
             const SizedBox(height: 12),
@@ -938,7 +942,7 @@ Future<bool> showMalUrlImportDialog(BuildContext context, {required bool isRu}) 
               const LinearProgressIndicator(minHeight: 3, color: AppTokens.accent),
               const SizedBox(height: 6),
               Text(
-                isRu ? 'Загружаем и импортируем...' : 'Downloading and importing...',
+                s.importInProgress,
                 style: const TextStyle(fontSize: 11, color: AppTokens.accent),
               ),
             ],
@@ -947,7 +951,7 @@ Future<bool> showMalUrlImportDialog(BuildContext context, {required bool isRu}) 
         actions: [
           TextButton(
             onPressed: busy ? null : () => Navigator.of(dialogContext).pop(false),
-            child: Text(isRu ? 'Отмена' : 'Cancel'),
+            child: Text(s.cancel),
           ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: AppTokens.accent),
@@ -958,7 +962,7 @@ Future<bool> showMalUrlImportDialog(BuildContext context, {required bool isRu}) 
                     height: 16,
                     child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                   )
-                : Text(isRu ? 'Импортировать' : 'Import'),
+                : Text(s.importAction),
           ),
         ],
       ),
@@ -972,26 +976,19 @@ Future<bool> showMalUrlImportDialog(BuildContext context, {required bool isRu}) 
 }
 
 String _malImportErrorText(MalUrlImportError kind, bool isRu) {
+  final s = ProfileStrings(isRu);
   switch (kind) {
     case MalUrlImportError.invalidUrl:
-      return isRu
-          ? 'Нужна ссылка, начинающаяся с http:// или https://'
-          : 'The link must start with http:// or https://';
+      return s.errorInvalidUrl;
     case MalUrlImportError.timeout:
-      return isRu
-          ? 'Сервер не ответил за 15 секунд'
-          : 'The server did not respond within 15 seconds';
+      return s.errorTimeout;
     case MalUrlImportError.tooLarge:
-      return isRu ? 'Файл больше 5 МБ' : 'The file is larger than 5 MB';
+      return s.errorTooLarge;
     case MalUrlImportError.httpStatus:
-      return isRu
-          ? 'Сервер вернул ошибку — проверьте ссылку'
-          : 'The server returned an error — check the link';
+      return s.errorHttpStatus;
     case MalUrlImportError.network:
-      return isRu ? 'Нет соединения с сервером' : 'Cannot reach the server';
+      return s.errorNetwork;
     case MalUrlImportError.importFailed:
-      return isRu
-          ? 'Файл не похож на экспорт MyAnimeList'
-          : 'The file does not look like a MyAnimeList export';
+      return s.errorNotMalExport;
   }
 }

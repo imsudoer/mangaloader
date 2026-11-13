@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:mangaloader/l10n/strings/downloads_strings.dart';
 import 'package:mangaloader/providers/download_provider.dart';
 import 'package:mangaloader/providers/settings_provider.dart';
 import 'package:mangaloader/src/rust/api/storage.dart' as rust_storage;
@@ -82,26 +83,25 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
   }
 
   Future<void> _deleteChapter(DownloadedMangaGroup group, DownloadedChapterInfo ch, bool isRu) async {
+    final s = DownloadsStrings(isRu);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppTokens.surfaceRaised,
-        title: Text(isRu ? 'Удалить главу?' : 'Delete chapter?', style: const TextStyle(color: Colors.white)),
+        title: Text(s.deleteChapterTitle, style: const TextStyle(color: Colors.white)),
         content: Text(
-          isRu 
-            ? 'Удалить Том ${ch.volume} Гл ${ch.number} из памяти устройства?'
-            : 'Delete Vol ${ch.volume} Ch ${ch.number} from storage?',
+          s.deleteChapterMessage(ch.volume, ch.number),
           style: const TextStyle(color: AppTokens.textPrimary),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text(isRu ? 'Отмена' : 'Cancel'),
+            child: Text(s.cancel),
           ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: Colors.red.shade800),
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text(isRu ? 'Удалить' : 'Delete'),
+            child: Text(s.delete),
           ),
         ],
       ),
@@ -119,26 +119,25 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
 
   Future<void> _deleteManga(DownloadedMangaGroup group, bool isRu) async {
     final title = group.rusName.isNotEmpty ? group.rusName : group.name;
+    final s = DownloadsStrings(isRu);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppTokens.surfaceRaised,
-        title: Text(isRu ? 'Удалить всю мангу?' : 'Delete entire manga?', style: const TextStyle(color: Colors.white)),
+        title: Text(s.deleteMangaTitle, style: const TextStyle(color: Colors.white)),
         content: Text(
-          isRu 
-            ? 'Удалить все ${group.chapters.length} скачанные главы "$title" (${_formatBytes(group.totalSizeBytes.toInt())})?'
-            : 'Delete all ${group.chapters.length} downloaded chapters of "$title"?',
+          s.deleteMangaMessage('${group.chapters.length}', title, _formatBytes(group.totalSizeBytes.toInt())),
           style: const TextStyle(color: AppTokens.textPrimary),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text(isRu ? 'Отмена' : 'Cancel'),
+            child: Text(s.cancel),
           ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: Colors.red.shade800),
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text(isRu ? 'Удалить всё' : 'Delete all'),
+            child: Text(s.deleteAll),
           ),
         ],
       ),
@@ -151,29 +150,28 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
   }
 
   Future<void> _freeUpSpace(bool isRu) async {
+    final s = DownloadsStrings(isRu);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppTokens.surfaceRaised,
         title: Text(
-          isRu ? 'Освободить место?' : 'Free up space?',
+          s.freeUpSpaceTitle,
           style: const TextStyle(color: Colors.white),
         ),
         content: Text(
-          isRu
-              ? 'Будут удалены скачанные главы, отмеченные как прочитанные.'
-              : 'Downloaded chapters marked as read will be deleted.',
+          s.freeUpSpaceMessage,
           style: const TextStyle(color: AppTokens.textPrimary),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text(isRu ? 'Отмена' : 'Cancel'),
+            child: Text(s.cancel),
           ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: AppTokens.accent),
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text(isRu ? 'Очистить' : 'Clean up'),
+            child: Text(s.cleanUp),
           ),
         ],
       ),
@@ -185,10 +183,8 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
     if (!mounted) return;
 
     final message = result.deletedChapters == 0
-        ? (isRu ? 'Прочитанных глав для удаления нет' : 'No read chapters to delete')
-        : (isRu
-            ? 'Удалено глав: ${result.deletedChapters} · ${_formatBytes(result.freedBytes)}'
-            : 'Deleted ${result.deletedChapters} chapters · ${_formatBytes(result.freedBytes)}');
+        ? s.noReadChapters
+        : s.deletedChapters('${result.deletedChapters}', _formatBytes(result.freedBytes));
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
@@ -204,45 +200,47 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
   }
 
   String _queueStatusLabel(DownloadQueueItem item, bool isRu) {
-    final attemptsSuffix = item.attempts > 1
-        ? (isRu ? ' · попытка ${item.attempts}' : ' · attempt ${item.attempts}')
-        : '';
+    final s = DownloadsStrings(isRu);
+    final attemptsSuffix =
+        item.attempts > 1 ? s.attempt('${item.attempts}') : '';
     switch (item.status) {
       case DownloadQueueStatus.queued:
-        return isRu ? 'В очереди$attemptsSuffix' : 'Queued$attemptsSuffix';
+        return '${s.statusQueued}$attemptsSuffix';
       case DownloadQueueStatus.downloading:
-        return isRu ? 'Загружается$attemptsSuffix' : 'Downloading$attemptsSuffix';
+        return '${s.statusDownloading}$attemptsSuffix';
       case DownloadQueueStatus.waitingForWifi:
-        return isRu ? 'Ожидает Wi-Fi$attemptsSuffix' : 'Waiting for Wi-Fi$attemptsSuffix';
+        return '${s.statusWaitingForWifi}$attemptsSuffix';
       case DownloadQueueStatus.failed:
         final error = item.error;
         if (error == null || error.isEmpty) {
-          return isRu ? 'Ошибка загрузки$attemptsSuffix' : 'Download failed$attemptsSuffix';
+          return '${s.statusFailed}$attemptsSuffix';
         }
-        return isRu ? 'Ошибка: $error' : 'Failed: $error';
+        return s.failedWithError(error);
       case DownloadQueueStatus.completed:
-        return isRu ? 'Готово' : 'Done';
+        return s.statusDone;
     }
   }
 
   String _downloadStateLabel(DownloadState state, bool isRu) {
+    final s = DownloadsStrings(isRu);
     switch (state) {
       case DownloadState.queued:
-        return isRu ? 'в очереди' : 'queued';
+        return s.stateQueued;
       case DownloadState.downloading:
-        return isRu ? 'загрузка' : 'downloading';
+        return s.stateDownloading;
       case DownloadState.waitingForNetwork:
-        return isRu ? 'ожидание сети' : 'waiting for network';
+        return s.stateWaitingForNetwork;
       case DownloadState.paused:
-        return isRu ? 'пауза' : 'paused';
+        return s.statePaused;
       case DownloadState.completed:
-        return isRu ? 'готово' : 'done';
+        return s.stateCompleted;
       case DownloadState.failed:
-        return isRu ? 'ошибка' : 'failed';
+        return s.stateFailed;
     }
   }
 
   Widget _buildStorageCard(bool isRu, int limitMb) {
+    final s = DownloadsStrings(isRu);
     final limitBytes = limitMb * 1024 * 1024;
     final usage = limitMb > 0
         ? (_usedBytes / limitBytes).clamp(0.0, 1.0)
@@ -265,14 +263,14 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
                 const Icon(Icons.sd_storage_rounded, size: 18, color: AppTokens.textPrimary),
                 const SizedBox(width: 8),
                 Text(
-                  isRu ? 'Хранилище' : 'Storage',
+                  s.storage,
                   style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white),
                 ),
                 const Spacer(),
                 Text(
                   limitMb > 0
                       ? '${_formatBytes(_usedBytes)} / $limitMb MB'
-                      : '${_formatBytes(_usedBytes)} · ${isRu ? "без лимита" : "no limit"}',
+                      : '${_formatBytes(_usedBytes)} · ${s.noLimit}',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
@@ -300,7 +298,7 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
                 onPressed: () => _freeUpSpace(isRu),
                 icon: const Icon(Icons.cleaning_services_rounded, size: 16),
                 label: Text(
-                  isRu ? 'Освободить место' : 'Free up space',
+                  s.freeUpSpace,
                   style: const TextStyle(fontSize: 12),
                 ),
               ),
@@ -313,6 +311,7 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
 
   List<Widget> _buildQueueSection(bool isRu) {
     if (_queueItems.isEmpty) return const [];
+    final s = DownloadsStrings(isRu);
 
     final hasCompleted = _queueItems
         .any((item) => item.status == DownloadQueueStatus.completed);
@@ -322,7 +321,7 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
         children: [
           Expanded(
             child: Text(
-              isRu ? 'Очередь загрузок' : 'Download queue',
+              s.downloadQueue,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
           ),
@@ -331,7 +330,7 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
               style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
               onPressed: () => DownloadQueueService.instance.clearCompleted(),
               child: Text(
-                isRu ? 'Очистить готовые' : 'Clear finished',
+                s.clearFinished,
                 style: const TextStyle(fontSize: 11),
               ),
             ),
@@ -344,6 +343,7 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
   }
 
   Widget _buildQueueTile(DownloadQueueItem item, bool isRu) {
+    final s = DownloadsStrings(isRu);
     final IconData icon;
     final Color color;
     switch (item.status) {
@@ -380,7 +380,7 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
         dense: true,
         leading: Icon(icon, size: 20, color: color),
         title: Text(
-          '${item.slugUrl} · ${isRu ? "Том" : "Vol"} ${item.volume} ${isRu ? "Гл" : "Ch"} ${item.number}',
+          '${item.slugUrl} · ${s.volumeShort} ${item.volume} ${s.chapterShort} ${item.number}',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
@@ -400,13 +400,13 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
             if (isFailed)
               IconButton(
                 icon: const Icon(Icons.refresh_rounded, size: 20),
-                tooltip: isRu ? 'Повторить' : 'Retry',
+                tooltip: s.retry,
                 onPressed: () => DownloadQueueService.instance.retry(item),
               ),
             if (!isDownloading)
               IconButton(
                 icon: const Icon(Icons.close_rounded, size: 18),
-                tooltip: isRu ? 'Убрать из очереди' : 'Remove from queue',
+                tooltip: s.removeFromQueue,
                 onPressed: () => DownloadQueueService.instance.remove(item),
               ),
           ],
@@ -419,6 +419,7 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
   Widget build(BuildContext context) {
     final downloads = ref.watch(downloadProvider);
     final isRu = Localizations.localeOf(context).languageCode == 'ru';
+    final s = DownloadsStrings.of(context);
     final storageLimitMb = ref.watch(downloadsStorageLimitProvider);
 
     ref.listen<int>(downloadCompletionTickProvider, (_, __) => _loadDownloaded(silent: true));
@@ -449,19 +450,19 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
     });
 
     final sortOptions = [
-      {'id': 'title', 'labelRu': 'По названию (А-Я)', 'labelEn': 'By Title (A-Z)'},
-      {'id': 'chapters', 'labelRu': 'По числу глав', 'labelEn': 'Most Chapters'},
-      {'id': 'size', 'labelRu': 'По размеру файлов', 'labelEn': 'Largest Size'},
-      {'id': 'recent', 'labelRu': 'Недавно скачанные', 'labelEn': 'Recently Downloaded'},
+      (id: 'title', label: s.sortByTitle),
+      (id: 'chapters', label: s.sortByChapters),
+      (id: 'size', label: s.sortBySize),
+      (id: 'recent', label: s.sortByRecent),
     ];
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(isRu ? 'Загрузки и файлы' : 'Downloads & Files'),
+        title: Text(s.title),
         actions: [
           IconButton(
             icon: const Icon(Icons.folder_open_rounded),
-            tooltip: isRu ? 'Открыть локальный файл CBZ / ZIP' : 'Open local CBZ / ZIP',
+            tooltip: s.openLocalFile,
             onPressed: () async {
               final result = await FilePicker.platform.pickFiles(
                 type: FileType.custom,
@@ -478,18 +479,18 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
           if (_queueItems.any((item) => item.status == DownloadQueueStatus.failed))
             IconButton(
               icon: const Icon(Icons.restart_alt_rounded),
-              tooltip: isRu ? 'Повторить все ошибки' : 'Retry all failed',
+              tooltip: s.retryAllFailed,
               onPressed: () => DownloadQueueService.instance.retryAllFailed(),
             ),
           if (downloads.isNotEmpty) ...[
             IconButton(
               icon: const Icon(Icons.pause_rounded),
-              tooltip: isRu ? 'Пауза' : 'Pause',
+              tooltip: s.pause,
               onPressed: () => ref.read(downloadProvider.notifier).pauseAll(),
             ),
             IconButton(
               icon: const Icon(Icons.play_arrow_rounded),
-              tooltip: isRu ? 'Продолжить' : 'Resume',
+              tooltip: s.resume,
               onPressed: () => ref.read(downloadProvider.notifier).resumeAll(),
             ),
           ],
@@ -500,7 +501,7 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
                   item.status == DownloadQueueStatus.waitingForWifi))
             IconButton(
               icon: const Icon(Icons.cancel_rounded),
-              tooltip: isRu ? 'Отмена' : 'Cancel',
+              tooltip: s.cancel,
               onPressed: _cancelQueue,
             ),
         ],
@@ -518,14 +519,14 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
             // Active downloads section
             if (downloads.isNotEmpty) ...[
               Text(
-                isRu ? 'Активные загрузки' : 'Active Downloads',
+                s.activeDownloads,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
               ...downloads.map((d) => Card(
                 margin: const EdgeInsets.only(bottom: 8),
                 child: ListTile(
-                  title: Text('${d.mangaSlug} · ${isRu ? "Том" : "Vol"} ${d.chapterVolume} ${isRu ? "Гл" : "Ch"} ${d.chapterNumber}'),
+                  title: Text('${d.mangaSlug} · ${s.volumeShort} ${d.chapterVolume} ${s.chapterShort} ${d.chapterNumber}'),
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -533,7 +534,7 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
                       LinearProgressIndicator(value: d.totalPages > 0 ? d.currentPage / d.totalPages : null),
                       const SizedBox(height: 6),
                       Text(
-                        '${d.currentPage} / ${d.totalPages} ${isRu ? "стр." : "p."} (${_downloadStateLabel(d.state, isRu)})',
+                        '${d.currentPage} / ${d.totalPages} ${s.pageShort} (${_downloadStateLabel(d.state, isRu)})',
                         style: const TextStyle(fontSize: 12),
                       ),
                     ],
@@ -548,7 +549,7 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
               children: [
                 Expanded(
                   child: Text(
-                    isRu ? 'Скачанная манга (CBZ)' : 'Downloaded Manga (CBZ)',
+                    s.downloadedManga,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                   ),
                 ),
@@ -566,7 +567,7 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
                     }
                   },
                   icon: const Icon(Icons.add, size: 18),
-                  label: Text(isRu ? 'Открыть файл' : 'Open file'),
+                  label: Text(s.openFile),
                 ),
               ],
             ),
@@ -579,7 +580,7 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
                   Expanded(
                     child: TextField(
                       decoration: InputDecoration(
-                        hintText: isRu ? 'Поиск в скачанных...' : 'Search downloads...',
+                        hintText: s.searchHint,
                         prefixIcon: const Icon(Icons.search_rounded, size: 18),
                         isDense: true,
                         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -593,14 +594,14 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
                   const SizedBox(width: 8),
                   PopupMenuButton<String>(
                     initialValue: _sortBy,
-                    tooltip: isRu ? 'Сортировка' : 'Sort',
+                    tooltip: s.sort,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     color: AppTokens.surfaceRaised,
                     onSelected: (val) => setState(() => _sortBy = val),
                     itemBuilder: (ctx) => sortOptions.map((opt) {
-                      final isSel = _sortBy == opt['id'];
+                      final isSel = _sortBy == opt.id;
                       return PopupMenuItem<String>(
-                        value: opt['id'] as String,
+                        value: opt.id,
                         child: Row(
                           children: [
                             Icon(
@@ -610,7 +611,7 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              isRu ? opt['labelRu'] as String : opt['labelEn'] as String,
+                              opt.label,
                               style: TextStyle(
                                 color: isSel ? Colors.white : AppTokens.textPrimary,
                                 fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
@@ -646,12 +647,12 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
                       const Icon(Icons.offline_pin_outlined, size: 52, color: AppTokens.accent),
                       const SizedBox(height: 12),
                       Text(
-                        isRu ? 'Нет скачанных глав' : 'No downloaded chapters',
+                        s.noDownloads,
                         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        isRu ? 'Скачайте главы со страницы тайтла или откройте локальный .cbz файл' : 'Download chapters from manga page or open a local .cbz file',
+                        s.noDownloadsSubtitle,
                         style: const TextStyle(color: AppTokens.textSecondary, fontSize: 13),
                         textAlign: TextAlign.center,
                       ),
@@ -664,7 +665,7 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
                 child: Padding(
                   padding: const EdgeInsets.all(24),
                   child: Text(
-                    isRu ? 'Ничего не найдено по запросу "$_searchQuery"' : 'No matches for "$_searchQuery"',
+                    s.noMatches(_searchQuery),
                     style: const TextStyle(color: AppTokens.textSecondary),
                   ),
                 ),
@@ -739,7 +740,7 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: Text(
-                                '${group.chapters.length} ${isRu ? "гл." : "ch."}',
+                                '${group.chapters.length} ${s.chapterCountShort}',
                                 style: const TextStyle(color: AppTokens.textPrimary, fontSize: 11, fontWeight: FontWeight.bold),
                               ),
                             ),
@@ -753,13 +754,13 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
                         children: [
                           IconButton(
                             icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 20),
-                            tooltip: isRu ? 'Удалить все главы' : 'Delete all chapters',
+                            tooltip: s.deleteAllChapters,
                             onPressed: () => _deleteManga(group, isRu),
                           ),
                           if (group.slugUrl.isNotEmpty)
                             IconButton(
                               icon: const Icon(Icons.info_outline_rounded, size: 20),
-                              tooltip: isRu ? 'Открыть страницу тайтла' : 'Open details',
+                              tooltip: s.openDetails,
                               onPressed: () => context.push('/manga/${group.slugUrl}'),
                             ),
                         ],
@@ -771,7 +772,7 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
                           child: Row(
                             children: [
                               Text(
-                                isRu ? 'Главы по порядку:' : 'Chapters in order:',
+                                s.chaptersInOrder,
                                 style: const TextStyle(fontSize: 12, color: AppTokens.textSecondary, fontWeight: FontWeight.w600),
                               ),
                               const Spacer(),
@@ -784,7 +785,7 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
                                 },
                                 icon: Icon(isAsc ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded, size: 14),
                                 label: Text(
-                                  isAsc ? (isRu ? 'С первых глав' : 'Ascending (1.0 ->)') : (isRu ? 'С последних глав' : 'Descending'),
+                                  isAsc ? s.ascending : s.descending,
                                   style: const TextStyle(fontSize: 11),
                                 ),
                               ),
@@ -810,7 +811,7 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
                               children: [
                                 IconButton.filledTonal(
                                   icon: const Icon(Icons.play_arrow_rounded, size: 18),
-                                  tooltip: isRu ? 'Читать' : 'Read',
+                                  tooltip: s.read,
                                   style: IconButton.styleFrom(
                                     backgroundColor: AppTokens.accent.withValues(alpha: 0.25),
                                     foregroundColor: AppTokens.textPrimary,
@@ -824,7 +825,7 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
                                 const SizedBox(width: 4),
                                 IconButton(
                                   icon: const Icon(Icons.delete_outline_rounded, size: 18, color: Colors.redAccent),
-                                  tooltip: isRu ? 'Удалить главу' : 'Delete chapter',
+                                  tooltip: s.deleteChapter,
                                   onPressed: () => _deleteChapter(group, ch, isRu),
                                 ),
                               ],

@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mangaloader/l10n/strings/library_strings.dart';
 import 'package:mangaloader/providers/library_provider.dart';
 import 'package:mangaloader/providers/continue_reading_provider.dart';
 import 'package:mangaloader/providers/streak_provider.dart';
@@ -39,13 +40,14 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
   final Set<int> _selectedMangaIds = {};
 
   Future<void> _syncWithMangaLib(BuildContext context, bool isRu) async {
+    final s = LibraryStrings(isRu);
     final profile = ref.read(currentUserProfileProvider);
     if (profile == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(isRu ? 'Войдите в аккаунт MangaLib для синхронизации' : 'Sign in to MangaLib to sync'),
+          content: Text(s.signInToSync),
           action: SnackBarAction(
-            label: isRu ? 'Войти' : 'Sign In',
+            label: s.signIn,
             onPressed: () => context.push('/login'),
           ),
         ),
@@ -78,7 +80,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(isRu ? 'Синхронизировано $imported тайтлов из MangaLib' : 'Synced $imported titles from MangaLib'),
+            content: Text(s.titlesSynced('$imported')),
             backgroundColor: Colors.green.shade800,
           ),
         );
@@ -94,14 +96,14 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
     }
   }
 
-  final List<Map<String, dynamic>> _categoryTabs = [
-    {'type': null, 'labelRu': 'Все', 'labelEn': 'All', 'icon': Icons.grid_view_rounded},
-    {'type': ListType.reading, 'labelRu': 'Читаю', 'labelEn': 'Reading', 'icon': Icons.auto_stories_rounded, 'color': Color(0xFF64B5F6)},
-    {'type': ListType.planToRead, 'labelRu': 'В планах', 'labelEn': 'Plan to Read', 'icon': Icons.bookmark_rounded, 'color': Color(0xFFFFB74D)},
-    {'type': ListType.completed, 'labelRu': 'Прочитано', 'labelEn': 'Completed', 'icon': Icons.check_circle_rounded, 'color': Color(0xFF81C784)},
-    {'type': ListType.favorites, 'labelRu': 'Любимое', 'labelEn': 'Favorites', 'icon': Icons.favorite_rounded, 'color': Color(0xFFF06292)},
-    {'type': ListType.onHold, 'labelRu': 'Отложено', 'labelEn': 'On Hold', 'icon': Icons.pause_circle_outline_rounded, 'color': Colors.grey},
-    {'type': ListType.dropped, 'labelRu': 'Брошено', 'labelEn': 'Dropped', 'icon': Icons.delete_outline_rounded, 'color': Colors.redAccent},
+  static const List<({ListType? type, IconData icon, Color? color})> _categoryTabs = [
+    (type: null, icon: Icons.grid_view_rounded, color: null),
+    (type: ListType.reading, icon: Icons.auto_stories_rounded, color: Color(0xFF64B5F6)),
+    (type: ListType.planToRead, icon: Icons.bookmark_rounded, color: Color(0xFFFFB74D)),
+    (type: ListType.completed, icon: Icons.check_circle_rounded, color: Color(0xFF81C784)),
+    (type: ListType.favorites, icon: Icons.favorite_rounded, color: Color(0xFFF06292)),
+    (type: ListType.onHold, icon: Icons.pause_circle_outline_rounded, color: Colors.grey),
+    (type: ListType.dropped, icon: Icons.delete_outline_rounded, color: Colors.redAccent),
   ];
 
   @override
@@ -160,6 +162,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
   }
 
   Future<void> _exportBackup(bool isRu) async {
+    final s = LibraryStrings(isRu);
     try {
       final jsonStr = await rust_storage.exportBackupJson();
       final tempDir = await getTemporaryDirectory();
@@ -169,7 +172,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
 
       if (mounted) {
         await SharePlus.instance.share(ShareParams(
-          text: isRu ? 'Резервная копия библиотеки MangaLoader' : 'MangaLoader Backup',
+          text: s.backupShareText,
           files: [XFile(file.path)],
         ));
       }
@@ -183,6 +186,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
   }
 
   Future<void> _importBackup(bool isRu) async {
+    final s = LibraryStrings(isRu);
     try {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
@@ -196,7 +200,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
           await ref.read(libraryProvider.notifier).loadAll();
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(isRu ? 'Резервная копия успешно восстановлена!' : 'Backup restored successfully!')),
+              SnackBar(content: Text(s.backupRestored)),
             );
           }
         }
@@ -211,6 +215,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
   }
 
   Future<void> _exportMalXml(bool isRu) async {
+    final s = LibraryStrings(isRu);
     try {
       final xmlStr = await rust_storage.exportMalXml();
       final tempDir = await getTemporaryDirectory();
@@ -220,7 +225,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
 
       if (mounted) {
         await SharePlus.instance.share(ShareParams(
-          text: isRu ? 'Экспорт библиотеки MyAnimeList (MAL)' : 'MyAnimeList Export (XML)',
+          text: s.malExportShareText,
           files: [XFile(file.path)],
         ));
       }
@@ -234,6 +239,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
   }
 
   Future<void> _importMalXml(bool isRu) async {
+    final s = LibraryStrings(isRu);
     try {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
@@ -248,9 +254,10 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                isRu
-                    ? 'Импорт MAL завершен: добавлено ${res.importedCount}, обновлено ${res.updatedCount}'
-                    : 'MAL Import done: ${res.importedCount} added, ${res.updatedCount} updated',
+                s.malImportDone(
+                  '${res.importedCount}',
+                  '${res.updatedCount}',
+                ),
               ),
             ),
           );
@@ -266,24 +273,25 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
   }
 
   void _showCreateListDialog(bool isRu) {
+    final s = LibraryStrings(isRu);
     final controller = TextEditingController();
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppTokens.surfaceCard,
-        title: Text(isRu ? 'Новый список' : 'New Custom List'),
+        title: Text(s.newList),
         content: TextField(
           controller: controller,
           autofocus: true,
           decoration: InputDecoration(
-            hintText: isRu ? 'Название списка' : 'List name',
+            hintText: s.listNameHint,
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text(isRu ? 'Отмена' : 'Cancel'),
+            child: Text(s.cancel),
           ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: AppTokens.accent),
@@ -294,7 +302,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
                 if (ctx.mounted) Navigator.pop(ctx);
               }
             },
-            child: Text(isRu ? 'Создать' : 'Create'),
+            child: Text(s.create),
           ),
         ],
       ),
@@ -315,6 +323,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
   Widget _buildScaffold(BuildContext context) {
     final libState = ref.watch(libraryProvider);
     final isRu = Localizations.localeOf(context).languageCode == 'ru';
+    final s = LibraryStrings.of(context);
     final allEntries = libState.valueOrNull ?? const <LibraryEntry>[];
     final selectedEntries =
         allEntries.where((e) => _selectedMangaIds.contains(e.mangaId.toInt())).toList();
@@ -328,25 +337,25 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
         leading: _selectionMode
           ? IconButton(
               icon: const Icon(Icons.close_rounded),
-              tooltip: isRu ? 'Выйти из выбора' : 'Exit selection',
+              tooltip: s.exitSelection,
               onPressed: _exitSelectionMode,
             )
           : null,
         title: _selectionMode
-          ? Text(isRu ? 'Выбрано: ${_selectedMangaIds.length}' : 'Selected: ${_selectedMangaIds.length}')
+          ? Text(s.selectedCount('${_selectedMangaIds.length}'))
           : _isSearchOpen
           ? TextField(
               controller: _searchController,
               autofocus: true,
               decoration: InputDecoration(
-                hintText: isRu ? 'Поиск в библиотеке...' : 'Search library...',
+                hintText: s.searchHint,
                 border: InputBorder.none,
                 hintStyle: const TextStyle(color: AppTokens.textSecondary),
               ),
               style: const TextStyle(color: Colors.white),
               onChanged: (_) => setState(() {}),
             )
-          : Text(isRu ? 'Моя библиотека' : 'My Library'),
+          : Text(s.title),
         actions: _selectionMode
           ? _buildSelectionActions(isRu, selectedEntries, hasSelectedDownloads)
           : [
@@ -354,12 +363,12 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
             icon: _isSyncingWithMangaLib
               ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
               : const Icon(Icons.sync_rounded),
-            tooltip: isRu ? 'Синхронизировать с MangaLib' : 'Sync with MangaLib',
+            tooltip: s.syncWithMangalib,
             onPressed: _isSyncingWithMangaLib ? null : () => _syncWithMangaLib(context, isRu),
           ),
           IconButton(
             icon: Icon(_isSearchOpen ? Icons.close_rounded : Icons.search_rounded),
-            tooltip: isRu ? 'Поиск' : 'Search',
+            tooltip: s.search,
             onPressed: () {
               setState(() {
                 _isSearchOpen = !_isSearchOpen;
@@ -369,12 +378,12 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
           ),
           IconButton(
             icon: Icon(_isGridView ? Icons.view_list_rounded : Icons.grid_view_rounded),
-            tooltip: isRu ? (_isGridView ? 'Список' : 'Сетка') : (_isGridView ? 'List' : 'Grid'),
+            tooltip: _isGridView ? s.viewList : s.viewGrid,
             onPressed: () => setState(() => _isGridView = !_isGridView),
           ),
           PopupMenuButton<LibrarySortMode>(
             icon: const Icon(Icons.sort_rounded),
-            tooltip: isRu ? 'Сортировка' : 'Sort',
+            tooltip: s.sort,
             color: AppTokens.surfaceRaised,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             onSelected: (mode) => setState(() => _sortMode = mode),
@@ -389,7 +398,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
                       color: _sortMode == LibrarySortMode.recent ? AppTokens.accent : Colors.white70,
                     ),
                     const SizedBox(width: 8),
-                    Text(isRu ? 'По дате добавления' : 'Date added'),
+                    Text(s.sortDateAdded),
                   ],
                 ),
               ),
@@ -403,7 +412,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
                       color: _sortMode == LibrarySortMode.title ? AppTokens.accent : Colors.white70,
                     ),
                     const SizedBox(width: 8),
-                    Text(isRu ? 'По названию (А-Я)' : 'Title (A-Z)'),
+                    Text(s.sortTitle),
                   ],
                 ),
               ),
@@ -417,7 +426,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
                       color: _sortMode == LibrarySortMode.rating ? AppTokens.accent : Colors.white70,
                     ),
                     const SizedBox(width: 8),
-                    Text(isRu ? 'По рейтингу' : 'Rating'),
+                    Text(s.sortRating),
                   ],
                 ),
               ),
@@ -431,7 +440,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
                       color: _sortMode == LibrarySortMode.progress ? AppTokens.accent : Colors.white70,
                     ),
                     const SizedBox(width: 8),
-                    Text(isRu ? 'По прогрессу чтения' : 'Reading progress'),
+                    Text(s.sortProgress),
                   ],
                 ),
               ),
@@ -445,7 +454,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
                       color: _sortMode == LibrarySortMode.chapters ? AppTokens.accent : Colors.white70,
                     ),
                     const SizedBox(width: 8),
-                    Text(isRu ? 'По количеству глав' : 'Total chapters'),
+                    Text(s.sortChapters),
                   ],
                 ),
               ),
@@ -453,12 +462,12 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
           ),
           IconButton(
             icon: const Icon(Icons.bar_chart_rounded),
-            tooltip: isRu ? 'Статистика чтения' : 'Reading Statistics',
+            tooltip: s.readingStatistics,
             onPressed: () => context.push('/statistics'),
           ),
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert_rounded),
-            tooltip: isRu ? 'Действия' : 'Actions',
+            tooltip: s.actions,
             color: AppTokens.surfaceRaised,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             onSelected: (action) {
@@ -475,7 +484,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
                   children: [
                     const Icon(Icons.add_circle_outline_rounded, size: 18, color: AppTokens.accent),
                     const SizedBox(width: 8),
-                    Text(isRu ? 'Новый список' : 'New Custom List'),
+                    Text(s.newList),
                   ],
                 ),
               ),
@@ -486,7 +495,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
                   children: [
                     const Icon(Icons.backup_rounded, size: 18, color: AppTokens.accent),
                     const SizedBox(width: 8),
-                    Text(isRu ? 'Экспорт базы (JSON)' : 'Export Backup (JSON)'),
+                    Text(s.exportBackup),
                   ],
                 ),
               ),
@@ -496,7 +505,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
                   children: [
                     const Icon(Icons.restore_rounded, size: 18, color: AppTokens.accent),
                     const SizedBox(width: 8),
-                    Text(isRu ? 'Импорт базы (JSON)' : 'Import Backup (JSON)'),
+                    Text(s.importBackup),
                   ],
                 ),
               ),
@@ -507,7 +516,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
                   children: [
                     const Icon(Icons.import_export_rounded, size: 18, color: Color(0xFF2E7D32)),
                     const SizedBox(width: 8),
-                    Text(isRu ? 'Экспорт в MyAnimeList' : 'Export to MyAnimeList'),
+                    Text(s.exportMal),
                   ],
                 ),
               ),
@@ -517,7 +526,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
                   children: [
                     const Icon(Icons.download_for_offline_outlined, size: 18, color: Color(0xFF2E7D32)),
                     const SizedBox(width: 8),
-                    Text(isRu ? 'Импорт из MyAnimeList' : 'Import from MyAnimeList'),
+                    Text(s.importMal),
                   ],
                 ),
               ),
@@ -525,7 +534,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
           ),
           IconButton(
             icon: const Icon(Icons.folder_open_rounded),
-            tooltip: isRu ? 'Локальный файл CBZ / ZIP' : 'Local CBZ / ZIP',
+            tooltip: s.openLocalFile,
             onPressed: () async {
               final result = await FilePicker.platform.pickFiles(
                 type: FileType.custom,
@@ -560,17 +569,17 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           tabs: _categoryTabs.map((tab) {
             final entries = libState.value ?? [];
-            final count = tab['type'] == null
+            final count = tab.type == null
               ? entries.length
-              : entries.where((e) => e.listType == tab['type']).length;
-            final label = isRu ? tab['labelRu'] : tab['labelEn'];
+              : entries.where((e) => e.listType == tab.type).length;
+            final label = _categoryLabel(tab.type, s);
             return Tab(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(tab['icon'] as IconData, size: 16, color: tab['color'] as Color?),
+                    Icon(tab.icon, size: 16, color: tab.color),
                     const SizedBox(width: 6),
                     Text('$label ($count)'),
                   ],
@@ -592,12 +601,12 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
                     const Icon(Icons.bookmarks_outlined, size: 64, color: AppTokens.accent),
                     const SizedBox(height: 16),
                     Text(
-                      isRu ? 'Библиотека пуста' : 'Your library is empty',
+                      s.emptyTitle,
                       style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white),
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      isRu ? 'Добавляйте тайтлы из каталога или поиска' : 'Add manga from catalog or search',
+                      s.emptySubtitle,
                       style: const TextStyle(color: AppTokens.textSecondary, fontSize: 13),
                       textAlign: TextAlign.center,
                     ),
@@ -606,7 +615,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
                       style: FilledButton.styleFrom(backgroundColor: AppTokens.accent),
                       onPressed: () => context.go('/search'),
                       icon: const Icon(Icons.search_rounded),
-                      label: Text(isRu ? 'Перейти в каталог' : 'Browse Catalog'),
+                      label: Text(s.browseCatalog),
                     ),
                   ],
                 ),
@@ -617,7 +626,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
           return TabBarView(
             controller: _tabController,
             children: _categoryTabs.map((tab) {
-              final listType = tab['type'] as ListType?;
+              final listType = tab.type;
               final filtered = _filterAndSort(allEntries, listType, _searchController.text);
 
               if (filtered.isEmpty) {
@@ -625,7 +634,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
                   child: Padding(
                     padding: const EdgeInsets.all(24),
                     child: Text(
-                      isRu ? 'В этой категории пока ничего нет' : 'No items in this category',
+                      s.emptyCategory,
                       style: const TextStyle(color: AppTokens.textSecondary),
                     ),
                   ),
@@ -1014,14 +1023,27 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
     }
   }
 
-  String _getListTypeName(ListType type, bool isRu) {
+  String _categoryLabel(ListType? type, LibraryStrings s) {
     switch (type) {
-      case ListType.reading: return isRu ? 'Читаю' : 'Reading';
-      case ListType.planToRead: return isRu ? 'В планах' : 'Plan to read';
-      case ListType.completed: return isRu ? 'Прочитано' : 'Completed';
-      case ListType.favorites: return isRu ? 'Любимое' : 'Favorites';
-      case ListType.onHold: return isRu ? 'Отложено' : 'On hold';
-      case ListType.dropped: return isRu ? 'Брошено' : 'Dropped';
+      case null: return s.all;
+      case ListType.reading: return s.tabReading;
+      case ListType.planToRead: return s.tabPlanToRead;
+      case ListType.completed: return s.tabCompleted;
+      case ListType.favorites: return s.tabFavorites;
+      case ListType.onHold: return s.tabOnHold;
+      case ListType.dropped: return s.tabDropped;
+    }
+  }
+
+  String _getListTypeName(ListType type, bool isRu) {
+    final s = LibraryStrings(isRu);
+    switch (type) {
+      case ListType.reading: return s.listTypeReading;
+      case ListType.planToRead: return s.listTypePlanToRead;
+      case ListType.completed: return s.listTypeCompleted;
+      case ListType.favorites: return s.listTypeFavorites;
+      case ListType.onHold: return s.listTypeOnHold;
+      case ListType.dropped: return s.listTypeDropped;
     }
   }
 
@@ -1036,22 +1058,32 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
     }
   }
 
-  static const List<({String key, String labelRu, String labelEn, IconData icon, Color color})>
+  static const List<({String key, IconData icon, Color color})>
       _listTypeOptions = [
-    (key: 'reading', labelRu: 'Читаю', labelEn: 'Reading', icon: Icons.auto_stories_rounded, color: Color(0xFF64B5F6)),
-    (key: 'plan_to_read', labelRu: 'В планах', labelEn: 'Plan to Read', icon: Icons.bookmark_rounded, color: Color(0xFFFFB74D)),
-    (key: 'completed', labelRu: 'Прочитано', labelEn: 'Completed', icon: Icons.check_circle_rounded, color: Color(0xFF81C784)),
-    (key: 'on_hold', labelRu: 'Отложено', labelEn: 'On Hold', icon: Icons.pause_circle_outline_rounded, color: Colors.grey),
-    (key: 'dropped', labelRu: 'Брошено', labelEn: 'Dropped', icon: Icons.delete_outline_rounded, color: Colors.redAccent),
-    (key: 'favorites', labelRu: 'Любимое', labelEn: 'Favorites', icon: Icons.favorite_rounded, color: Color(0xFFF06292)),
+    (key: 'reading', icon: Icons.auto_stories_rounded, color: Color(0xFF64B5F6)),
+    (key: 'plan_to_read', icon: Icons.bookmark_rounded, color: Color(0xFFFFB74D)),
+    (key: 'completed', icon: Icons.check_circle_rounded, color: Color(0xFF81C784)),
+    (key: 'on_hold', icon: Icons.pause_circle_outline_rounded, color: Colors.grey),
+    (key: 'dropped', icon: Icons.delete_outline_rounded, color: Colors.redAccent),
+    (key: 'favorites', icon: Icons.favorite_rounded, color: Color(0xFFF06292)),
   ];
+
+  String _listTypeLabel(String key, LibraryStrings s) {
+    switch (key) {
+      case 'reading': return s.tabReading;
+      case 'plan_to_read': return s.tabPlanToRead;
+      case 'completed': return s.tabCompleted;
+      case 'on_hold': return s.tabOnHold;
+      case 'dropped': return s.tabDropped;
+      default: return s.tabFavorites;
+    }
+  }
 
   String _unreadLabel(LibraryEntry entry, bool isRu) {
     final unread = entry.unreadCount.toInt();
     if (unread <= 0) return '';
-    return isRu
-        ? '${Plural.chapters(unread, 'ru')} не прочитано'
-        : '${Plural.chapters(unread, 'en')} unread';
+    final s = LibraryStrings(isRu);
+    return s.unread(Plural.chapters(unread, isRu ? 'ru' : 'en'));
   }
 
   Widget _selectionIndicator(bool selected) {
@@ -1106,26 +1138,28 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
     bool hasDownloads,
   ) {
     final hasSelection = selectedEntries.isNotEmpty;
+    final s = LibraryStrings(isRu);
     return [
       IconButton(
         icon: const Icon(Icons.drive_file_move_rounded),
-        tooltip: isRu ? 'Переместить в список' : 'Move to list',
+        tooltip: s.moveToList,
         onPressed: hasSelection ? () => _moveSelectedToList(isRu) : null,
       ),
       IconButton(
         icon: const Icon(Icons.delete_sweep_rounded),
-        tooltip: isRu ? 'Удалить загрузки' : 'Delete downloads',
+        tooltip: s.deleteDownloads,
         onPressed: hasSelection && hasDownloads ? () => _deleteSelectedDownloads(isRu) : null,
       ),
       IconButton(
         icon: const Icon(Icons.playlist_remove_rounded),
-        tooltip: isRu ? 'Убрать из библиотеки' : 'Remove from library',
+        tooltip: s.removeFromLibrary,
         onPressed: hasSelection ? () => _removeSelectedFromLibrary(isRu) : null,
       ),
     ];
   }
 
   Future<String?> _showListTypeSheet(bool isRu) {
+    final s = LibraryStrings(isRu);
     return showModalBottomSheet<String>(
       context: context,
       backgroundColor: const Color(0xFF222222),
@@ -1141,7 +1175,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
                 child: Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    isRu ? 'Переместить в список' : 'Move to list',
+                    s.moveToList,
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                   ),
                 ),
@@ -1149,7 +1183,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
               ..._listTypeOptions.map(
                 (option) => ListTile(
                   leading: Icon(option.icon, color: option.color),
-                  title: Text(isRu ? option.labelRu : option.labelEn),
+                  title: Text(_listTypeLabel(option.key, s)),
                   onTap: () => Navigator.pop(ctx, option.key),
                 ),
               ),
@@ -1166,6 +1200,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
     required String message,
     required String confirmLabel,
   }) {
+    final s = LibraryStrings(isRu);
     return showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -1175,7 +1210,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text(isRu ? 'Отмена' : 'Cancel'),
+            child: Text(s.cancel),
           ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: Colors.redAccent.shade700),
@@ -1198,6 +1233,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
   }
 
   Future<void> _moveSelectedToList(bool isRu) async {
+    final s = LibraryStrings(isRu);
     final entries = _selectedEntries();
     if (entries.isEmpty) return;
 
@@ -1224,23 +1260,22 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
     _exitSelectionMode();
     _showBulkSnackBar(
       failed == 0
-          ? (isRu ? 'Перемещено тайтлов: $moved' : 'Titles moved: $moved')
-          : (isRu ? 'Перемещено: $moved, ошибок: $failed' : 'Moved: $moved, failed: $failed'),
+          ? s.titlesMoved('$moved')
+          : s.movedWithFailures('$moved', '$failed'),
       failed: failed,
     );
   }
 
   Future<void> _deleteSelectedDownloads(bool isRu) async {
+    final s = LibraryStrings(isRu);
     final entries = _selectedEntries();
     if (entries.isEmpty) return;
 
     final confirmed = await _confirmBulkAction(
       isRu: isRu,
-      title: isRu ? 'Удалить загрузки?' : 'Delete downloads?',
-      message: isRu
-          ? 'Скачанные главы выбранных тайтлов (${entries.length}) будут удалены с устройства.'
-          : 'Downloaded chapters of the selected titles (${entries.length}) will be deleted from this device.',
-      confirmLabel: isRu ? 'Удалить' : 'Delete',
+      title: s.deleteDownloadsTitle,
+      message: s.deleteDownloadsMessage('${entries.length}'),
+      confirmLabel: s.delete,
     );
     if (confirmed != true || !mounted) return;
 
@@ -1260,23 +1295,22 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
     _exitSelectionMode();
     _showBulkSnackBar(
       failed == 0
-          ? (isRu ? 'Загрузки удалены у тайтлов: $deleted' : 'Downloads deleted for titles: $deleted')
-          : (isRu ? 'Удалено: $deleted, ошибок: $failed' : 'Deleted: $deleted, failed: $failed'),
+          ? s.downloadsDeletedFor('$deleted')
+          : s.deletedWithFailures('$deleted', '$failed'),
       failed: failed,
     );
   }
 
   Future<void> _removeSelectedFromLibrary(bool isRu) async {
+    final s = LibraryStrings(isRu);
     final entries = _selectedEntries();
     if (entries.isEmpty) return;
 
     final confirmed = await _confirmBulkAction(
       isRu: isRu,
-      title: isRu ? 'Убрать из библиотеки?' : 'Remove from library?',
-      message: isRu
-          ? 'Выбранные тайтлы (${entries.length}) будут убраны из библиотеки. Скачанные главы останутся на устройстве.'
-          : 'The selected titles (${entries.length}) will be removed from your library. Downloaded chapters stay on this device.',
-      confirmLabel: isRu ? 'Убрать' : 'Remove',
+      title: s.removeFromLibraryTitle,
+      message: s.removeFromLibraryMessage('${entries.length}'),
+      confirmLabel: s.remove,
     );
     if (confirmed != true || !mounted) return;
 
@@ -1299,13 +1333,14 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
     _exitSelectionMode();
     _showBulkSnackBar(
       failed == 0
-          ? (isRu ? 'Убрано из библиотеки: $removed' : 'Removed from library: $removed')
-          : (isRu ? 'Убрано: $removed, ошибок: $failed' : 'Removed: $removed, failed: $failed'),
+          ? s.removedFromLibrary('$removed')
+          : s.removedWithFailures('$removed', '$failed'),
       failed: failed,
     );
   }
 
   void _showMangaActionSheet(BuildContext context, LibraryEntry entry, bool isRu) {
+    final s = LibraryStrings(isRu);
     final title = entry.rusName.isNotEmpty ? entry.rusName : entry.name;
 
     showModalBottomSheet(
@@ -1332,7 +1367,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
               // Open Details
               ListTile(
                 leading: const Icon(Icons.info_outline_rounded, color: AppTokens.textPrimary),
-                title: Text(isRu ? 'Открыть страницу тайтла' : 'View manga details'),
+                title: Text(s.viewDetails),
                 onTap: () {
                   Navigator.pop(ctx);
                   context.push('/manga/${entry.slugUrl}');
@@ -1342,7 +1377,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
               // Change Category Submenu
               ListTile(
                 leading: const Icon(Icons.swap_horiz_rounded, color: AppTokens.accent),
-                title: Text(isRu ? 'Сменить категорию / статус' : 'Move to another category'),
+                title: Text(s.changeCategory),
                 onTap: () {
                   Navigator.pop(ctx);
                   _showChangeCategoryDialog(context, entry, isRu);
@@ -1352,13 +1387,13 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
               // Remove from Library
               ListTile(
                 leading: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
-                title: Text(isRu ? 'Удалить из библиотеки' : 'Remove from library', style: const TextStyle(color: Colors.redAccent)),
+                title: Text(s.deleteFromLibrary, style: const TextStyle(color: Colors.redAccent)),
                 onTap: () async {
                   Navigator.pop(ctx);
                   await ref.read(libraryProvider.notifier).removeFromList(entry.mangaId.toInt(), 'all');
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(isRu ? 'Тайтл удалён из библиотеки' : 'Removed from library')),
+                      SnackBar(content: Text(s.titleRemoved)),
                     );
                   }
                 },
@@ -1371,18 +1406,19 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
   }
 
   void _showChangeCategoryDialog(BuildContext context, LibraryEntry entry, bool isRu) {
+    final s = LibraryStrings(isRu);
     showDialog(
       context: context,
       builder: (ctx) => SimpleDialog(
         backgroundColor: AppTokens.surfaceRaised,
-        title: Text(isRu ? 'Выберите категорию' : 'Select Category'),
+        title: Text(s.selectCategory),
         children: [
-          _buildCategoryOption(ctx, entry, 'reading', isRu ? 'Читаю' : 'Reading', Icons.auto_stories_rounded, const Color(0xFF64B5F6)),
-          _buildCategoryOption(ctx, entry, 'plan_to_read', isRu ? 'В планах' : 'Plan to Read', Icons.bookmark_rounded, const Color(0xFFFFB74D)),
-          _buildCategoryOption(ctx, entry, 'completed', isRu ? 'Прочитано' : 'Completed', Icons.check_circle_rounded, const Color(0xFF81C784)),
-          _buildCategoryOption(ctx, entry, 'favorites', isRu ? 'Любимое' : 'Favorites', Icons.favorite_rounded, const Color(0xFFF06292)),
-          _buildCategoryOption(ctx, entry, 'on_hold', isRu ? 'Отложено' : 'On Hold', Icons.pause_circle_outline_rounded, Colors.grey),
-          _buildCategoryOption(ctx, entry, 'dropped', isRu ? 'Брошено' : 'Dropped', Icons.delete_outline_rounded, Colors.redAccent),
+          _buildCategoryOption(ctx, entry, 'reading', s.tabReading, Icons.auto_stories_rounded, const Color(0xFF64B5F6)),
+          _buildCategoryOption(ctx, entry, 'plan_to_read', s.tabPlanToRead, Icons.bookmark_rounded, const Color(0xFFFFB74D)),
+          _buildCategoryOption(ctx, entry, 'completed', s.tabCompleted, Icons.check_circle_rounded, const Color(0xFF81C784)),
+          _buildCategoryOption(ctx, entry, 'favorites', s.tabFavorites, Icons.favorite_rounded, const Color(0xFFF06292)),
+          _buildCategoryOption(ctx, entry, 'on_hold', s.tabOnHold, Icons.pause_circle_outline_rounded, Colors.grey),
+          _buildCategoryOption(ctx, entry, 'dropped', s.tabDropped, Icons.delete_outline_rounded, Colors.redAccent),
         ],
       ),
     );
