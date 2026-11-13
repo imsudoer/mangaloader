@@ -68,7 +68,15 @@ jobs:
         uses: cargo-bins/cargo-binstall@main
 
       - name: Install flutter_rust_bridge_codegen
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
         run: cargo binstall --no-confirm flutter_rust_bridge_codegen@2.12.0
+
+      - name: Build flutter_rust_bridge_codegen if missing
+        run: |
+          flutter_rust_bridge_codegen --version \
+            || cargo install flutter_rust_bridge_codegen --version 2.12.0 --locked
 
       - name: Flutter Rust Bridge Codegen
         run: flutter_rust_bridge_codegen generate
@@ -169,7 +177,16 @@ jobs:
         uses: cargo-bins/cargo-binstall@main
 
       - name: Install Tools (Pre-built Binaries)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
         run: cargo binstall --no-confirm flutter_rust_bridge_codegen@2.12.0 cargo-ndk
+
+      - name: Build missing tools from source
+        run: |
+          flutter_rust_bridge_codegen --version \
+            || cargo install flutter_rust_bridge_codegen --version 2.12.0 --locked
+          cargo ndk --version || cargo install cargo-ndk --locked
 
       - name: Flutter Rust Bridge Codegen
         run: flutter_rust_bridge_codegen generate
@@ -269,7 +286,15 @@ jobs:
         uses: cargo-bins/cargo-binstall@main
 
       - name: Install flutter_rust_bridge_codegen
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
         run: cargo binstall --no-confirm flutter_rust_bridge_codegen@2.12.0
+
+      - name: Build flutter_rust_bridge_codegen if missing
+        run: |
+          flutter_rust_bridge_codegen --version \
+            || cargo install flutter_rust_bridge_codegen --version 2.12.0 --locked
 
       - name: Flutter Rust Bridge Codegen
         run: flutter_rust_bridge_codegen generate
