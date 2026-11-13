@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:mangaloader/l10n/strings/history_strings.dart';
 import 'package:mangaloader/providers/settings_provider.dart';
 import 'package:mangaloader/src/rust/api/models.dart';
 import 'package:mangaloader/src/rust/api/storage.dart' as rust_storage;
@@ -30,6 +31,7 @@ class HistoryPage extends ConsumerStatefulWidget {
 
 class _HistoryPageState extends ConsumerState<HistoryPage> {
   String _formatDate(String isoDate, bool isRu) {
+    final s = HistoryStrings(isRu);
     try {
       final dt = DateTime.parse(isoDate.replaceAll(' ', 'T')).toLocal();
       final now = DateTime.now();
@@ -40,11 +42,11 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
       final timeStr = '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
 
       if (diffDays == 0) {
-        return isRu ? 'Сегодня, $timeStr' : 'Today, $timeStr';
+        return s.todayAt(timeStr);
       } else if (diffDays == 1) {
-        return isRu ? 'Вчера, $timeStr' : 'Yesterday, $timeStr';
+        return s.yesterdayAt(timeStr);
       } else if (diffDays < 7) {
-        return isRu ? '$diffDays дн. назад' : '$diffDays days ago';
+        return s.daysAgo('$diffDays');
       } else {
         return '${dt.day.toString().padLeft(2, '0')}.${dt.month.toString().padLeft(2, '0')}.${dt.year}';
       }
@@ -54,6 +56,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
   }
 
   String _getDateGroup(String isoDate, bool isRu) {
+    final s = HistoryStrings(isRu);
     try {
       final dt = DateTime.parse(isoDate.replaceAll(' ', 'T')).toLocal();
       final now = DateTime.now();
@@ -63,52 +66,49 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
       final diffDays = today.difference(itemDate).inDays;
 
       if (diffDays == 0) {
-        return isRu ? 'Сегодня' : 'Today';
+        return s.today;
       } else if (diffDays == 1) {
-        return isRu ? 'Вчера' : 'Yesterday';
+        return s.yesterday;
       } else if (diffDays < 7) {
-        return isRu ? 'На этой неделе' : 'This week';
+        return s.thisWeek;
       } else if (diffDays < 30) {
-        return isRu ? 'В этом месяце' : 'This month';
+        return s.thisMonth;
       } else {
-        return isRu ? 'Ранее' : 'Earlier';
+        return s.earlier;
       }
     } catch (_) {
-      return isRu ? 'Ранее' : 'Earlier';
+      return s.earlier;
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final isRu = ref.watch(localeProvider)?.languageCode != 'en';
+    final s = HistoryStrings(isRu);
     final historyAsync = ref.watch(historyProvider);
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(isRu ? 'История чтения' : 'Reading History'),
+        title: Text(s.title),
         actions: [
           IconButton(
             icon: const Icon(Icons.delete_sweep_outlined),
-            tooltip: isRu ? 'Очистить историю' : 'Clear history',
+            tooltip: s.clearHistory,
             onPressed: () async {
               final confirmed = await showDialog<bool>(
                 context: context,
                 builder: (ctx) => AlertDialog(
-                  title: Text(isRu ? 'Очистить историю?' : 'Clear history?'),
-                  content: Text(
-                    isRu
-                        ? 'Вся история прочитанных глав будет удалена. Прогресс в библиотеке сохранится.'
-                        : 'All reading history will be deleted. Library progress will remain.',
-                  ),
+                  title: Text(s.clearHistoryTitle),
+                  content: Text(s.clearHistoryMessage),
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.pop(ctx, false),
-                      child: Text(isRu ? 'Отмена' : 'Cancel'),
+                      child: Text(s.cancel),
                     ),
                     FilledButton(
                       onPressed: () => Navigator.pop(ctx, true),
                       style: FilledButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.error),
-                      child: Text(isRu ? 'Очистить' : 'Clear'),
+                      child: Text(s.clear),
                     ),
                   ],
                 ),
@@ -119,7 +119,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
                 ref.invalidate(historyProvider);
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(isRu ? 'История очищена' : 'History cleared')),
+                    SnackBar(content: Text(s.historyCleared)),
                   );
                 }
               }
@@ -141,7 +141,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    isRu ? 'История чтения пуста' : 'Reading history is empty',
+                    s.emptyTitle,
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w600,
@@ -150,7 +150,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    isRu ? 'Здесь появятся прочитанные главы' : 'Read chapters will appear here',
+                    s.emptySubtitle,
                     style: TextStyle(
                       fontSize: 14,
                       color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
@@ -192,9 +192,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
                     ),
                     ...groupItems.map((item) {
                       final title = item.rusName.isNotEmpty ? item.rusName : item.name;
-                      final chapStr = isRu
-                          ? 'Том ${item.volume} Глава ${item.number}'
-                          : 'Vol. ${item.volume} Ch. ${item.number}';
+                      final chapStr = s.chapterLabel(item.volume, item.number);
 
                       return Dismissible(
                         key: Key('hist_${item.mangaId}_${item.volume}_${item.number}'),
@@ -277,7 +275,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
                                                   borderRadius: BorderRadius.circular(4),
                                                 ),
                                                 child: Text(
-                                                  isRu ? 'Прочитано' : 'Completed',
+                                                  s.completed,
                                                   style: const TextStyle(
                                                     fontSize: 10,
                                                     fontWeight: FontWeight.w600,
@@ -294,9 +292,9 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
                                                   borderRadius: BorderRadius.circular(4),
                                                 ),
                                                 child: Text(
-                                                  isRu
-                                                      ? 'Стр. ${item.pageIndex + 1}${item.totalPages > 0 ? "/${item.totalPages}" : ""}'
-                                                      : 'Page ${item.pageIndex + 1}${item.totalPages > 0 ? "/${item.totalPages}" : ""}',
+                                                  s.page(
+                                                    '${item.pageIndex + 1}${item.totalPages > 0 ? "/${item.totalPages}" : ""}',
+                                                  ),
                                                   style: const TextStyle(
                                                     fontSize: 10,
                                                     fontWeight: FontWeight.w600,
@@ -356,7 +354,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
           ),
         ),
         error: (err, _) => Center(
-          child: Text('${isRu ? "Ошибка загрузки истории" : "Error loading history"}: $err'),
+          child: Text(s.errorLoading('$err')),
         ),
       ),
     );

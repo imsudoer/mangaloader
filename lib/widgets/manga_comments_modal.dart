@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:go_router/go_router.dart';
+import 'package:mangaloader/l10n/strings/comments_strings.dart';
 import 'package:mangaloader/providers/settings_provider.dart';
 import 'package:mangaloader/src/rust/api/mangalib_client.dart' as rust_api;
 import 'package:mangaloader/src/rust/api/models.dart';
@@ -114,14 +115,14 @@ class _MangaCommentsModalState extends ConsumerState<MangaCommentsModal> {
 
   Future<void> _vote(CommentItem comment, int vote) async {
     final profile = ref.read(currentUserProfileProvider);
-    final isRu = Localizations.localeOf(context).languageCode == 'ru';
+    final s = CommentsStrings.of(context);
 
     if (profile == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(isRu ? 'Войдите в аккаунт, чтобы голосовать' : 'Sign in to vote'),
+          content: Text(s.signInToVote),
           action: SnackBarAction(
-            label: isRu ? 'Войти' : 'Sign In',
+            label: s.signIn,
             onPressed: () => context.push('/login'),
           ),
         ),
@@ -192,6 +193,7 @@ class _MangaCommentsModalState extends ConsumerState<MangaCommentsModal> {
   }
 
   Future<void> _postComment(bool isRu) async {
+    final s = CommentsStrings(isRu);
     final text = _commentController.text.trim();
     if (text.isEmpty || _isPosting) return;
 
@@ -199,9 +201,9 @@ class _MangaCommentsModalState extends ConsumerState<MangaCommentsModal> {
     if (profile == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(isRu ? 'Войдите в аккаунт, чтобы оставить комментарий' : 'Sign in to post comments'),
+          content: Text(s.signInToPost),
           action: SnackBarAction(
-            label: isRu ? 'Войти' : 'Sign In',
+            label: s.signIn,
             onPressed: () => context.push('/login'),
           ),
         ),
@@ -232,17 +234,16 @@ class _MangaCommentsModalState extends ConsumerState<MangaCommentsModal> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(isRu ? 'Комментарий опубликован' : 'Comment posted'),
+            content: Text(s.commentPosted),
             backgroundColor: Colors.green.shade800,
           ),
         );
       }
     } catch (e) {
       if (mounted) {
-        final isRu = Localizations.localeOf(context).languageCode == 'ru';
         setState(() => _isPosting = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(isRu ? 'Ошибка отправки: $e' : 'Failed to send comment: $e')),
+          SnackBar(content: Text(CommentsStrings.of(context).sendFailed('$e'))),
         );
       }
     }
@@ -251,6 +252,7 @@ class _MangaCommentsModalState extends ConsumerState<MangaCommentsModal> {
   @override
   Widget build(BuildContext context) {
     final isRu = Localizations.localeOf(context).languageCode == 'ru';
+    final s = CommentsStrings(isRu);
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
     return Container(
@@ -281,7 +283,7 @@ class _MangaCommentsModalState extends ConsumerState<MangaCommentsModal> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        isRu ? 'Комментарии' : 'Comments',
+                        s.title,
                         style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
                       ),
                       Text(
@@ -302,8 +304,8 @@ class _MangaCommentsModalState extends ConsumerState<MangaCommentsModal> {
                     textStyle: const TextStyle(fontSize: 12),
                   ),
                   segments: [
-                    ButtonSegment(value: 'votes', label: Text(isRu ? 'Топ' : 'Top')),
-                    ButtonSegment(value: 'new', label: Text(isRu ? 'Новые' : 'New')),
+                    ButtonSegment(value: 'votes', label: Text(s.sortTop)),
+                    ButtonSegment(value: 'new', label: Text(s.sortNew)),
                   ],
                   selected: {_sort},
                   onSelectionChanged: (val) {
@@ -331,7 +333,7 @@ class _MangaCommentsModalState extends ConsumerState<MangaCommentsModal> {
                         const SizedBox(height: 12),
                         FilledButton.tonal(
                           onPressed: () => _loadComments(refresh: true),
-                          child: Text(isRu ? 'Повторить' : 'Retry'),
+                          child: Text(s.retry),
                         ),
                       ],
                     ),
@@ -344,12 +346,12 @@ class _MangaCommentsModalState extends ConsumerState<MangaCommentsModal> {
                           const Icon(Icons.chat_bubble_outline_rounded, size: 48, color: Color(0xFF555555)),
                           const SizedBox(height: 12),
                           Text(
-                            isRu ? 'Комментариев пока нет' : 'No comments yet',
+                            s.emptyTitle,
                             style: const TextStyle(color: Color(0xFF888888), fontSize: 14),
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            isRu ? 'Будьте первым, кто оставит комментарий!' : 'Be the first to comment!',
+                            s.emptySubtitle,
                             style: const TextStyle(color: Color(0xFF666666), fontSize: 12),
                           ),
                         ],
@@ -400,7 +402,7 @@ class _MangaCommentsModalState extends ConsumerState<MangaCommentsModal> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      '${isRu ? "Ответ для" : "Replying to"} @${_replyingTo!.username}',
+                      s.replyingTo(_replyingTo!.username),
                       style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
                     ),
                   ),
@@ -430,8 +432,8 @@ class _MangaCommentsModalState extends ConsumerState<MangaCommentsModal> {
                     onSubmitted: (_) => _postComment(isRu),
                     decoration: InputDecoration(
                       hintText: _replyingTo != null
-                        ? '${isRu ? "Ответить" : "Reply to"} @${_replyingTo!.username}...'
-                        : (isRu ? 'Написать комментарий...' : 'Write a comment...'),
+                        ? s.replyHint(_replyingTo!.username)
+                        : s.writeComment,
                       filled: true,
                       fillColor: AppTokens.surfaceBase,
                       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -462,6 +464,7 @@ class _MangaCommentsModalState extends ConsumerState<MangaCommentsModal> {
   }
 
   Widget _buildCommentTile(CommentItem comment, List<CommentItem> replies, bool isRu) {
+    final s = CommentsStrings(isRu);
     final isLiked = comment.userVote == 1;
     final isDisliked = comment.userVote == -1;
 
@@ -506,7 +509,7 @@ class _MangaCommentsModalState extends ConsumerState<MangaCommentsModal> {
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
-                              '${isRu ? "Стр." : "P."} ${comment.postPage}',
+                              s.page('${comment.postPage}'),
                               style: const TextStyle(fontSize: 10, color: AppTokens.textSecondary),
                             ),
                           ),
@@ -596,7 +599,7 @@ class _MangaCommentsModalState extends ConsumerState<MangaCommentsModal> {
                                 const Icon(Icons.reply_rounded, size: 15, color: Color(0xFFAAAAAA)),
                                 const SizedBox(width: 4),
                                 Text(
-                                  isRu ? 'Ответить' : 'Reply',
+                                  s.reply,
                                   style: const TextStyle(fontSize: 12, color: Color(0xFFAAAAAA)),
                                 ),
                               ],
@@ -711,15 +714,16 @@ class _MangaCommentsModalState extends ConsumerState<MangaCommentsModal> {
   }
 
   String _formatDate(String dateStr, bool isRu) {
+    final s = CommentsStrings(isRu);
     try {
       final dt = DateTime.parse(dateStr);
       final now = DateTime.now();
       final diff = now.difference(dt);
 
-      if (diff.inMinutes < 1) return isRu ? 'только что' : 'just now';
-      if (diff.inHours < 1) return isRu ? '${diff.inMinutes} мин. назад' : '${diff.inMinutes}m ago';
-      if (diff.inDays < 1) return isRu ? '${diff.inHours} ч. назад' : '${diff.inHours}h ago';
-      if (diff.inDays < 30) return isRu ? '${diff.inDays} дн. назад' : '${diff.inDays}d ago';
+      if (diff.inMinutes < 1) return s.justNow;
+      if (diff.inHours < 1) return s.minutesAgo('${diff.inMinutes}');
+      if (diff.inDays < 1) return s.hoursAgo('${diff.inHours}');
+      if (diff.inDays < 30) return s.daysAgo('${diff.inDays}');
       return '${dt.day.toString().padLeft(2, '0')}.${dt.month.toString().padLeft(2, '0')}.${dt.year}';
     } catch (_) {
       return dateStr;

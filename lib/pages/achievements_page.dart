@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:mangaloader/l10n/strings/achievements_strings.dart';
 import 'package:mangaloader/models/achievement.dart';
 import 'package:mangaloader/providers/achievements_provider.dart';
 import 'package:mangaloader/theme/app_tokens.dart';
@@ -16,11 +17,10 @@ class _AchievementsPageState extends ConsumerState<AchievementsPage> {
   String _selectedCategory = 'all';
 
   void _shareAchievement(Achievement a, bool isRu) {
+    final s = AchievementsStrings(isRu);
     final title = isRu ? a.titleRu : a.titleEn;
     final desc = isRu ? a.descRu : a.descEn;
-    final text = isRu
-        ? 'Я получил достижение «$title» ($desc) в MangaLoader! +${a.xp} XP'
-        : 'I unlocked the achievement "$title" ($desc) in MangaLoader! +${a.xp} XP';
+    final text = s.shareText(title, desc, '${a.xp}');
     SharePlus.instance.share(ShareParams(text: text));
   }
 
@@ -28,10 +28,11 @@ class _AchievementsPageState extends ConsumerState<AchievementsPage> {
   Widget build(BuildContext context) {
     final overviewAsync = ref.watch(achievementsProvider);
     final isRu = Localizations.localeOf(context).languageCode == 'ru';
+    final s = AchievementsStrings(isRu);
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(isRu ? 'Достижения' : 'Achievements', style: const TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(s.title, style: const TextStyle(fontWeight: FontWeight.bold)),
       ),
       body: overviewAsync.when(
         data: (overview) {
@@ -92,7 +93,11 @@ class _AchievementsPageState extends ConsumerState<AchievementsPage> {
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    '${overview.totalXp} XP • ${overview.unlockedCount} / ${overview.totalCount} ${isRu ? "открыто" : "unlocked"}',
+                                    s.xpProgress(
+                                      '${overview.totalXp}',
+                                      '${overview.unlockedCount}',
+                                      '${overview.totalCount}',
+                                    ),
                                     style: const TextStyle(fontSize: 12.5, color: AppTokens.textPrimary),
                                   ),
                                 ],
@@ -119,7 +124,7 @@ class _AchievementsPageState extends ConsumerState<AchievementsPage> {
                               style: const TextStyle(fontSize: 11, color: AppTokens.textSecondary),
                             ),
                             Text(
-                              '${overview.nextLevelXp} XP (${isRu ? "След. уровень" : "Next level"})',
+                              s.nextLevel('${overview.nextLevelXp}'),
                               style: const TextStyle(fontSize: 11, color: AppTokens.textSecondary),
                             ),
                           ],
@@ -135,19 +140,19 @@ class _AchievementsPageState extends ConsumerState<AchievementsPage> {
                   scrollDirection: Axis.horizontal,
                   child: Row(
                     children: [
-                      _buildFilterChip('all', isRu ? 'Все' : 'All', overview.achievements.length),
+                      _buildFilterChip('all', s.filterAll, overview.achievements.length),
                       const SizedBox(width: 8),
-                      _buildFilterChip('unlocked', isRu ? 'Полученные' : 'Unlocked', overview.unlockedCount),
+                      _buildFilterChip('unlocked', s.filterUnlocked, overview.unlockedCount),
                       const SizedBox(width: 8),
-                      _buildFilterChip('streak', isRu ? 'Стрики' : 'Streaks', 11),
+                      _buildFilterChip('streak', s.filterStreaks, 11),
                       const SizedBox(width: 8),
-                      _buildFilterChip('chapters', isRu ? 'Главы' : 'Chapters', 8),
+                      _buildFilterChip('chapters', s.filterChapters, 8),
                       const SizedBox(width: 8),
-                      _buildFilterChip('library', isRu ? 'Библиотека' : 'Library', 6),
+                      _buildFilterChip('library', s.filterLibrary, 6),
                       const SizedBox(width: 8),
-                      _buildFilterChip('downloads', isRu ? 'Оффлайн' : 'Downloads', 3),
+                      _buildFilterChip('downloads', s.filterDownloads, 3),
                       const SizedBox(width: 8),
-                      _buildFilterChip('special', isRu ? 'Особые' : 'Special', 3),
+                      _buildFilterChip('special', s.filterSpecial, 3),
                     ],
                   ),
                 ),
@@ -183,6 +188,7 @@ class _AchievementsPageState extends ConsumerState<AchievementsPage> {
   }
 
   Widget _buildAchievementCard(Achievement a, bool isRu) {
+    final s = AchievementsStrings(isRu);
     final tierColor = a.getTierColor();
     final isDone = a.isUnlocked;
 
@@ -290,7 +296,7 @@ class _AchievementsPageState extends ConsumerState<AchievementsPage> {
                                 const Icon(Icons.share_rounded, size: 12, color: AppTokens.accent),
                                 const SizedBox(width: 4),
                                 Text(
-                                  isRu ? 'Поделиться' : 'Share',
+                                  s.share,
                                   style: const TextStyle(fontSize: 10.5, color: AppTokens.accent, fontWeight: FontWeight.bold),
                                 ),
                               ],
@@ -309,7 +315,7 @@ class _AchievementsPageState extends ConsumerState<AchievementsPage> {
                               const Icon(Icons.share_rounded, size: 12, color: AppTokens.accent),
                               const SizedBox(width: 4),
                               Text(
-                                isRu ? 'Поделиться' : 'Share',
+                                s.share,
                                 style: const TextStyle(fontSize: 10.5, color: AppTokens.accent, fontWeight: FontWeight.bold),
                               ),
                             ],

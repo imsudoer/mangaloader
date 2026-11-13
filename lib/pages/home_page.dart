@@ -6,6 +6,7 @@ import 'package:mangaloader/src/rust/api/storage.dart' as rust_storage;
 import 'package:mangaloader/src/rust/api/models.dart';
 import 'package:mangaloader/widgets/manga_card.dart';
 import 'package:mangaloader/services/update_checker.dart';
+import 'package:mangaloader/l10n/strings/home_strings.dart';
 import 'package:mangaloader/providers/settings_provider.dart';
 import 'package:mangaloader/providers/streak_provider.dart';
 import 'package:mangaloader/providers/continue_reading_provider.dart';
@@ -87,6 +88,7 @@ class _HomePageState extends ConsumerState<HomePage> {
     final topPeriod = ref.watch(topViewsPeriodProvider);
     final availableUpdate = ref.watch(availableUpdateProvider);
     final isRu = Localizations.localeOf(context).languageCode == 'ru';
+    final s = HomeStrings.of(context);
 
     return Scaffold(
       appBar: AppBar(
@@ -109,17 +111,17 @@ class _HomePageState extends ConsumerState<HomePage> {
           const SizedBox(width: 4),
           IconButton(
             icon: const Icon(Icons.history_rounded),
-            tooltip: isRu ? 'История чтения' : 'Reading History',
+            tooltip: s.readingHistory,
             onPressed: () => context.push('/history'),
           ),
           IconButton(
             icon: const Icon(Icons.search_rounded),
-            tooltip: isRu ? 'Каталог и поиск' : 'Catalog & Search',
+            tooltip: s.catalogAndSearch,
             onPressed: () => context.go('/search'),
           ),
           IconButton(
             icon: const Icon(Icons.link_rounded),
-            tooltip: isRu ? 'Вставить ссылку' : 'Paste Link',
+            tooltip: s.pasteLink,
             onPressed: () => _showPasteLinkDialog(context, isRu),
           ),
         ],
@@ -154,8 +156,8 @@ class _HomePageState extends ConsumerState<HomePage> {
                 _buildSectionHeader(
                   icon: Icons.local_fire_department_rounded,
                   iconColor: Colors.orangeAccent,
-                  title: isRu ? 'Популярное' : 'Popular',
-                  subtitle: isRu ? 'Самые читаемые тайтлы' : 'Most read titles',
+                  title: s.popular,
+                  subtitle: s.popularSubtitle,
                   onSeeAll: () => context.go('/search'),
                   isRu: isRu,
                 ),
@@ -173,8 +175,8 @@ class _HomePageState extends ConsumerState<HomePage> {
                 _buildSectionHeader(
                   icon: Icons.update_rounded,
                   iconColor: Colors.lightBlueAccent,
-                  title: isRu ? 'Свежие обновления' : 'Latest Updates',
-                  subtitle: isRu ? 'Недавно вышедшие главы' : 'Recently updated chapters',
+                  title: s.latestUpdates,
+                  subtitle: s.latestUpdatesSubtitle,
                   onSeeAll: () => context.go('/search'),
                   isRu: isRu,
                 ),
@@ -188,8 +190,8 @@ class _HomePageState extends ConsumerState<HomePage> {
                 _buildSectionHeader(
                   icon: Icons.auto_awesome_rounded,
                   iconColor: Colors.amberAccent,
-                  title: isRu ? 'Новинки' : 'New Releases',
-                  subtitle: isRu ? 'Недавно добавленные произведения' : 'Recently added manga',
+                  title: s.newReleases,
+                  subtitle: s.newReleasesSubtitle,
                   onSeeAll: () => context.go('/search'),
                   isRu: isRu,
                 ),
@@ -210,7 +212,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                 const Icon(Icons.cloud_off_rounded, size: 48, color: Colors.grey),
                 const SizedBox(height: 16),
                 Text(
-                  isRu ? 'Не удалось загрузить рекомендации' : 'Failed to load recommendations',
+                  s.loadFailed,
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
@@ -219,7 +221,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                 ElevatedButton.icon(
                   onPressed: () => ref.invalidate(homeDataProvider),
                   icon: const Icon(Icons.refresh_rounded),
-                  label: Text(isRu ? 'Повторить' : 'Retry'),
+                  label: Text(s.retry),
                 ),
               ],
             ),
@@ -230,6 +232,7 @@ class _HomePageState extends ConsumerState<HomePage> {
   }
 
   Widget _buildTopViewsSection(String currentPeriod, List<MangaSearchResult> defaultItems, bool isRu) {
+    final s = HomeStrings(isRu);
     final asyncViews = ref.watch(topViewsCustomProvider(currentPeriod));
 
     return Column(
@@ -255,11 +258,11 @@ class _HomePageState extends ConsumerState<HomePage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        isRu ? 'Топ по просмотрам' : 'Top Views',
+                        s.topViews,
                         style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
                       ),
                       Text(
-                        isRu ? 'Самые просматриваемые' : 'Most viewed titles',
+                        s.topViewsSubtitle,
                         style: const TextStyle(fontSize: 12, color: AppTokens.textSecondary),
                       ),
                     ],
@@ -277,9 +280,9 @@ class _HomePageState extends ConsumerState<HomePage> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    _buildPeriodBtn('day', isRu ? 'День' : 'Day', currentPeriod),
-                    _buildPeriodBtn('week', isRu ? 'Неделя' : 'Week', currentPeriod),
-                    _buildPeriodBtn('month', isRu ? 'Месяц' : 'Month', currentPeriod),
+                    _buildPeriodBtn('day', s.periodDay, currentPeriod),
+                    _buildPeriodBtn('week', s.periodWeek, currentPeriod),
+                    _buildPeriodBtn('month', s.periodMonth, currentPeriod),
                   ],
                 ),
               ),
@@ -332,6 +335,7 @@ class _HomePageState extends ConsumerState<HomePage> {
     VoidCallback? onSeeAll,
     required bool isRu,
   }) {
+    final s = HomeStrings(isRu);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
@@ -366,7 +370,7 @@ class _HomePageState extends ConsumerState<HomePage> {
           if (onSeeAll != null)
             TextButton(
               onPressed: onSeeAll,
-              child: Text(isRu ? 'Все' : 'See all', style: const TextStyle(color: AppTokens.textPrimary)),
+              child: Text(s.seeAll, style: const TextStyle(color: AppTokens.textPrimary)),
             ),
         ],
       ),
@@ -396,11 +400,12 @@ class _HomePageState extends ConsumerState<HomePage> {
   }
 
   void _showPasteLinkDialog(BuildContext context, bool isRu) {
+    final s = HomeStrings(isRu);
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppTokens.surfaceRaised,
-        title: Text(isRu ? 'Вставить ссылку' : 'Paste Link'),
+        title: Text(s.pasteLink),
         content: TextField(
           decoration: const InputDecoration(hintText: 'https://mangalib.me/...'),
           onSubmitted: (val) {
@@ -410,7 +415,7 @@ class _HomePageState extends ConsumerState<HomePage> {
               context.push('/manga/$parsedUrl');
             } else {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(isRu ? 'Неверная ссылка' : 'Invalid link')),
+                SnackBar(content: Text(s.invalidLink)),
               );
             }
           },
@@ -420,6 +425,7 @@ class _HomePageState extends ConsumerState<HomePage> {
   }
 
   Widget _buildUpdateBanner(BuildContext context, AppUpdateInfo update, bool isRu) {
+    final s = HomeStrings(isRu);
     return InkWell(
       onTap: () => AppUpdateBottomSheet.show(context, ref, update, isRu),
       borderRadius: BorderRadius.circular(16),
@@ -466,7 +472,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                   Row(
                     children: [
                       Text(
-                        isRu ? 'Новое обновление' : 'New Update',
+                        s.newUpdate,
                         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white),
                       ),
                       const SizedBox(width: 8),
@@ -485,7 +491,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    isRu ? 'Нажмите, чтобы открыть список изменений' : 'Tap to see changelog & install',
+                    s.newUpdateSubtitle,
                     style: const TextStyle(fontSize: 11.5, color: AppTokens.textSecondary),
                   ),
                 ],
@@ -501,12 +507,12 @@ class _HomePageState extends ConsumerState<HomePage> {
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
               onPressed: () => AppUpdateBottomSheet.show(context, ref, update, isRu),
-              child: Text(isRu ? 'Обновить' : 'Update', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+              child: Text(s.update, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
             ),
             const SizedBox(width: 4),
             IconButton(
               icon: const Icon(Icons.close_rounded, size: 18, color: Colors.white54),
-              tooltip: isRu ? 'Скрыть' : 'Dismiss',
+              tooltip: s.dismiss,
               onPressed: () => setState(() => _dismissedUpdate = true),
             ),
           ],
@@ -516,6 +522,7 @@ class _HomePageState extends ConsumerState<HomePage> {
   }
 
   Widget _buildRecommendationsSection(bool isRu) {
+    final s = HomeStrings(isRu);
     final recAsync = ref.watch(recommendationsProvider);
 
     return recAsync.when(
@@ -528,8 +535,8 @@ class _HomePageState extends ConsumerState<HomePage> {
             _buildSectionHeader(
               icon: Icons.recommend_rounded,
               iconColor: const Color(0xFF81C784),
-              title: isRu ? 'Рекомендации для вас' : 'Recommended For You',
-              subtitle: isRu ? 'На основе ваших вкусов' : 'Based on your reading preferences',
+              title: s.recommendations,
+              subtitle: s.recommendationsSubtitle,
               onSeeAll: () => context.go('/search'),
               isRu: isRu,
             ),

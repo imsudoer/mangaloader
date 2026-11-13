@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:mangaloader/l10n/strings/recap_strings.dart';
 import 'package:mangaloader/providers/settings_provider.dart';
 import 'package:mangaloader/src/rust/api/storage.dart' as rust_storage;
 import 'package:mangaloader/src/rust/api/models.dart';
@@ -33,6 +34,7 @@ class _MangaRecapModalState extends ConsumerState<MangaRecapModal> {
   bool _isExporting = false;
 
   Future<void> _shareRecapCard(bool isRu) async {
+    final s = RecapStrings(isRu);
     if (_isExporting) return;
     setState(() => _isExporting = true);
 
@@ -52,13 +54,13 @@ class _MangaRecapModalState extends ConsumerState<MangaRecapModal> {
       await SharePlus.instance.share(
         ShareParams(
           files: [XFile(file.path)],
-          text: isRu ? 'Мои итоги чтения в MangaLoader!' : 'My Reading Recap in MangaLoader!',
+          text: s.shareText,
         ),
       );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(isRu ? 'Ошибка экспорта карточки: $e' : 'Failed to export card: $e')),
+          SnackBar(content: Text(s.exportFailed('$e'))),
         );
       }
     } finally {
@@ -71,6 +73,7 @@ class _MangaRecapModalState extends ConsumerState<MangaRecapModal> {
   @override
   Widget build(BuildContext context) {
     final isRu = Localizations.localeOf(context).languageCode == 'ru';
+    final s = RecapStrings(isRu);
     final userProfile = ref.watch(currentUserProfileProvider);
 
     return Container(
@@ -102,7 +105,7 @@ class _MangaRecapModalState extends ConsumerState<MangaRecapModal> {
                     const Icon(Icons.auto_awesome_rounded, color: AppTokens.accent, size: 22),
                     const SizedBox(width: 10),
                     Text(
-                      isRu ? 'Manga Recap / Итоги чтения' : 'Manga Reading Recap',
+                      s.title,
                       style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
                     ),
                   ],
@@ -125,7 +128,7 @@ class _MangaRecapModalState extends ConsumerState<MangaRecapModal> {
                 if (snapshot.hasError || snapshot.data == null) {
                   return Center(
                     child: Text(
-                      isRu ? 'Ошибка загрузки статистики' : 'Failed to load recap data',
+                      s.loadFailed,
                       style: const TextStyle(color: AppTokens.textSecondary),
                     ),
                   );
@@ -196,7 +199,7 @@ class _MangaRecapModalState extends ConsumerState<MangaRecapModal> {
                                             ),
                                           ),
                                           Text(
-                                            userProfile != null ? userProfile.username : (isRu ? 'Итоги чтения' : 'Recap Summary'),
+                                            userProfile != null ? userProfile.username : s.summaryFallback,
                                             style: const TextStyle(color: AppTokens.accent, fontSize: 11),
                                           ),
                                         ],
@@ -222,14 +225,14 @@ class _MangaRecapModalState extends ConsumerState<MangaRecapModal> {
                               Row(
                                 children: [
                                   _buildStatBlock(
-                                    title: isRu ? 'Глав прочитано' : 'Chapters Read',
+                                    title: s.chaptersReadTitle,
                                     value: '${recap.totalChaptersRead}',
                                     icon: Icons.check_circle_outline_rounded,
                                     color: AppTokens.accent,
                                   ),
                                   const SizedBox(width: 12),
                                   _buildStatBlock(
-                                    title: isRu ? 'Страниц' : 'Pages Read',
+                                    title: s.pagesReadTitle,
                                     value: '${recap.totalPagesRead}',
                                     icon: Icons.pages_rounded,
                                     color: const Color(0xFF6B8E23),
@@ -240,15 +243,15 @@ class _MangaRecapModalState extends ConsumerState<MangaRecapModal> {
                               Row(
                                 children: [
                                   _buildStatBlock(
-                                    title: isRu ? 'Часов чтения' : 'Hours Read',
-                                    value: '${recap.estimatedReadingHours} ${isRu ? "ч" : "h"}',
+                                    title: s.hoursTitle,
+                                    value: s.hours('${recap.estimatedReadingHours}'),
                                     icon: Icons.timer_outlined,
                                     color: const Color(0xFF4682B4),
                                   ),
                                   const SizedBox(width: 12),
                                   _buildStatBlock(
-                                    title: isRu ? 'Лучший стрик' : 'Max Streak',
-                                    value: '${recap.maxStreak} ${isRu ? "дн." : "days"}',
+                                    title: s.maxStreakTitle,
+                                    value: s.streakDays('${recap.maxStreak}'),
                                     icon: Icons.local_fire_department_rounded,
                                     color: Colors.orange,
                                   ),
@@ -259,7 +262,7 @@ class _MangaRecapModalState extends ConsumerState<MangaRecapModal> {
                               // Top Genres
                               if (recap.topGenres.isNotEmpty) ...[
                                 Text(
-                                  isRu ? 'Любимые жанры' : 'Favorite Genres',
+                                  s.favoriteGenres,
                                   style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
                                 ),
                                 const SizedBox(height: 10),
@@ -294,7 +297,7 @@ class _MangaRecapModalState extends ConsumerState<MangaRecapModal> {
                               // Top Manga Read
                               if (topManga.isNotEmpty) ...[
                                 Text(
-                                  isRu ? 'Топ прочитанных тайтлов' : 'Top Read Manga',
+                                  s.topReadManga,
                                   style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
                                 ),
                                 const SizedBox(height: 10),
@@ -334,7 +337,7 @@ class _MangaRecapModalState extends ConsumerState<MangaRecapModal> {
                                             borderRadius: BorderRadius.circular(8),
                                           ),
                                           child: Text(
-                                            '${m.chaptersRead} ${isRu ? "гл." : "ch."}',
+                                            s.chapters('${m.chaptersRead}'),
                                             style: const TextStyle(color: AppTokens.textPrimary, fontSize: 11),
                                           ),
                                         ),
@@ -362,7 +365,7 @@ class _MangaRecapModalState extends ConsumerState<MangaRecapModal> {
                             ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                             : const Icon(Icons.share_rounded, size: 20),
                         label: Text(
-                          isRu ? 'Поделиться карточкой итогов' : 'Share Recap Card',
+                          s.shareCard,
                           style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
                         ),
                       ),

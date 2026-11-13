@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mangaloader/l10n/strings/search_strings.dart';
 import 'package:mangaloader/providers/search_provider.dart';
 import 'package:mangaloader/providers/manga_provider.dart';
 import 'package:mangaloader/widgets/manga_card.dart';
@@ -52,32 +53,52 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     }
   }
 
-  final List<Map<String, dynamic>> _sortOptions = [
-    {'id': 'views', 'labelRu': 'Популярность', 'labelEn': 'Popularity'},
-    {'id': 'rate_avg', 'labelRu': 'Рейтинг', 'labelEn': 'Rating'},
-    {'id': 'created_at', 'labelRu': 'Новинки', 'labelEn': 'Newest'},
-    {'id': 'chap_count', 'labelRu': 'По главам', 'labelEn': 'Chapters'},
-    {'id': 'releaseDate', 'labelRu': 'По году', 'labelEn': 'Release Year'},
-    {'id': 'name', 'labelRu': 'По имени (А-Я)', 'labelEn': 'Alphabetical'},
+  static const List<String> _sortIds = [
+    'views',
+    'rate_avg',
+    'created_at',
+    'chap_count',
+    'releaseDate',
+    'name',
   ];
 
-  final List<Map<String, dynamic>> _typeOptions = [
-    {'id': 0, 'labelRu': 'Все', 'labelEn': 'All', 'typeId': null},
-    {'id': 1, 'labelRu': 'Манга', 'labelEn': 'Manga', 'typeId': 1},
-    {'id': 5, 'labelRu': 'Манхва', 'labelEn': 'Manhwa', 'typeId': 5},
-    {'id': 6, 'labelRu': 'Маньхуа', 'labelEn': 'Manhua', 'typeId': 6},
-    {'id': 8, 'labelRu': 'Руманга', 'labelEn': 'Rumanga', 'typeId': 8},
-    {'id': 9, 'labelRu': 'Комикс', 'labelEn': 'Comic', 'typeId': 9},
-    {'id': 3, 'labelRu': 'Сингл', 'labelEn': 'Single', 'typeId': 3},
-  ];
+  static const List<int?> _typeOptions = [null, 1, 5, 6, 8, 9, 3];
 
-  final List<Map<String, dynamic>> _statusOptions = [
-    {'id': 0, 'labelRu': 'Все', 'labelEn': 'All', 'statusId': null},
-    {'id': 1, 'labelRu': 'Онгоинг', 'labelEn': 'Ongoing', 'statusId': 1},
-    {'id': 2, 'labelRu': 'Завершён', 'labelEn': 'Completed', 'statusId': 2},
-    {'id': 3, 'labelRu': 'Анонс', 'labelEn': 'Announced', 'statusId': 3},
-    {'id': 4, 'labelRu': 'Приостановлен', 'labelEn': 'On Hold', 'statusId': 4},
-  ];
+  static const List<int?> _statusOptions = [null, 1, 2, 3, 4];
+
+  String _sortLabel(String id, SearchStrings s) {
+    switch (id) {
+      case 'views': return s.sortPopularity;
+      case 'rate_avg': return s.sortRating;
+      case 'created_at': return s.sortNewest;
+      case 'chap_count': return s.sortChapters;
+      case 'releaseDate': return s.sortReleaseYear;
+      case 'name': return s.sortAlphabetical;
+      default: return s.sortPopularity;
+    }
+  }
+
+  String _typeLabel(int? typeId, SearchStrings s) {
+    switch (typeId) {
+      case null: return s.typeAll;
+      case 1: return s.typeManga;
+      case 5: return s.typeManhwa;
+      case 6: return s.typeManhua;
+      case 8: return s.typeRumanga;
+      case 9: return s.typeComic;
+      default: return s.typeSingle;
+    }
+  }
+
+  String _statusLabel(int? statusId, SearchStrings s) {
+    switch (statusId) {
+      case null: return s.statusAll;
+      case 1: return s.statusOngoing;
+      case 2: return s.statusCompleted;
+      case 3: return s.statusAnnounced;
+      default: return s.statusOnHold;
+    }
+  }
 
   @override
   void dispose() {
@@ -118,6 +139,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     final searchState = ref.watch(searchProvider);
     final filter = ref.watch(catalogFilterProvider);
     final isRu = Localizations.localeOf(context).languageCode == 'ru';
+    final s = SearchStrings.of(context);
     final activeCount = filter.activeFiltersCount;
 
     // In offline mode the same grid renders local FTS hits instead of the remote
@@ -134,21 +156,19 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(isRu ? 'Каталог и поиск' : 'Catalog & Search'),
+        title: Text(s.title),
         actions: [
           IconButton(
             icon: Icon(
               _localOnly ? Icons.offline_pin_rounded : Icons.offline_pin_outlined,
               color: _localOnly ? AppTokens.accent : null,
             ),
-            tooltip: _localOnly
-                ? (isRu ? 'Искать в каталоге онлайн' : 'Search the online catalog')
-                : (isRu ? 'Искать только сохранённое' : 'Search saved titles only'),
+            tooltip: _localOnly ? s.searchOnlineCatalog : s.searchSavedOnly,
             onPressed: () => _toggleLocalOnly(!_localOnly),
           ),
           IconButton(
             icon: const Icon(Icons.link_rounded),
-            tooltip: isRu ? 'Вставить ссылку' : 'Paste Link',
+            tooltip: s.pasteLink,
             onPressed: () => _showPasteLinkDialog(context, isRu),
           ),
         ],
@@ -168,12 +188,12 @@ class _SearchPageState extends ConsumerState<SearchPage> {
               segments: [
                 ButtonSegment(
                   value: 0,
-                  label: Text(isRu ? 'Каталог' : 'Catalog'),
+                  label: Text(s.catalog),
                   icon: const Icon(Icons.grid_view_rounded, size: 16),
                 ),
                 ButtonSegment(
                   value: 1,
-                  label: Text(isRu ? 'Коллекции' : 'Collections'),
+                  label: Text(s.collections),
                   icon: const Icon(Icons.collections_bookmark_rounded, size: 16),
                 ),
               ],
@@ -197,7 +217,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                     child: TextField(
                       controller: _searchController,
                       decoration: InputDecoration(
-                        hintText: isRu ? 'Поиск по названию или автору...' : 'Search by title or author...',
+                        hintText: s.searchHint,
                         prefixIcon: const Icon(Icons.search_rounded),
                         suffixIcon: _searchController.text.isNotEmpty
                           ? IconButton(
@@ -254,7 +274,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                       ),
                       padding: const EdgeInsets.all(12),
                     ),
-                    tooltip: isRu ? 'Расширенные фильтры' : 'Advanced Filters',
+                    tooltip: s.advancedFilters,
                     icon: const Icon(Icons.tune_rounded, size: 20),
                     onPressed: () => _showFilterBottomSheet(context, isRu),
                   ),
@@ -301,7 +321,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                     )),
                     IconButton(
                       icon: const Icon(Icons.delete_sweep_rounded, size: 16, color: AppTokens.textSecondary),
-                      tooltip: isRu ? 'Очистить историю' : 'Clear history',
+                      tooltip: s.clearHistory,
                       onPressed: () => ref.read(searchHistoryProvider.notifier).clearAll(),
                     ),
                   ],
@@ -329,7 +349,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                         color: _localOnly ? Colors.white : AppTokens.accent,
                       ),
                       label: Text(
-                        isRu ? 'Оффлайн-поиск' : 'Offline search',
+                        s.offlineSearch,
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: _localOnly ? FontWeight.bold : FontWeight.normal,
@@ -348,16 +368,16 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                   // Sort Dropdown Menu
                   PopupMenuButton<String>(
                     initialValue: filter.sortBy,
-                    tooltip: isRu ? 'Сортировка' : 'Sort',
+                    tooltip: s.sort,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     color: AppTokens.surfaceRaised,
                     onSelected: (val) {
                       ref.read(searchProvider.notifier).updateFilter(filter.copyWith(sortBy: val));
                     },
-                    itemBuilder: (ctx) => _sortOptions.map((opt) {
-                      final isSel = filter.sortBy == opt['id'];
+                    itemBuilder: (ctx) => _sortIds.map((id) {
+                      final isSel = filter.sortBy == id;
                       return PopupMenuItem<String>(
-                        value: opt['id'] as String,
+                        value: id,
                         child: Row(
                           children: [
                             Icon(
@@ -367,7 +387,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              isRu ? opt['labelRu'] as String : opt['labelEn'] as String,
+                              _sortLabel(id, s),
                               style: TextStyle(
                                 color: isSel ? Colors.white : AppTokens.textPrimary,
                                 fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
@@ -390,7 +410,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                           const Icon(Icons.sort_rounded, size: 16, color: AppTokens.textPrimary),
                           const SizedBox(width: 6),
                           Text(
-                            _sortOptions.firstWhere((e) => e['id'] == filter.sortBy, orElse: () => _sortOptions.first)[isRu ? 'labelRu' : 'labelEn'] as String,
+                            _sortLabel(filter.sortBy, s),
                             style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
                           ),
                           const Icon(Icons.arrow_drop_down_rounded, size: 18, color: AppTokens.textPrimary),
@@ -401,13 +421,12 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                   const SizedBox(width: 8),
 
                   // Quick Type Chips
-                  ..._typeOptions.map((opt) {
-                    final tid = opt['typeId'] as int?;
+                  ..._typeOptions.map((tid) {
                     final isSelected = (tid == null && filter.typeIds.isEmpty) || (tid != null && filter.typeIds.contains(tid));
                     return Padding(
                       padding: const EdgeInsets.only(right: 6),
                       child: ChoiceChip(
-                        label: Text(isRu ? opt['labelRu'] as String : opt['labelEn'] as String),
+                        label: Text(_typeLabel(tid, s)),
                         selected: isSelected,
                         selectedColor: AppTokens.accent,
                         backgroundColor: AppTokens.surfaceRaised,
@@ -439,14 +458,12 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                   const VerticalDivider(width: 12, indent: 6, endIndent: 6, color: AppTokens.borderStrong),
 
                   // Quick Status Chips
-                  ..._statusOptions.map((opt) {
-                    final sid = opt['statusId'] as int?;
+                  ..._statusOptions.map((sid) {
                     final isSelected = (sid == null && filter.statusIds.isEmpty) || (sid != null && filter.statusIds.contains(sid));
-                    final label = isRu ? opt['labelRu'] as String : opt['labelEn'] as String;
                     return Padding(
                       padding: const EdgeInsets.only(right: 6),
                       child: ChoiceChip(
-                        label: Text(label),
+                        label: Text(_statusLabel(sid, s)),
                         selected: isSelected,
                         selectedColor: AppTokens.accent,
                         backgroundColor: AppTokens.surfaceRaised,
@@ -495,12 +512,12 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                           const Icon(Icons.search_off_rounded, size: 56, color: AppTokens.accent),
                           const SizedBox(height: 16),
                           Text(
-                            isRu ? 'Ничего не найдено' : 'No manga found',
+                            s.emptyTitle,
                             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            isRu ? 'Попробуйте изменить поисковый запрос или фильтры' : 'Try adjusting your search query or filters',
+                            s.emptySubtitle,
                             style: const TextStyle(color: AppTokens.textSecondary, fontSize: 13),
                             textAlign: TextAlign.center,
                           ),
@@ -513,7 +530,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                                 setState(() {});
                               },
                               icon: const Icon(Icons.clear_all_rounded),
-                              label: Text(isRu ? 'Сбросить все фильтры' : 'Reset all filters'),
+                              label: Text(s.resetFilters),
                             ),
                           ],
                         ],
@@ -584,12 +601,12 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                     children: [
                       const Icon(Icons.error_outline_rounded, size: 48, color: Colors.grey),
                       const SizedBox(height: 12),
-                      Text(isRu ? 'Ошибка загрузки: $err' : 'Loading error: $err', textAlign: TextAlign.center),
+                      Text(s.loadingError('$err'), textAlign: TextAlign.center),
                       const SizedBox(height: 16),
                       ElevatedButton.icon(
                         onPressed: () => ref.read(searchProvider.notifier).loadCatalog(),
                         icon: const Icon(Icons.refresh_rounded),
-                        label: Text(isRu ? 'Повторить' : 'Retry'),
+                        label: Text(s.retry),
                       ),
                     ],
                   ),
@@ -611,12 +628,12 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                           children: [
                             const Icon(Icons.error_outline_rounded, size: 48, color: Colors.grey),
                             const SizedBox(height: 12),
-                            Text(isRu ? 'Ошибка загрузки коллекций: $_collectionsError' : 'Error loading collections: $_collectionsError', textAlign: TextAlign.center),
+                            Text(s.collectionsError('$_collectionsError'), textAlign: TextAlign.center),
                             const SizedBox(height: 16),
                             ElevatedButton.icon(
                               onPressed: () => _loadCollections(refresh: true),
                               icon: const Icon(Icons.refresh_rounded),
-                              label: Text(isRu ? 'Повторить' : 'Retry'),
+                              label: Text(s.retry),
                             ),
                           ],
                         ),
@@ -625,7 +642,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                   : _collections.isEmpty
                     ? Center(
                         child: Text(
-                          isRu ? 'Коллекции не найдены' : 'No collections found',
+                          s.noCollections,
                           style: const TextStyle(color: Color(0xFF888888)),
                         ),
                       )
@@ -658,11 +675,12 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   }
 
   void _showPasteLinkDialog(BuildContext context, bool isRu) {
+    final s = SearchStrings(isRu);
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppTokens.surfaceRaised,
-        title: Text(isRu ? 'Вставить ссылку' : 'Paste Link'),
+        title: Text(s.pasteLink),
         content: TextField(
           decoration: const InputDecoration(hintText: 'https://mangalib.me/...'),
           onSubmitted: (val) {
@@ -672,7 +690,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
               context.push('/manga/$parsedUrl');
             } else {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(isRu ? 'Неверная ссылка' : 'Invalid link')),
+                SnackBar(content: Text(s.invalidLink)),
               );
             }
           },
@@ -778,7 +796,7 @@ class _FilterBottomSheetContentState extends State<_FilterBottomSheetContent> {
 
   @override
   Widget build(BuildContext context) {
-    final isRu = widget.isRu;
+    final s = SearchStrings(widget.isRu);
 
     return DraggableScrollableSheet(
       initialChildSize: 0.85,
@@ -805,13 +823,13 @@ class _FilterBottomSheetContentState extends State<_FilterBottomSheetContent> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    isRu ? 'Расширенный поиск' : 'Advanced Filters',
+                    s.advancedFiltersTitle,
                     style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
                   ),
                   TextButton.icon(
                     onPressed: _resetAll,
                     icon: const Icon(Icons.refresh_rounded, size: 16),
-                    label: Text(isRu ? 'Сбросить' : 'Reset'),
+                    label: Text(s.reset),
                   ),
                 ],
               ),
@@ -825,17 +843,17 @@ class _FilterBottomSheetContentState extends State<_FilterBottomSheetContent> {
                 padding: const EdgeInsets.all(16),
                 children: [
                   // 1. Sort Options
-                  _buildSectionTitle(isRu ? 'Сортировка' : 'Sort By'),
+                  _buildSectionTitle(s.sortBy),
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
                     children: [
-                      _buildRadioChip('views', isRu ? 'По популярности' : 'Popularity'),
-                      _buildRadioChip('rate_avg', isRu ? 'По рейтингу' : 'Rating'),
-                      _buildRadioChip('created_at', isRu ? 'Новинки' : 'Newest'),
-                      _buildRadioChip('chap_count', isRu ? 'По главам' : 'Chapters'),
-                      _buildRadioChip('releaseDate', isRu ? 'По году' : 'Release Year'),
-                      _buildRadioChip('name', isRu ? 'По алфавиту' : 'Alphabetical'),
+                      _buildRadioChip('views', s.sortByPopularity),
+                      _buildRadioChip('rate_avg', s.sortByRating),
+                      _buildRadioChip('created_at', s.sortNewest),
+                      _buildRadioChip('chap_count', s.sortChapters),
+                      _buildRadioChip('releaseDate', s.sortReleaseYear),
+                      _buildRadioChip('name', s.sortByAlphabetical),
                     ],
                   ),
                   const SizedBox(height: 20),
@@ -858,7 +876,7 @@ class _FilterBottomSheetContentState extends State<_FilterBottomSheetContent> {
                         children: [
                           // Types
                           if (constants.types.isNotEmpty) ...[
-                            _buildSectionTitle(isRu ? 'Тип произведения' : 'Manga Type'),
+                            _buildSectionTitle(s.mangaType),
                             Wrap(
                               spacing: 8,
                               runSpacing: 8,
@@ -869,7 +887,7 @@ class _FilterBottomSheetContentState extends State<_FilterBottomSheetContent> {
 
                           // Statuses
                           if (constants.statuses.isNotEmpty) ...[
-                            _buildSectionTitle(isRu ? 'Статус тайтла' : 'Title Status'),
+                            _buildSectionTitle(s.titleStatus),
                             Wrap(
                               spacing: 8,
                               runSpacing: 8,
@@ -880,7 +898,7 @@ class _FilterBottomSheetContentState extends State<_FilterBottomSheetContent> {
 
                           // Scanlate Statuses
                           if (constants.scanlateStatuses.isNotEmpty) ...[
-                            _buildSectionTitle(isRu ? 'Статус перевода' : 'Translation Status'),
+                            _buildSectionTitle(s.translationStatus),
                             Wrap(
                               spacing: 8,
                               runSpacing: 8,
@@ -891,7 +909,7 @@ class _FilterBottomSheetContentState extends State<_FilterBottomSheetContent> {
 
                           // Age Restrictions
                           if (constants.ageRestrictions.isNotEmpty) ...[
-                            _buildSectionTitle(isRu ? 'Возрастной рейтинг' : 'Age Rating'),
+                            _buildSectionTitle(s.ageRating),
                             Wrap(
                               spacing: 8,
                               runSpacing: 8,
@@ -902,7 +920,7 @@ class _FilterBottomSheetContentState extends State<_FilterBottomSheetContent> {
 
                           // Formats
                           if (constants.formats.isNotEmpty) ...[
-                            _buildSectionTitle(isRu ? 'Формат выпуска' : 'Release Format'),
+                            _buildSectionTitle(s.releaseFormat),
                             Wrap(
                               spacing: 8,
                               runSpacing: 8,
@@ -912,10 +930,10 @@ class _FilterBottomSheetContentState extends State<_FilterBottomSheetContent> {
                           ],
 
                           // Genres with search
-                          _buildSectionTitle(isRu ? 'Включить жанры (${_genreIds.length} выбр.)' : 'Include Genres (${_genreIds.length} sel.)'),
+                          _buildSectionTitle(s.includeGenres('${_genreIds.length}')),
                           TextField(
                             decoration: InputDecoration(
-                              hintText: isRu ? 'Поиск жанров...' : 'Search genres...',
+                              hintText: s.searchGenresHint,
                               prefixIcon: const Icon(Icons.search_rounded, size: 16),
                               isDense: true,
                               contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -937,7 +955,7 @@ class _FilterBottomSheetContentState extends State<_FilterBottomSheetContent> {
                           const SizedBox(height: 16),
 
                           // Exclude Genres
-                          _buildSectionTitle(isRu ? 'Исключить жанры (${_excludedGenreIds.length} искл.)' : 'Exclude Genres (${_excludedGenreIds.length} excl.)'),
+                          _buildSectionTitle(s.excludeGenres('${_excludedGenreIds.length}')),
                           Wrap(
                             spacing: 6,
                             runSpacing: 6,
@@ -949,10 +967,10 @@ class _FilterBottomSheetContentState extends State<_FilterBottomSheetContent> {
                           const SizedBox(height: 20),
 
                           // Tags with search
-                          _buildSectionTitle(isRu ? 'Теги (${_tagIds.length} выбр.)' : 'Tags (${_tagIds.length} sel.)'),
+                          _buildSectionTitle(s.tags('${_tagIds.length}')),
                           TextField(
                             decoration: InputDecoration(
-                              hintText: isRu ? 'Поиск тегов...' : 'Search tags...',
+                              hintText: s.searchTagsHint,
                               prefixIcon: const Icon(Icons.search_rounded, size: 16),
                               isDense: true,
                               contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -1006,7 +1024,7 @@ class _FilterBottomSheetContentState extends State<_FilterBottomSheetContent> {
                     Navigator.pop(context);
                   },
                   child: Text(
-                    isRu ? 'Применить фильтры' : 'Apply Filters',
+                    s.applyFilters,
                     style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
                   ),
                 ),

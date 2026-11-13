@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:mangaloader/l10n/strings/streak_details_strings.dart';
 import 'package:mangaloader/src/rust/api/models.dart';
 import 'package:mangaloader/providers/streak_provider.dart';
 import 'package:mangaloader/utils/plural.dart';
@@ -43,50 +44,51 @@ class StreakDetailsModal extends ConsumerWidget {
   }
 
   String _getRankTitle(int days, bool isRu) {
-    if (days == 0) return isRu ? 'Искра' : 'Spark';
-    if (days < 3) return isRu ? 'Первый огонёк' : 'First Spark';
-    if (days < 7) return isRu ? 'Разгорающийся' : 'Ignited Reader';
-    if (days < 14) return isRu ? 'Огненный читатель' : 'Blazing Reader';
-    if (days < 30) return isRu ? 'Хранитель пламени' : 'Flame Keeper';
-    if (days < 50) return isRu ? 'Неоновый призрак' : 'Plasma Master';
-    if (days < 100) return isRu ? 'Золотой факел' : 'Golden Torch';
-    if (days < 200) return isRu ? 'Солнечный феникс' : 'Solar Phoenix';
-    if (days < 365) return isRu ? 'Космический страж' : 'Cosmic Warden';
-    if (days < 500) return isRu ? 'Изумрудный год' : 'Emerald Year';
-    if (days < 750) return isRu ? 'Небесная сверхновая' : 'Celestial Supernova';
-    if (days < 1000) return isRu ? 'Пламя дракона пустоты' : 'Void Dragon Fire';
-    return isRu ? 'Вечный бог манги' : 'Eternal Manga God';
+    final s = StreakDetailsStrings(isRu);
+    if (days == 0) return s.rankSpark;
+    if (days < 3) return s.rankFirstSpark;
+    if (days < 7) return s.rankIgnited;
+    if (days < 14) return s.rankBlazing;
+    if (days < 30) return s.rankFlameKeeper;
+    if (days < 50) return s.rankPlasmaMaster;
+    if (days < 100) return s.rankGoldenTorch;
+    if (days < 200) return s.rankSolarPhoenix;
+    if (days < 365) return s.rankCosmicWarden;
+    if (days < 500) return s.rankEmeraldYear;
+    if (days < 750) return s.rankCelestialSupernova;
+    if (days < 1000) return s.rankVoidDragon;
+    return s.rankEternalMangaGod;
   }
 
   void _shareStreak(BuildContext context) {
+    final s = StreakDetailsStrings(isRu);
     final days = streak.currentStreak.toInt();
     final rank = _getRankTitle(days, isRu);
-    final text = isRu
-        ? 'Мой стрик в MangaLoader: ${Plural.days(days, 'ru')} подряд! Ранг: $rank. Читаю каждый день!'
-        : 'My reading streak in MangaLoader is ${Plural.days(days, 'en')}! Rank: $rank. Reading every day!';
+    final text = s.shareText(Plural.days(days, isRu ? 'ru' : 'en'), rank);
     SharePlus.instance.share(ShareParams(text: text));
   }
 
   void _showSecretDialog(BuildContext context, WidgetRef ref) {
+    final s = StreakDetailsStrings(isRu);
     final controller = TextEditingController(text: '${streak.currentStreak}');
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppTokens.surfaceCard,
-        title: Text(isRu ? 'Синхронизация стрика' : 'Sync Streak'),
+        title: Text(s.syncStreakTitle),
         content: TextField(
           controller: controller,
           keyboardType: TextInputType.number,
           autofocus: true,
           decoration: InputDecoration(
-            labelText: isRu ? 'Количество дней' : 'Streak Days',
+            labelText: s.streakDaysLabel,
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text(isRu ? 'Отмена' : 'Cancel'),
+            child: Text(s.cancel),
           ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: AppTokens.accent),
@@ -98,7 +100,7 @@ class StreakDetailsModal extends ConsumerWidget {
                 Navigator.pop(context);
               }
             },
-            child: Text(isRu ? 'Применить' : 'Apply'),
+            child: Text(s.apply),
           ),
         ],
       ),
@@ -107,6 +109,7 @@ class StreakDetailsModal extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final s = StreakDetailsStrings(isRu);
     final days = streak.currentStreak.toInt();
     final flameColor = _getFlameColor(days, streak.isActiveToday);
     final rankTitle = _getRankTitle(days, isRu);
@@ -122,9 +125,6 @@ class StreakDetailsModal extends ConsumerWidget {
       final isDone = streak.historyDates.contains(dStr) || (isToday && streak.isActiveToday);
       return {'day': d, 'isDone': isDone, 'isToday': isToday};
     });
-
-    final weekDayLabelsRu = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
-    final weekDayLabelsEn = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
     return Container(
       constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.85),
@@ -236,12 +236,8 @@ class StreakDetailsModal extends ConsumerWidget {
                     Expanded(
                       child: Text(
                         streak.isActiveToday
-                            ? (isRu
-                                ? 'Сегодня цель выполнена! Прочитано глав: ${streak.todayChaptersCount}'
-                                : 'Daily goal completed! Chapters read: ${streak.todayChaptersCount}')
-                            : (isRu
-                                ? 'Прочитайте 1 главу сегодня, чтобы зажечь огонёк!'
-                                : 'Read 1 chapter today to keep your streak!'),
+                            ? s.goalCompleted('${streak.todayChaptersCount}')
+                            : s.goalPending,
                         style: TextStyle(
                           fontSize: 12.5,
                           color: streak.isActiveToday ? Colors.white : AppTokens.textPrimary,
@@ -257,7 +253,7 @@ class StreakDetailsModal extends ConsumerWidget {
               Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  isRu ? 'Активность за последние 7 дней:' : 'Last 7 Days Activity:',
+                  s.weekActivity,
                   style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppTokens.textSecondary),
                 ),
               ),
@@ -269,7 +265,7 @@ class StreakDetailsModal extends ConsumerWidget {
                   final isDone = item['isDone'] as bool;
                   final isToday = item['isToday'] as bool;
                   final d = item['day'] as DateTime;
-                  final label = (isRu ? weekDayLabelsRu : weekDayLabelsEn)[d.weekday - 1];
+                  final label = s.weekDayLabels[d.weekday - 1];
 
                   return Column(
                     children: [
@@ -328,11 +324,11 @@ class StreakDetailsModal extends ConsumerWidget {
                           const Icon(Icons.emoji_events_outlined, size: 18, color: AppTokens.accent),
                           const SizedBox(height: 4),
                           Text(
-                            '$maxStreak ${isRu ? "дн." : "d."}',
+                            s.bestStreakDays('$maxStreak'),
                             style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
                           ),
                           Text(
-                            isRu ? 'Рекорд стрика' : 'Best Streak',
+                            s.bestStreak,
                             style: const TextStyle(fontSize: 10.5, color: AppTokens.textSecondary),
                           ),
                         ],
@@ -357,7 +353,7 @@ class StreakDetailsModal extends ConsumerWidget {
                             style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
                           ),
                           Text(
-                            isRu ? 'Всего глав' : 'Chapters Read',
+                            s.chaptersRead,
                             style: const TextStyle(fontSize: 10.5, color: AppTokens.textSecondary),
                           ),
                         ],
@@ -382,7 +378,7 @@ class StreakDetailsModal extends ConsumerWidget {
                             style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
                           ),
                           Text(
-                            isRu ? 'Дней с нами' : 'Active Days',
+                            s.activeDays,
                             style: const TextStyle(fontSize: 10.5, color: AppTokens.textSecondary),
                           ),
                         ],
@@ -406,7 +402,7 @@ class StreakDetailsModal extends ConsumerWidget {
                   onPressed: () => _shareStreak(context),
                   icon: const Icon(Icons.share_rounded, size: 18),
                   label: Text(
-                    isRu ? 'Поделиться стриком' : 'Share Streak',
+                    s.shareStreak,
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                   ),
                 ),
@@ -429,7 +425,7 @@ class StreakDetailsModal extends ConsumerWidget {
                   },
                   icon: const Icon(Icons.emoji_events_rounded, size: 18, color: Color(0xFFFFD700)),
                   label: Text(
-                    isRu ? 'Все достижения' : 'All Achievements',
+                    s.allAchievements,
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5),
                   ),
                 ),
