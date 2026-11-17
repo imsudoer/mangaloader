@@ -1384,6 +1384,16 @@ pub async fn get_manga_relations(slug_url: String) -> Result<Vec<MangaRelationIt
                 .to_string();
 
             if let Some(media) = item.get("media") {
+                // Relations can point at anime entries (model = "anime"). They live
+                // under a different API route, so the manga route 404s; the anime
+                // adaptation block covers them instead.
+                let model = media
+                    .get("model")
+                    .and_then(|m| m.as_str())
+                    .unwrap_or("manga");
+                if model == "anime" {
+                    continue;
+                }
                 let manga = parse_manga_item(media);
                 relations.push(MangaRelationItem {
                     relation_title: rel_title,

@@ -16,6 +16,7 @@ class AnimeHit {
     required this.episodes,
     required this.score,
     required this.imageUrl,
+    this.path = '',
   });
 
   final int id;
@@ -27,9 +28,19 @@ class AnimeHit {
   final String score;
   final String imageUrl;
 
+  /// Canonical Shikimori path from the API (`/animes/42897-horimiya`), so the
+  /// browser lands on the entry instead of a hand-built URL that may 404.
+  final String path;
+
   String get displayTitle => russian.trim().isNotEmpty ? russian.trim() : name.trim();
 
-  String get pageUrl => 'https://shikimori.one/anime/$id';
+  String get pageUrl {
+    final normalized = path.trim();
+    if (normalized.isEmpty) return 'https://shikimori.one/animes/$id';
+    return normalized.startsWith('http')
+        ? normalized
+        : 'https://shikimori.one/${normalized.replaceFirst(RegExp(r'^/+'), '')}';
+  }
 
   int get year {
     final parsed = DateTime.tryParse(airedOn);
@@ -42,6 +53,17 @@ class AnimeHit {
 /// MangaLib; nothing is sent about the user, only the title being viewed.
 class AnimeSearchService {
   static const String _host = 'https://shikimori.one/api/animes';
+  static const String _origin = 'https://shikimori.one';
+
+  /// Shikimori returns image paths such as `/system/animes/original/42897.jpg`
+  /// unless an absolute URL is requested, which CachedNetworkImage rejects.
+  static String _absoluteImageUrl(String path) {
+    final trimmed = path.trim();
+    if (trimmed.isEmpty) return '';
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
+    if (trimmed.startsWith('//')) return 'https:$trimmed';
+    return '$_origin/${trimmed.replaceFirst(RegExp(r'^/+'), '')}';
+  }
 
   static final Map<String, _CacheEntry> _cache = {};
   static const Duration _ttl = Duration(minutes: 30);
@@ -81,7 +103,7 @@ class AnimeSearchService {
             (russian.isNotEmpty && isSameStoryTitles(russian, query));
         if (!matchesTitle) continue;
         final image = raw['image'];
-        final imageUrl = image is Map<String, dynamic>
+        final imagePath = image is Map<String, dynamic>
             ? (image['original'] as String? ?? image['preview'] as String? ?? '')
             : '';
         hits.add(
@@ -93,7 +115,8 @@ class AnimeSearchService {
             airedOn: (raw['aired_on'] as String? ?? '').trim(),
             episodes: (raw['episodes'] as num?)?.toInt() ?? 0,
             score: (raw['score'] as String? ?? '').trim(),
-            imageUrl: imageUrl,
+            imageUrl: _absoluteImageUrl(imagePath),
+            path: (raw['url'] as String? ?? '').trim(),
           ),
         );
         if (hits.length >= limit) break;
