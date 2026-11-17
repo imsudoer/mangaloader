@@ -252,14 +252,15 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
   ) {
     final s = DetailsStrings(isRu);
     final topInset = MediaQuery.paddingOf(context).top;
+    final pageBackground = Theme.of(context).scaffoldBackgroundColor;
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            dynamicAccent.withValues(alpha: 0.18),
-            AppTokens.surfaceBase,
+            dynamicAccent.withValues(alpha: 0.20),
+            pageBackground,
           ],
         ),
         border: const Border(bottom: BorderSide(color: Color(0xFF2E2E2E), width: 1)),
@@ -606,7 +607,13 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
         // A zero sigma drops the filter and remounts the wrapped image, restarting
         // its fade; a sub-pixel blur keeps one stable subtree across the whole range.
         final sigma = ui.lerpDouble(24, 0.01, progress)!;
-        final imageOpacity = ui.lerpDouble(0.35, 0.9, progress)!;
+        final imageOpacity = ui.lerpDouble(0.55, 0.95, progress)!;
+        // Keep the cover readable at the top and concentrate the darkening at the
+        // bottom, so it fades into the action row and the tabs instead of
+        // blackening the whole header.
+        final topShade = ui.lerpDouble(0.08, 0.45, progress)!;
+        final midShade = ui.lerpDouble(0.30, 0.62, progress)!;
+        final bottomShade = ui.lerpDouble(0.70, 0.88, progress)!;
         return Stack(
           fit: StackFit.expand,
           children: [
@@ -626,9 +633,11 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
+                  stops: const [0.0, 0.62, 1.0],
                   colors: [
-                    Colors.black.withValues(alpha: ui.lerpDouble(0.3, 0.55, progress)!),
-                    Colors.black.withValues(alpha: ui.lerpDouble(0.55, 0.8, progress)!),
+                    Colors.black.withValues(alpha: topShade),
+                    Colors.black.withValues(alpha: midShade),
+                    Colors.black.withValues(alpha: bottomShade),
                   ],
                 ),
               ),
@@ -1558,7 +1567,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
             ),
             const SizedBox(height: 10),
             SizedBox(
-              height: 96,
+              height: 104,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 padding: EdgeInsets.zero,
@@ -1611,7 +1620,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
         onTap: step.isCurrent ? null : () => context.push('/manga/${step.slugUrl}'),
         borderRadius: BorderRadius.circular(AppTokens.radiusSm),
         child: Container(
-          width: 196,
+          width: 208,
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(AppTokens.radiusSm),
@@ -1626,17 +1635,34 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
               Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      color: AppTokens.accent.withValues(alpha: 0.14),
-                      borderRadius: BorderRadius.circular(9),
-                    ),
-                    child: Icon(
-                      _readingStepIcon(step.kind),
-                      size: 18,
-                      color: step.isCurrent ? AppTokens.accent : AppTokens.textPrimary,
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: SizedBox(
+                      width: 46,
+                      height: 64,
+                      child: (step.coverUrl ?? '').isEmpty
+                          ? ColoredBox(
+                              color: AppTokens.surfaceBase,
+                              child: Icon(
+                                _readingStepIcon(step.kind),
+                                size: 18,
+                                color: AppTokens.textSecondary,
+                              ),
+                            )
+                          : CachedNetworkImage(
+                              imageUrl: step.coverUrl!,
+                              httpHeaders: const {'Referer': 'https://mangalib.org/'},
+                              fit: BoxFit.cover,
+                              placeholder: (_, __) => const ColoredBox(color: AppTokens.surfaceBase),
+                              errorWidget: (_, __, ___) => ColoredBox(
+                                color: AppTokens.surfaceBase,
+                                child: Icon(
+                                  _readingStepIcon(step.kind),
+                                  size: 18,
+                                  color: AppTokens.textSecondary,
+                                ),
+                              ),
+                            ),
                     ),
                   ),
                   Positioned(
@@ -2567,7 +2593,7 @@ class _SliverTabBarDelegate extends SliverPersistentHeaderDelegate {
     final reveal = _reveal;
     return Container(
       decoration: BoxDecoration(
-        color: AppTokens.surfaceBase,
+        color: Theme.of(context).scaffoldBackgroundColor,
         border: Border(
           bottom: BorderSide(
             color: overlapsContent ? AppTokens.accent.withValues(alpha: 0.3) : const Color(0xFF2E2E2E),
