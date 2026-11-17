@@ -136,6 +136,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   
   int _currentPageIndex = 0;
   PageController? _pageController;
+  // Paged slides lock horizontal paging while one of them is zoomed; otherwise
+  // PageView wins the gesture arena and the bitmap can never be dragged.
+  int? _zoomedPageIndex;
+  int _pageZoomResetToken = 0;
   final ScrollController _scrollController = ScrollController();
   final FocusNode _focusNode = FocusNode();
   
@@ -726,6 +730,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     }
 
     _pageKeys = List.generate(_totalPages, (i) => GlobalKey(debugLabel: 'page_$i'));
+    _zoomedPageIndex = null;
 
     // The paged controller is created on the first layout pass, once the viewport
     // (and therefore the single/dual page mapping) is known.
@@ -1156,6 +1161,25 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     return size.width >= 850 && size.width > size.height;
   }
 
+  void _handlePageZoomChanged(int index, bool zoomed) {
+    if (zoomed) {
+      if (_zoomedPageIndex == index) return;
+      setState(() => _zoomedPageIndex = index);
+    } else if (_zoomedPageIndex == index) {
+      setState(() => _zoomedPageIndex = null);
+    }
+  }
+
+  /// The zoom toolbar only changes the fitted page width; a page that was pinched
+  /// or double tapped keeps its own transform, so both have to reset together.
+  void _resetPageZoom() {
+    if (_zoomedPageIndex == null) return;
+    setState(() {
+      _pageZoomResetToken++;
+      _zoomedPageIndex = null;
+    });
+  }
+
   void _handleTap(TapUpDetails details) {
     final size = MediaQuery.of(context).size;
     final dx = details.globalPosition.dx;
@@ -1310,7 +1334,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
   void _zoomOut() => _changeZoom(_zoomLevel - 0.25);
 
-  void _resetZoom() => _changeZoom(1.0);
+  void _resetZoom() {
+    _changeZoom(1.0);
+    _resetPageZoom();
+  }
 
   void _toggleFullscreen() async {
     setState(() => _isFullscreen = !_isFullscreen);
@@ -1746,10 +1773,17 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
               child: ValueListenableBuilder<bool>(
                 valueListenable: _showControlsNotifier,
                 builder: (context, showControls, _) {
-                  if (showControls) return const SizedBox.shrink();
-                  return _ReaderHud(
-                    pageIndexNotifier: _pageIndexNotifier,
-                    totalPages: _totalPages,
+                  return IgnorePointer(
+                    ignoring: showControls,
+                    child: AnimatedOpacity(
+                      opacity: showControls ? 0 : 1,
+                      duration: AppTokens.fast,
+                      curve: Curves.easeOut,
+                      child: _ReaderHud(
+                        pageIndexNotifier: _pageIndexNotifier,
+                        totalPages: _totalPages,
+                      ),
+                    ),
                   );
                 },
               ),
@@ -1758,15 +1792,19 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
           ValueListenableBuilder<bool>(
             valueListenable: _showControlsNotifier,
             builder: (context, showControls, _) {
-              if (!showControls) return const SizedBox.shrink();
               final hasPrev = _prevChapter != null || _prevLocalCbzPath != null;
               final hasNext = _nextChapter != null || _nextLocalCbzPath != null;
 
-              return Stack(
+              return IgnorePointer(
+                ignoring: !showControls,
+                child: Stack(
                 children: [
                   Positioned(
                     top: 0, left: 0, right: 0,
-                    child: AppBar(
+                    child: _ChromeReveal(
+                      visible: showControls,
+                      slide: const Offset(0, -1),
+                      child: AppBar(
                       backgroundColor: Colors.black.withValues(alpha: 0.85),
                       foregroundColor: Colors.white,
                       elevation: 0,
@@ -1870,13 +1908,17 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                         ),
                       ],
                     ),
+                    ),
                   ),
 
                   // Floating Zoom Toolbar
                   Positioned(
                     right: 16,
                     bottom: 100,
-                    child: Container(
+                    child: _ChromeReveal(
+                      visible: showControls,
+                      slide: const Offset(0.4, 0),
+                      child: Container(
                       decoration: BoxDecoration(
                         color: Colors.black.withValues(alpha: 0.8),
                         borderRadius: BorderRadius.circular(24),
@@ -1911,13 +1953,17 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                         ],
                       ),
                     ),
+                    ),
                   ),
 
                   // Bottom progress and page controls
                   if (_totalPages > 0)
                     Positioned(
                       bottom: 0, left: 0, right: 0,
-                      child: Container(
+                      child: _ChromeReveal(
+                        visible: showControls,
+                        slide: const Offset(0, 1),
+                        child: Container(
                         color: Colors.black.withValues(alpha: 0.85),
                         padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom + 8, left: 16, right: 16, top: 12),
                         child: SafeArea(
@@ -2002,8 +2048,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                           ),
                         ),
                       ),
+                      ),
                     ),
                 ],
+                ),
               );
             },
           ),
@@ -2013,7 +2061,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                 builder: (context, showControls, _) {
                   if (!_showNextChapterBanner) return const SizedBox.shrink();
                   final bottomInset = MediaQuery.paddingOf(context).bottom;
-                  return Positioned(
+                  return AnimatedPositioned(
+                    duration: AppTokens.normal,
+                    curve: Curves.easeOutCubic,
                     left: 16,
                     right: 16,
                     // The control bar applies the bottom inset twice, so the banner
@@ -2183,7 +2233,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
           final targetPage = isDual ? (slideIdx * 2).clamp(0, _totalPages > 0 ? _totalPages - 1 : 0) : slideIdx;
           _onPageChanged(targetPage);
         },
-        physics: const ClampingScrollPhysics(),
+        physics: _zoomedPageIndex != null
+            ? const NeverScrollableScrollPhysics()
+            : const ClampingScrollPhysics(),
         itemBuilder: (context, index) {
           if (index == dualSlidesCount) {
             return Center(
@@ -2206,10 +2258,12 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
               getCbzPage: _getCbzPage,
               reloadImage: _reloadImage,
               zoomLevel: _zoomLevel,
+              zoomResetToken: _pageZoomResetToken,
               cropBorders: _cropBorders,
               cropPercent: _cropPercent,
               boxFit: _resolvedBoxFit,
               applyColorFilter: _applyColorFilter,
+              onZoomChanged: (zoomed) => _handlePageZoomChanged(index, zoomed),
             );
           }
 
@@ -2226,10 +2280,12 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
             getCbzPage: _getCbzPage,
             reloadImage: _reloadImage,
             zoomLevel: _zoomLevel,
+            zoomResetToken: _pageZoomResetToken,
             cropBorders: _cropBorders,
             cropPercent: _cropPercent,
             boxFit: BoxFit.contain,
             applyColorFilter: _applyColorFilter,
+            onZoomChanged: (zoomed) => _handlePageZoomChanged(page1, zoomed),
           );
 
           final item2 = page2 < _totalPages
@@ -2242,10 +2298,12 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                   getCbzPage: _getCbzPage,
                   reloadImage: _reloadImage,
                   zoomLevel: _zoomLevel,
+                  zoomResetToken: _pageZoomResetToken,
                   cropBorders: _cropBorders,
                   cropPercent: _cropPercent,
                   boxFit: BoxFit.contain,
                   applyColorFilter: _applyColorFilter,
+                  onZoomChanged: (zoomed) => _handlePageZoomChanged(page2, zoomed),
                 )
               : const SizedBox.expand();
 
@@ -3724,8 +3782,10 @@ class _VerticalReaderPageItemState extends State<_VerticalReaderPageItem> {
   }
 }
 
-/// Dedicated horizontal page item with its own zoom transform. InteractiveViewer is
-/// mounted only while zoomed so PageView keeps receiving horizontal swipes.
+/// Dedicated horizontal page item with its own zoom transform. The viewer stays
+/// mounted so pinch and double tap work at fit scale; while the page is zoomed the
+/// parent switches the PageView physics off so drags pan the bitmap instead of
+/// flipping pages (a PageView drag beats the viewer in the gesture arena).
 class _HorizontalReaderPageItem extends StatefulWidget {
   final int index;
   final bool isDownloaded;
@@ -3734,10 +3794,12 @@ class _HorizontalReaderPageItem extends StatefulWidget {
   final Future<Uint8List?> Function(int) getCbzPage;
   final Future<void> Function(String) reloadImage;
   final double zoomLevel;
+  final int zoomResetToken;
   final bool cropBorders;
   final double cropPercent;
   final BoxFit boxFit;
   final Widget Function(Widget) applyColorFilter;
+  final void Function(bool zoomed) onZoomChanged;
 
   const _HorizontalReaderPageItem({
     super.key,
@@ -3748,10 +3810,12 @@ class _HorizontalReaderPageItem extends StatefulWidget {
     required this.getCbzPage,
     required this.reloadImage,
     required this.zoomLevel,
+    required this.zoomResetToken,
     required this.cropBorders,
     required this.cropPercent,
     required this.boxFit,
     required this.applyColorFilter,
+    required this.onZoomChanged,
   });
 
   @override
@@ -3801,7 +3865,7 @@ class _HorizontalReaderPageItemState extends State<_HorizontalReaderPageItem>
   }
 
   /// InteractiveViewer owns a scale recognizer that would swallow the horizontal
-  /// drag before PageView sees it, so the viewer only exists while zoomed in.
+  /// drag before PageView sees it, so the parent only stops paging while zoomed in.
   void _syncZoomFlag() {
     final zoomed = _matrixScale > 1.001;
     if (zoomed == _isZoomed) return;
@@ -3810,11 +3874,16 @@ class _HorizontalReaderPageItemState extends State<_HorizontalReaderPageItem>
       return;
     }
     setState(() => _isZoomed = zoomed);
+    widget.onZoomChanged(zoomed);
   }
 
   @override
   void didUpdateWidget(covariant _HorizontalReaderPageItem oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (widget.zoomResetToken != oldWidget.zoomResetToken) {
+      _zoomAnimationController.stop();
+      _transformController.value = Matrix4.identity();
+    }
     if (widget.isDownloaded && !oldWidget.isDownloaded) {
       _loadCbzBytes();
     }
@@ -3965,19 +4034,20 @@ class _HorizontalReaderPageItemState extends State<_HorizontalReaderPageItem>
             : fallbackWidth;
         final page = _buildPage(isRu, _decodeWidth(logicalWidth, devicePixelRatio));
 
-        final Widget body = (_isZoomed || baseScale > 1.001)
-            ? InteractiveViewer(
-                transformationController: _transformController,
-                minScale: 1.0,
-                maxScale: 4.0,
-                clipBehavior: Clip.none,
-                onInteractionStart: _handleInteractionStart,
-                onInteractionEnd: _handleInteractionEnd,
-                child: Center(
-                  child: Transform.scale(scale: baseScale, child: page),
-                ),
-              )
-            : Center(child: page);
+        final Widget body = InteractiveViewer(
+          transformationController: _transformController,
+          minScale: 1.0,
+          maxScale: 4.0,
+          // Panning is only meaningful once the page is zoomed; at fit scale the
+          // horizontal drag has to stay available to the PageView.
+          panEnabled: _isZoomed,
+          clipBehavior: Clip.none,
+          onInteractionStart: _handleInteractionStart,
+          onInteractionEnd: _handleInteractionEnd,
+          child: Center(
+            child: Transform.scale(scale: baseScale, child: page),
+          ),
+        );
 
         return GestureDetector(
           behavior: HitTestBehavior.opaque,
@@ -3986,6 +4056,36 @@ class _HorizontalReaderPageItemState extends State<_HorizontalReaderPageItem>
           child: body,
         );
       },
+    );
+  }
+}
+
+/// Reader chrome slides in from the screen edge it belongs to and fades, so a tap
+/// no longer makes a full-width bar appear in a single frame.
+class _ChromeReveal extends StatelessWidget {
+  const _ChromeReveal({
+    required this.visible,
+    required this.slide,
+    required this.child,
+  });
+
+  final bool visible;
+  final Offset slide;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final reduceMotion = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    return AnimatedSlide(
+      offset: visible ? Offset.zero : slide,
+      duration: reduceMotion ? Duration.zero : AppTokens.normal,
+      curve: Curves.easeOutCubic,
+      child: AnimatedOpacity(
+        opacity: visible ? 1 : 0,
+        duration: reduceMotion ? Duration.zero : AppTokens.fast,
+        curve: Curves.easeOut,
+        child: child,
+      ),
     );
   }
 }
