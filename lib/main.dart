@@ -409,63 +409,109 @@ class _AppShellState extends State<AppShell> {
         ],
       ),
       bottomNavigationBar: Container(
-        decoration: const BoxDecoration(
-          color: AppTokens.surfaceDeep,
-          border: Border(
-            top: BorderSide(
-              color: AppTokens.surfaceRaised,
-              width: 0.8,
-            ),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFF171717), AppTokens.surfaceDeep],
           ),
+          border: Border(
+            top: BorderSide(color: Colors.white.withValues(alpha: 0.05), width: 0.8),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.45),
+              blurRadius: 24,
+              offset: const Offset(0, -8),
+            ),
+          ],
         ),
         child: SafeArea(
           top: false,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildNavItem(
-                  index: 0,
-                  selectedIndex: selectedIndex,
-                  label: s.home,
-                  icon: Icons.home_outlined,
-                  selectedIcon: Icons.home_rounded,
-                  onTap: () => _navigateTo(0, '/'),
-                ),
-                _buildNavItem(
-                  index: 1,
-                  selectedIndex: selectedIndex,
-                  label: s.catalog,
-                  icon: Icons.explore_outlined,
-                  selectedIcon: Icons.explore_rounded,
-                  onTap: () => _navigateTo(1, '/search'),
-                ),
-                _buildNavItem(
-                  index: 2,
-                  selectedIndex: selectedIndex,
-                  label: s.library,
-                  icon: Icons.collections_bookmark_outlined,
-                  selectedIcon: Icons.collections_bookmark_rounded,
-                  onTap: () => _navigateTo(2, '/library'),
-                ),
-                _buildNavItem(
-                  index: 3,
-                  selectedIndex: selectedIndex,
-                  label: s.downloads,
-                  icon: Icons.download_outlined,
-                  selectedIcon: Icons.download_rounded,
-                  onTap: () => _navigateTo(3, '/downloads'),
-                ),
-                _buildNavItem(
-                  index: 4,
-                  selectedIndex: selectedIndex,
-                  label: s.profile,
-                  icon: Icons.person_outline_rounded,
-                  selectedIcon: Icons.person_rounded,
-                  onTap: () => _navigateTo(4, '/profile'),
-                ),
-              ],
+            padding: const EdgeInsets.fromLTRB(8, 7, 8, 7),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                const tabCount = 5;
+                final cellWidth = constraints.maxWidth / tabCount;
+                return Stack(
+                  children: [
+                    // One pill slides between equal cells, so the highlight is
+                    // always exactly one fifth of the bar instead of hugging the
+                    // selected label.
+                    AnimatedPositioned(
+                      duration: const Duration(milliseconds: 260),
+                      curve: Curves.easeOutCubic,
+                      left: selectedIndex * cellWidth + 4,
+                      width: cellWidth - 8,
+                      top: 0,
+                      bottom: 0,
+                      child: IgnorePointer(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: AppTokens.accent.withValues(alpha: 0.13),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: AppTokens.accent.withValues(alpha: 0.42),
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppTokens.accent.withValues(alpha: 0.18),
+                                blurRadius: 18,
+                                spreadRadius: 1,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    Row(
+                      children: [
+                        _buildNavItem(
+                          index: 0,
+                          selectedIndex: selectedIndex,
+                          label: s.home,
+                          icon: Icons.home_outlined,
+                          selectedIcon: Icons.home_rounded,
+                          onTap: () => _navigateTo(0, '/'),
+                        ),
+                        _buildNavItem(
+                          index: 1,
+                          selectedIndex: selectedIndex,
+                          label: s.catalog,
+                          icon: Icons.explore_outlined,
+                          selectedIcon: Icons.explore_rounded,
+                          onTap: () => _navigateTo(1, '/search'),
+                        ),
+                        _buildNavItem(
+                          index: 2,
+                          selectedIndex: selectedIndex,
+                          label: s.library,
+                          icon: Icons.collections_bookmark_outlined,
+                          selectedIcon: Icons.collections_bookmark_rounded,
+                          onTap: () => _navigateTo(2, '/library'),
+                        ),
+                        _buildNavItem(
+                          index: 3,
+                          selectedIndex: selectedIndex,
+                          label: s.downloads,
+                          icon: Icons.download_outlined,
+                          selectedIcon: Icons.download_rounded,
+                          onTap: () => _navigateTo(3, '/downloads'),
+                        ),
+                        _buildNavItem(
+                          index: 4,
+                          selectedIndex: selectedIndex,
+                          label: s.profile,
+                          icon: Icons.person_outline_rounded,
+                          selectedIcon: Icons.person_rounded,
+                          onTap: () => _navigateTo(4, '/profile'),
+                        ),
+                      ],
+                    ),
+                  ],
+                );
+              },
             ),
           ),
         ),
@@ -487,40 +533,52 @@ class _AppShellState extends State<AppShell> {
     required VoidCallback onTap,
   }) {
     final isSelected = index == selectedIndex;
+    final color = isSelected ? Colors.white : const Color(0xFF8E8E8E);
 
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeOutCubic,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: isSelected ? AppTokens.accent.withValues(alpha: 0.20) : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
-          border: isSelected
-              ? Border.all(color: AppTokens.accent.withValues(alpha: 0.45), width: 1.0)
-              : Border.all(color: Colors.transparent, width: 1.0),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              isSelected ? selectedIcon : icon,
-              size: 22,
-              color: isSelected ? Colors.white : const Color(0xFF9E9E9E),
+    return Expanded(
+      child: Semantics(
+        button: true,
+        selected: isSelected,
+        label: label,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 2),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AnimatedScale(
+                  scale: isSelected ? 1.12 : 1.0,
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutCubic,
+                  child: Icon(
+                    isSelected ? selectedIcon : icon,
+                    size: 22,
+                    color: color,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                AnimatedDefaultTextStyle(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutCubic,
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                    color: color,
+                    letterSpacing: -0.1,
+                    height: 1.1,
+                  ),
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 3),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                color: isSelected ? Colors.white : const Color(0xFF9E9E9E),
-                letterSpacing: -0.2,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
