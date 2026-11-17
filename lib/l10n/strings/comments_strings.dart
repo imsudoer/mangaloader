@@ -13,6 +13,10 @@ class CommentsStrings extends AppStrings {
       ? 'Войдите в аккаунт, чтобы оставить комментарий'
       : 'Sign in to post comments';
   String get signIn => isRu ? 'Войти' : 'Sign In';
+  String get later => isRu ? 'Не сейчас' : 'Not now';
+  String get socialSignInBody => isRu
+      ? 'Голосование, ответы и новые комментарии привязаны к аккаунту MangaLib.'
+      : 'Votes, replies and new comments are tied to your MangaLib account.';
   String get commentPosted =>
       isRu ? 'Комментарий опубликован' : 'Comment posted';
   String sendFailed(String error) =>

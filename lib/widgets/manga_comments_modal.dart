@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:go_router/go_router.dart';
 import 'package:mangaloader/l10n/strings/comments_strings.dart';
 import 'package:mangaloader/providers/settings_provider.dart';
 import 'package:mangaloader/src/rust/api/mangalib_client.dart' as rust_api;
@@ -9,6 +8,7 @@ import 'package:mangaloader/src/rust/api/models.dart';
 import 'package:mangaloader/theme/app_tokens.dart';
 import 'package:mangaloader/utils/html_text.dart';
 import 'package:mangaloader/utils/comment_time.dart';
+import 'package:mangaloader/widgets/social_auth_sheet.dart';
 
 class MangaCommentsModal extends ConsumerStatefulWidget {
   final String relationType; // "media" or "chapter"
@@ -117,18 +117,9 @@ class _MangaCommentsModalState extends ConsumerState<MangaCommentsModal> {
 
   Future<void> _vote(CommentItem comment, int vote) async {
     final profile = ref.read(currentUserProfileProvider);
-    final s = CommentsStrings.of(context);
 
     if (profile == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(s.signInToVote),
-          action: SnackBarAction(
-            label: s.signIn,
-            onPressed: () => context.push('/login'),
-          ),
-        ),
-      );
+      await SocialAuthSheet.show(context, SocialAction.vote);
       return;
     }
 
@@ -201,15 +192,7 @@ class _MangaCommentsModalState extends ConsumerState<MangaCommentsModal> {
 
     final profile = ref.read(currentUserProfileProvider);
     if (profile == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(s.signInToPost),
-          action: SnackBarAction(
-            label: s.signIn,
-            onPressed: () => context.push('/login'),
-          ),
-        ),
-      );
+      await SocialAuthSheet.show(context, SocialAction.comment);
       return;
     }
 
