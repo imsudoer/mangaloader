@@ -82,6 +82,42 @@ final mangaRelationsProvider = FutureProvider.family<List<MangaRelationItem>, St
   }
 });
 
+/// Relations can point at titles that MangaLib removed from the catalog: the
+/// relation row and its SEO page stay alive, but the API answers 404, so the
+/// card would open an error screen. Probe the target before offering it.
+final availableMangaRelationsProvider =
+    FutureProvider.family<List<MangaRelationItem>, String>((ref, slugUrl) async {
+  final relations = await ref.watch(mangaRelationsProvider(slugUrl).future);
+  if (relations.isEmpty) return relations;
+
+  final available = await Future.wait(
+    relations.map((relation) async {
+      final slug = relation.manga.slugUrl;
+      if (slug.isEmpty) return false;
+      try {
+        await rust_api.getMangaDetails(slugUrl: slug);
+        return true;
+      } catch (error) {
+        // A timeout or a server error must not hide a valid title; only a 404
+        // means the entry is really gone.
+        return !_looksMissing(error);
+      }
+    }),
+  );
+
+  return [
+    for (var index = 0; index < relations.length; index++)
+      if (available[index]) relations[index],
+  ];
+});
+
+bool _looksMissing(Object error) {
+  final text = error.toString().toLowerCase();
+  return text.contains('404') ||
+      text.contains('not found') ||
+      text.contains('не найдено');
+}
+
 final mangaSimilarProvider = FutureProvider.family<List<MangaSimilarItem>, String>((ref, slugUrl) async {
   if (ContentFilter.isBlockedText(slugUrl)) {
     return const [];

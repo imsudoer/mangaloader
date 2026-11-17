@@ -6,6 +6,7 @@ import 'package:cached_network_image/cached_network_image.dart' hide DownloadPro
 import 'package:window_manager/window_manager.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:mangaloader/l10n/strings/details_strings.dart';
+import 'package:mangaloader/l10n/strings/error_strings.dart';
 import 'package:mangaloader/providers/manga_provider.dart';
 import 'package:mangaloader/providers/download_provider.dart';
 import 'package:mangaloader/providers/library_provider.dart';
@@ -16,6 +17,7 @@ import 'package:mangaloader/services/anime_search.dart';
 import 'package:mangaloader/services/download_queue_service.dart';
 import 'package:mangaloader/widgets/download_button.dart';
 import 'package:mangaloader/widgets/skeleton.dart';
+import 'package:mangaloader/widgets/error_placeholder.dart';
 import 'package:mangaloader/widgets/manga_card.dart' show coverHeroTag;
 import 'package:mangaloader/widgets/manga_share_modal.dart';
 import 'package:go_router/go_router.dart';
@@ -182,49 +184,63 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
         loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
         error: (e, _) {
           final cleanError = e.toString().replaceAll('Exception: ', '');
-          final isBlocked = cleanError.contains('законодательства РФ') || cleanError.contains('regulations');
-          if (isBlocked) {
-            return Scaffold(
-              appBar: AppBar(title: Text(s.contentUnavailable)),
-              body: Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(32),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.block_rounded, size: 56, color: AppTokens.accent),
-                      const SizedBox(height: 16),
-                      Text(
-                        cleanError,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 15, color: AppTokens.textPrimary),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          }
+          final lower = cleanError.toLowerCase();
+          final isBlocked = cleanError.contains('законодательства РФ') ||
+              lower.contains('regulations');
+          final isMissing = lower.contains('404') ||
+              lower.contains('not found') ||
+              cleanError.contains('Не найдено');
+          final errorStrings = ErrorStrings(isRu);
+
           return Scaffold(
             appBar: AppBar(title: Text(s.errorTitle)),
-            body: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.error_outline_rounded, size: 48, color: Colors.grey),
-                    const SizedBox(height: 12),
-                    Text(s.loadFailed('$e'), textAlign: TextAlign.center),
-                    const SizedBox(height: 16),
-                    ElevatedButton.icon(
-                      onPressed: () => ref.invalidate(mangaDetailsProvider(widget.slugUrl)),
-                      icon: const Icon(Icons.refresh_rounded),
-                      label: Text(s.retry),
+            body: ErrorPlaceholder(
+              icon: isBlocked
+                  ? Icons.block_rounded
+                  : (isMissing
+                      ? Icons.travel_explore_rounded
+                      : Icons.cloud_off_rounded),
+              title: isBlocked
+                  ? s.contentUnavailable
+                  : (isMissing
+                      ? errorStrings.unavailableTitle
+                      : errorStrings.loadFailedTitle),
+              message: isBlocked
+                  ? cleanError
+                  : (isMissing
+                      ? errorStrings.unavailableBody
+                      : errorStrings.loadFailedBody),
+              log: cleanError,
+              retryLabel: errorStrings.retry,
+              copyLabel: errorStrings.copyLog,
+              copiedLabel: errorStrings.logCopied,
+              onRetry: isBlocked
+                  ? null
+                  : () => ref.invalidate(mangaDetailsProvider(widget.slugUrl)),
+              extraActions: [
+                if (isMissing)
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppTokens.textPrimary,
+                      minimumSize: const Size(0, 42),
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      side: const BorderSide(color: AppTokens.borderStrong),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
-                  ],
-                ),
-              ),
+                    onPressed: () async {
+                      final uri = Uri.parse(
+                        'https://mangalib.org/ru/manga/${widget.slugUrl}',
+                      );
+                      if (await canLaunchUrl(uri)) {
+                        await launchUrl(uri, mode: LaunchMode.externalApplication);
+                      }
+                    },
+                    icon: const Icon(Icons.open_in_browser_rounded, size: 17),
+                    label: Text(errorStrings.openOnMangaLib),
+                  ),
+              ],
             ),
           );
         },
@@ -1447,8 +1463,10 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
   /// Relations that may be rendered. RuStore builds must not show a blocked
   /// title even when MangaLib links to it from an allowed one.
   List<MangaRelationItem> _relations(String slugUrl) {
-    final relations = ref.watch(mangaRelationsProvider(slugUrl)).valueOrNull ??
-        const <MangaRelationItem>[];
+    final raw = ref.watch(mangaRelationsProvider(slugUrl)).valueOrNull;
+    final validated =
+        ref.watch(availableMangaRelationsProvider(slugUrl)).valueOrNull;
+    final relations = validated ?? raw ?? const <MangaRelationItem>[];
     // Older builds cached relations without filtering anime entries; keep them
     // out of the manga navigation so no `/manga/<slug>-anime` route is opened.
     final mangaOnly = relations.where((r) => !_isAnimeRelation(r)).toList();
@@ -2092,14 +2110,19 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
 
   Widget _buildRelationsSection(String slugUrl, bool isRu) {
     final s = DetailsStrings(isRu);
-    final relationsAsync = ref.watch(mangaRelationsProvider(slugUrl));
+    final raw = ref.watch(mangaRelationsProvider(slugUrl)).valueOrNull;
+    final validated =
+        ref.watch(availableMangaRelationsProvider(slugUrl)).valueOrNull;
+    // Show the raw list immediately and drop dead entries once the probe
+    // finishes, so the section does not blink while the API is checked.
+    final source = validated ?? raw;
+    if (source == null) return const SizedBox.shrink();
+    final relations = ContentFilter.filterRelations(
+      source.where((relation) => !_isAnimeRelation(relation)).toList(),
+    );
+    if (relations.isEmpty) return const SizedBox.shrink();
 
-    return relationsAsync.when(
-      data: (rawRelations) {
-        final relations = ContentFilter.filterRelations(rawRelations);
-        if (relations.isEmpty) return const SizedBox.shrink();
-
-        return Column(
+    return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
@@ -2183,11 +2206,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
             const SizedBox(height: 14),
           ],
         );
-      },
-      loading: () => const SizedBox.shrink(),
-      error: (_, __) => const SizedBox.shrink(),
-    );
-  }
+      }
 
   Widget _buildSimilarSection(String slugUrl, bool isRu) {
     final s = DetailsStrings(isRu);

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:mangaloader/l10n/strings/comments_strings.dart';
+import 'package:mangaloader/l10n/strings/error_strings.dart';
 import 'package:mangaloader/providers/settings_provider.dart';
 import 'package:mangaloader/src/rust/api/mangalib_client.dart' as rust_api;
 import 'package:mangaloader/src/rust/api/models.dart';
@@ -9,6 +10,7 @@ import 'package:mangaloader/theme/app_tokens.dart';
 import 'package:mangaloader/utils/html_text.dart';
 import 'package:mangaloader/utils/comment_time.dart';
 import 'package:mangaloader/widgets/social_auth_sheet.dart';
+import 'package:mangaloader/widgets/error_placeholder.dart';
 
 class MangaCommentsModal extends ConsumerStatefulWidget {
   final String relationType; // "media" or "chapter"
@@ -238,6 +240,7 @@ class _MangaCommentsModalState extends ConsumerState<MangaCommentsModal> {
   Widget build(BuildContext context) {
     final isRu = Localizations.localeOf(context).languageCode == 'ru';
     final s = CommentsStrings(isRu);
+    final errorStrings = ErrorStrings(isRu);
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
     return Container(
@@ -308,20 +311,15 @@ class _MangaCommentsModalState extends ConsumerState<MangaCommentsModal> {
             child: _isLoading
               ? const Center(child: CircularProgressIndicator())
               : _errorMessage != null
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.error_outline_rounded, size: 40, color: Colors.redAccent),
-                        const SizedBox(height: 12),
-                        Text(_errorMessage!, style: const TextStyle(color: AppTokens.textPrimary)),
-                        const SizedBox(height: 12),
-                        FilledButton.tonal(
-                          onPressed: () => _loadComments(refresh: true),
-                          child: Text(s.retry),
-                        ),
-                      ],
-                    ),
+                ? ErrorPlaceholder(
+                    icon: Icons.forum_outlined,
+                    title: errorStrings.loadFailedTitle,
+                    message: errorStrings.loadFailedBody,
+                    log: _errorMessage,
+                    retryLabel: errorStrings.retry,
+                    copyLabel: errorStrings.copyLog,
+                    copiedLabel: errorStrings.logCopied,
+                    onRetry: () => _loadComments(refresh: true),
                   )
                 : _rootComments.isEmpty
                   ? Center(

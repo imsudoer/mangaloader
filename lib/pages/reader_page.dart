@@ -9,6 +9,7 @@ import 'package:window_manager/window_manager.dart';
 import 'package:battery_plus/battery_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mangaloader/l10n/strings/reader_strings.dart';
+import 'package:mangaloader/l10n/strings/error_strings.dart';
 import 'package:mangaloader/providers/settings_provider.dart';
 import 'package:mangaloader/providers/download_provider.dart';
 import 'package:mangaloader/src/rust/api/download_engine.dart' as rust_download;
@@ -20,6 +21,7 @@ import 'package:mangaloader/services/streak_notification_service.dart';
 import 'package:mangaloader/services/content_filter.dart';
 import 'package:mangaloader/services/reader_bookmarks.dart';
 import 'package:mangaloader/widgets/manga_comments_modal.dart';
+import 'package:mangaloader/widgets/error_placeholder.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:mangaloader/theme/app_tokens.dart';
@@ -1669,7 +1671,12 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     }
 
     if (_errorMessage != null) {
-      final isLocked = _errorMessage!.contains('заблокирована') || _errorMessage!.contains('доступ');
+      final rawError = _errorMessage!;
+      final errorStrings = ErrorStrings(
+        Localizations.localeOf(context).languageCode == 'ru',
+      );
+      final isLocked =
+          rawError.contains('заблокирована') || rawError.contains('доступ');
       return Scaffold(
         backgroundColor: AppTokens.surfaceBase,
         appBar: AppBar(
@@ -1681,73 +1688,57 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
           ),
           title: Text(_chapterTitle),
         ),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 450),
-              child: Card(
-                color: AppTokens.surfaceRaised,
+        body: ErrorPlaceholder(
+          icon: isLocked ? Icons.lock_outline_rounded : Icons.menu_book_rounded,
+          title: isLocked
+              ? errorStrings.chapterUnavailableTitle
+              : errorStrings.chapterFailedTitle,
+          message: isLocked
+              ? rawError.replaceAll('Exception: ', '')
+              : errorStrings.loadFailedBody,
+          log: rawError,
+          retryLabel: errorStrings.retry,
+          copyLabel: errorStrings.copyLog,
+          copiedLabel: errorStrings.logCopied,
+          onRetry: isLocked ? null : _loadChapter,
+          extraActions: [
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppTokens.textPrimary,
+                minimumSize: const Size(0, 42),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                side: const BorderSide(color: AppTokens.borderStrong),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  side: const BorderSide(color: AppTokens.borderStrong),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        isLocked ? Icons.lock_outline_rounded : Icons.error_outline_rounded,
-                        color: isLocked ? Colors.amberAccent : Colors.redAccent,
-                        size: 48,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        isLocked ? 'Глава заблокирована' : 'Ошибка загрузки',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        _errorMessage!,
-                        style: const TextStyle(color: AppTokens.textPrimary, fontSize: 13, height: 1.4),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 20),
-                      FilledButton.icon(
-                        style: FilledButton.styleFrom(
-                          backgroundColor: AppTokens.accent,
-                          foregroundColor: Colors.white,
-                          minimumSize: const Size.fromHeight(42),
-                        ),
-                        onPressed: () => context.pop(),
-                        icon: const Icon(Icons.arrow_back_rounded, size: 18),
-                        label: const Text('Вернуться к манге'),
-                      ),
-                      if (widget.slugUrl.isNotEmpty) ...[
-                        const SizedBox(height: 10),
-                        OutlinedButton.icon(
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppTokens.textPrimary,
-                            minimumSize: const Size.fromHeight(42),
-                          ),
-                          onPressed: () async {
-                            final uri = Uri.parse('https://mangalib.org/ru/manga/${widget.slugUrl}/read/v${widget.volume}/c${widget.number}');
-                            if (await canLaunchUrl(uri)) {
-                              await launchUrl(uri, mode: LaunchMode.externalApplication);
-                            }
-                          },
-                          icon: const Icon(Icons.open_in_browser_rounded, size: 18),
-                          label: const Text('Открыть на MangaLib'),
-                        ),
-                      ],
-                    ],
-                  ),
+                  borderRadius: BorderRadius.circular(10),
                 ),
               ),
+              onPressed: () => context.pop(),
+              icon: const Icon(Icons.arrow_back_rounded, size: 17),
+              label: Text(errorStrings.backToManga),
             ),
-          ),
+            if (widget.slugUrl.isNotEmpty)
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppTokens.textPrimary,
+                  minimumSize: const Size(0, 42),
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  side: const BorderSide(color: AppTokens.borderStrong),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                onPressed: () async {
+                  final uri = Uri.parse(
+                    'https://mangalib.org/ru/manga/${widget.slugUrl}/read/v${widget.volume}/c${widget.number}',
+                  );
+                  if (await canLaunchUrl(uri)) {
+                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                  }
+                },
+                icon: const Icon(Icons.open_in_browser_rounded, size: 17),
+                label: Text(errorStrings.openOnMangaLib),
+              ),
+          ],
         ),
       );
     }
