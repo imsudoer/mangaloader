@@ -18,12 +18,12 @@ import 'package:mangaloader/widgets/download_button.dart';
 import 'package:mangaloader/widgets/skeleton.dart';
 import 'package:mangaloader/widgets/manga_card.dart' show coverHeroTag;
 import 'package:mangaloader/widgets/manga_share_modal.dart';
-import 'package:mangaloader/widgets/manga_comments_modal.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mangaloader/src/rust/api/storage.dart' as rust_storage;
 import 'package:mangaloader/src/rust/api/models.dart';
 import 'package:mangaloader/utils/title_match.dart';
 import 'package:mangaloader/utils/reading_order.dart';
+import 'package:mangaloader/utils/html_text.dart';
 import 'package:mangaloader/services/content_filter.dart';
 import 'package:mangaloader/theme/app_theme.dart';
 import 'package:mangaloader/theme/app_tokens.dart';
@@ -125,31 +125,38 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                   SliverToBoxAdapter(
                     child: _buildStickyHeader(context, ref, manga, isRu, chaptersAsync, historyAsync, isInLibrary, dynamicAccent),
                   ),
-                  // Pinned Tab Bar with Dynamic Palette
-                  SliverPersistentHeader(
-                    pinned: true,
-                    delegate: _SliverTabBarDelegate(
-                      TabBar(
-                        controller: _tabController,
-                        indicatorSize: TabBarIndicatorSize.tab,
-                        indicator: BoxDecoration(
-                          color: dynamicAccent.withValues(alpha: 0.25),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: dynamicAccent, width: 1.2),
+                  // Pinned compact title + tab bar. The status bar inset and the
+                  // compact title only take up space once the big header scrolls
+                  // away, so the inline tab bar sits right under the action row.
+                  ValueListenableBuilder<double>(
+                    valueListenable: _headerProgress,
+                    builder: (context, headerProgress, _) => SliverPersistentHeader(
+                      pinned: true,
+                      delegate: _SliverTabBarDelegate(
+                        TabBar(
+                          controller: _tabController,
+                          indicatorSize: TabBarIndicatorSize.tab,
+                          indicator: BoxDecoration(
+                            color: dynamicAccent.withValues(alpha: 0.25),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: dynamicAccent, width: 1.2),
+                          ),
+                          dividerColor: Colors.transparent,
+                          labelColor: Colors.white,
+                          unselectedLabelColor: AppTokens.textSecondary,
+                          labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.normal, fontSize: 13),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                          tabs: [
+                            Tab(text: s.tabAbout),
+                            Tab(text: s.tabChapters),
+                            Tab(text: s.comments),
+                          ],
                         ),
-                        dividerColor: Colors.transparent,
-                        labelColor: Colors.white,
-                        unselectedLabelColor: AppTokens.textSecondary,
-                        labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                        unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.normal, fontSize: 13),
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                        tabs: [
-                          Tab(text: s.tabAbout),
-                          Tab(text: s.tabChapters),
-                          Tab(text: s.comments),
-                        ],
+                        MediaQuery.paddingOf(context).top,
+                        headerProgress,
+                        _buildCompactHeader(manga, isRu),
                       ),
-                      MediaQuery.paddingOf(context).top,
                     ),
                   ),
                 ],
@@ -546,29 +553,47 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                         ),
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    IconButton.outlined(
-                      style: IconButton.styleFrom(
-                        side: const BorderSide(color: AppTokens.borderStrong, width: 1.2),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
-                        padding: const EdgeInsets.all(10),
-                      ),
-                      icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18, color: AppTokens.textPrimary),
-                      tooltip: s.comments,
-                      onPressed: () {
-                        MangaCommentsModal.show(
-                          context,
-                          relationType: 'media',
-                          relationId: manga.id,
-                          title: manga.rusName.isNotEmpty ? manga.rusName : manga.name,
-                        );
-                      },
-                    ),
                   ],
                 ),
               ),
             ],
           ),
+        ],
+      ),
+    );
+  }
+
+  /// Compact app bar shown above the pinned tabs once the preview header scrolls
+/// away, so the title and the tabs both stay reachable while reading comments.
+  Widget _buildCompactHeader(MangaDetails manga, bool isRu) {
+    final s = DetailsStrings(isRu);
+    final title = manga.rusName.isNotEmpty ? manga.rusName : manga.name;
+    return Padding(
+      padding: const EdgeInsets.only(left: 2, right: 12),
+      child: Row(
+        children: [
+          IconButton(
+            visualDensity: VisualDensity.compact,
+            icon: const Icon(Icons.arrow_back_rounded, color: Colors.white, size: 20),
+            tooltip: s.back,
+            onPressed: () => context.pop(),
+          ),
+          Expanded(
+            child: Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
+            ),
+          ),
+          if (manga.ratingAverage != '0') ...[
+            const Icon(Icons.star_rounded, size: 14, color: Colors.amber),
+            const SizedBox(width: 3),
+            Text(
+              manga.ratingAverage,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppTokens.textSecondary),
+            ),
+          ],
         ],
       ),
     );
@@ -1412,7 +1437,28 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
   List<MangaRelationItem> _relations(String slugUrl) {
     final relations = ref.watch(mangaRelationsProvider(slugUrl)).valueOrNull ??
         const <MangaRelationItem>[];
-    return ContentFilter.filterRelations(relations);
+    // Older builds cached relations without filtering anime entries; keep them
+    // out of the manga navigation so no `/manga/<slug>-anime` route is opened.
+    final mangaOnly = relations.where((r) => !_isAnimeRelation(r)).toList();
+    return ContentFilter.filterRelations(mangaOnly);
+  }
+
+  static const Set<String> _animeTypeMarkers = {
+    'tv',
+    'tv сериал',
+    'ova',
+    'ona',
+    'фильм',
+    'movie',
+    'спешл',
+    'special',
+  };
+
+  bool _isAnimeRelation(MangaRelationItem relation) {
+    final manga = relation.manga;
+    if (manga.slugUrl.toLowerCase().endsWith('-anime')) return true;
+    final type = manga.mangaType.trim().toLowerCase();
+    return _animeTypeMarkers.contains(type);
   }
 
   /// Entries of the same story published in another medium. Relations provide the
@@ -1511,88 +1557,147 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
               style: const TextStyle(fontSize: 11, color: AppTokens.textSecondary),
             ),
             const SizedBox(height: 10),
-            for (var index = 0; index < order.length; index++)
-              _buildReadingOrderRow(order[index], index, isRu),
+            SizedBox(
+              height: 96,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: EdgeInsets.zero,
+                itemCount: order.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                itemBuilder: (context, index) =>
+                    _buildReadingOrderCard(order[index], index, isRu),
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildReadingOrderRow(ReadingStep step, int index, bool isRu) {
+  IconData _readingStepIcon(ReadingStepKind kind) {
+    switch (kind) {
+      case ReadingStepKind.current:
+        return Icons.bookmark_rounded;
+      case ReadingStepKind.mainLine:
+        return Icons.import_contacts_rounded;
+      case ReadingStepKind.prequel:
+        return Icons.history_rounded;
+      case ReadingStepKind.sequel:
+        return Icons.fast_forward_rounded;
+      case ReadingStepKind.spinOff:
+        return Icons.call_split_rounded;
+      case ReadingStepKind.related:
+        return Icons.link_rounded;
+      case ReadingStepKind.alternative:
+        return Icons.swap_horiz_rounded;
+      case ReadingStepKind.otherFormat:
+        return Icons.auto_stories_rounded;
+    }
+  }
+
+  Widget _buildReadingOrderCard(ReadingStep step, int index, bool isRu) {
     final s = DetailsStrings(isRu);
     final label = step.isCurrent
         ? s.youAreHere
         : (step.relationLabel.isNotEmpty ? step.relationLabel : step.formatLabel);
     final highlight = step.isCurrent ? AppTokens.accent : AppTokens.textSecondary;
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Material(
-        color: step.isCurrent
-            ? AppTokens.accent.withValues(alpha: 0.14)
-            : Colors.transparent,
+    return Material(
+      color: step.isCurrent
+          ? AppTokens.accent.withValues(alpha: 0.14)
+          : AppTokens.surfaceRaised,
+      borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+      child: InkWell(
+        onTap: step.isCurrent ? null : () => context.push('/manga/${step.slugUrl}'),
         borderRadius: BorderRadius.circular(AppTokens.radiusSm),
-        child: InkWell(
-          onTap: step.isCurrent ? null : () => context.push('/manga/${step.slugUrl}'),
-          borderRadius: BorderRadius.circular(AppTokens.radiusSm),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(AppTokens.radiusSm),
-              border: Border.all(
-                color: step.isCurrent
-                    ? AppTokens.accent.withValues(alpha: 0.55)
-                    : AppTokens.border,
-              ),
+        child: Container(
+          width: 196,
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+            border: Border.all(
+              color: step.isCurrent
+                  ? AppTokens.accent.withValues(alpha: 0.55)
+                  : AppTokens.border,
             ),
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 20,
-                  child: Text(
-                    '${index + 1}',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      color: highlight,
-                      fontFeatures: AppTheme.tabularFigures,
+          ),
+          child: Row(
+            children: [
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: AppTokens.accent.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(9),
+                    ),
+                    child: Icon(
+                      _readingStepIcon(step.kind),
+                      size: 18,
+                      color: step.isCurrent ? AppTokens.accent : AppTokens.textPrimary,
                     ),
                   ),
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+                  Positioned(
+                    right: -5,
+                    bottom: -5,
+                    child: Container(
+                      width: 16,
+                      height: 16,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: step.isCurrent ? AppTokens.accent : AppTokens.surfaceCard,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: AppTokens.borderStrong),
+                      ),
+                      child: Text(
+                        '${index + 1}',
+                        style: TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                          color: step.isCurrent ? Colors.white : AppTokens.textSecondary,
+                          fontFeatures: AppTheme.tabularFigures,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      step.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        height: 1.2,
+                        fontWeight: step.isCurrent ? FontWeight.bold : FontWeight.w500,
+                        color: Colors.white,
+                      ),
+                    ),
+                    if (label.trim().isNotEmpty) ...[
+                      const SizedBox(height: 3),
                       Text(
-                        step.title,
+                        label,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: step.isCurrent ? FontWeight.bold : FontWeight.w500,
-                          color: Colors.white,
+                          fontSize: 10.5,
+                          fontWeight: step.isCurrent ? FontWeight.w600 : FontWeight.normal,
+                          color: highlight,
                         ),
                       ),
-                      if (label.trim().isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 2),
-                          child: Text(
-                            label,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(fontSize: 10, color: highlight),
-                          ),
-                        ),
                     ],
-                  ),
+                  ],
                 ),
-                if (!step.isCurrent)
-                  const Icon(Icons.chevron_right_rounded,
-                      size: 16, color: AppTokens.textSecondary),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -2202,7 +2307,8 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
           );
         }
 
-        return ListView.builder(
+        return SelectionArea(
+          child: ListView.builder(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           itemCount: rootComments.length,
           itemBuilder: (context, index) {
@@ -2243,6 +2349,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
               ),
             );
           },
+          ),
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -2321,7 +2428,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
         ),
         const SizedBox(height: 6),
         Text(
-          comment.text,
+          htmlToPlainText(comment.text),
           style: TextStyle(
             color: AppTokens.textPrimary,
             fontSize: isReply ? 12 : 13,
@@ -2428,20 +2535,37 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
 }
 
 class _SliverTabBarDelegate extends SliverPersistentHeaderDelegate {
+  static const double _compactHeight = 46;
+
   final TabBar _tabBar;
   final double _topInset;
+  final double _progress;
+  final Widget _compactHeader;
 
-  _SliverTabBarDelegate(this._tabBar, this._topInset);
+  _SliverTabBarDelegate(
+    this._tabBar,
+    this._topInset,
+    this._progress,
+    this._compactHeader,
+  );
+
+  /// The compact row and the status bar inset grow only in the last third of the
+  /// header collapse, so the inline tab bar does not reserve empty space.
+  double get _reveal => ((_progress - 0.7) / 0.3).clamp(0.0, 1.0);
+
+  double get _compactExtent => _compactHeight * _reveal;
+
+  double get _insetExtent => _topInset * _reveal;
 
   @override
-  double get minExtent => _tabBar.preferredSize.height + _topInset;
+  double get minExtent => _tabBar.preferredSize.height + _compactExtent + _insetExtent;
   @override
-  double get maxExtent => _tabBar.preferredSize.height + _topInset;
+  double get maxExtent => minExtent;
 
   @override
   Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+    final reveal = _reveal;
     return Container(
-      padding: EdgeInsets.only(top: _topInset),
       decoration: BoxDecoration(
         color: AppTokens.surfaceBase,
         border: Border(
@@ -2451,13 +2575,35 @@ class _SliverTabBarDelegate extends SliverPersistentHeaderDelegate {
           ),
         ),
       ),
-      child: _tabBar,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(height: _insetExtent),
+          SizedBox(
+            height: _compactExtent,
+            child: ClipRect(
+              child: OverflowBox(
+                minHeight: _compactHeight,
+                maxHeight: _compactHeight,
+                alignment: Alignment.bottomCenter,
+                child: Opacity(
+                  opacity: reveal,
+                  child: SizedBox(height: _compactHeight, child: _compactHeader),
+                ),
+              ),
+            ),
+          ),
+          _tabBar,
+        ],
+      ),
     );
   }
 
   @override
   bool shouldRebuild(_SliverTabBarDelegate oldDelegate) {
-    return _tabBar != oldDelegate._tabBar || _topInset != oldDelegate._topInset;
+    return _tabBar != oldDelegate._tabBar ||
+        _topInset != oldDelegate._topInset ||
+        _progress != oldDelegate._progress;
   }
 }
 

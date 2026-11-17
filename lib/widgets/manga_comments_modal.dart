@@ -7,6 +7,7 @@ import 'package:mangaloader/providers/settings_provider.dart';
 import 'package:mangaloader/src/rust/api/mangalib_client.dart' as rust_api;
 import 'package:mangaloader/src/rust/api/models.dart';
 import 'package:mangaloader/theme/app_tokens.dart';
+import 'package:mangaloader/utils/html_text.dart';
 
 class MangaCommentsModal extends ConsumerStatefulWidget {
   final String relationType; // "media" or "chapter"
@@ -370,7 +371,8 @@ class _MangaCommentsModalState extends ConsumerState<MangaCommentsModal> {
                       },
                       child: RefreshIndicator(
                         onRefresh: () => _loadComments(refresh: true),
-                        child: ListView.builder(
+                        child: SelectionArea(
+                          child: ListView.builder(
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                           itemCount: _rootComments.length + (_hasNextPage ? 1 : 0),
                           itemBuilder: (ctx, idx) {
@@ -386,6 +388,7 @@ class _MangaCommentsModalState extends ConsumerState<MangaCommentsModal> {
 
                             return _buildCommentTile(comment, commentReplies, isRu);
                           },
+                          ),
                         ),
                       ),
                     ),
@@ -523,7 +526,7 @@ class _MangaCommentsModalState extends ConsumerState<MangaCommentsModal> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      comment.text,
+                      htmlToPlainText(comment.text),
                       style: const TextStyle(fontSize: 13, color: Color(0xFFEEEEEE), height: 1.35),
                     ),
                     const SizedBox(height: 8),
@@ -672,7 +675,7 @@ class _MangaCommentsModalState extends ConsumerState<MangaCommentsModal> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  reply.text,
+                  htmlToPlainText(reply.text),
                   style: const TextStyle(fontSize: 12, color: Color(0xFFDDDDDD), height: 1.3),
                 ),
                 const SizedBox(height: 6),
