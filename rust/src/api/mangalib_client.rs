@@ -1085,10 +1085,22 @@ pub fn parse_manga_url(url: String) -> Option<String> {
 
 pub async fn get_comments(relation_type: String, relation_id: i64, page: i64, sort: String) -> Result<CommentsData> {
     let p = if page < 1 { 1 } else { page };
-    let normalized_sort = if sort == "new" { "new" } else { "votes" };
+    // The public list endpoint filters by post_type/post_id. relation_type is only
+    // the name used inside comment objects, and sending it as a filter is ignored:
+    // the server then answers with the site-wide latest comments instead.
+    let post_type = if relation_type == "media" {
+        "manga".to_string()
+    } else {
+        relation_type
+    };
+    let (sort_by, sort_type) = if sort == "new" {
+        ("id", "desc")
+    } else {
+        ("votes_up", "desc")
+    };
     let url = format!(
-        "https://api.cdnlibs.org/api/comments?relation_type={}&relation_id={}&sort={}&page={}",
-        relation_type, relation_id, normalized_sort, p
+        "https://api.cdnlibs.org/api/comments?post_type={}&post_id={}&sort_by={}&sort_type={}&page={}",
+        post_type, relation_id, sort_by, sort_type, p
     );
     let res = HTTP_CLIENT
         .get(&url)
@@ -1210,13 +1222,18 @@ pub async fn vote_comment(comment_id: i64, vote: i64) -> Result<CommentVoteResul
 
 pub async fn add_comment(relation_type: String, relation_id: i64, comment: String, parent_id: Option<i64>) -> Result<CommentItem> {
     let url = "https://api.cdnlibs.org/api/comments";
+    let post_type = if relation_type == "media" {
+        "manga".to_string()
+    } else {
+        relation_type
+    };
     let mut payload = serde_json::json!({
-        "relation_type": relation_type,
-        "relation_id": relation_id,
+        "post_type": post_type,
+        "post_id": relation_id,
         "comment": comment
     });
     if let Some(pid) = parent_id {
-        payload["parent_id"] = serde_json::json!(pid);
+        payload["parent_comment"] = serde_json::json!(pid);
     }
 
     let json = send_mutation(
