@@ -2377,7 +2377,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         _toggleAutoScroll();
         break;
       case _ReaderMenuAction.comments:
-        _showChapterComments();
+        unawaited(_showChapterComments());
         break;
       case _ReaderMenuAction.reload:
         unawaited(_reloadCurrentChapter());
@@ -2413,24 +2413,51 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     );
   }
 
-  void _showChapterComments() {
+  Future<void> _showChapterComments() async {
     final s = ReaderStrings.of(context);
-    final currentChap = _allChapters.firstWhere(
-      (c) => c.volume == widget.volume && c.number == widget.number,
-      orElse: () => Chapter(
-        id: _mangaId,
-        volume: widget.volume,
-        number: widget.number,
-        name: null,
-        branchId: widget.branchId,
-        branchesCount: 1,
-        isPaid: false,
-      ),
-    );
+
+    // The comment relation needs the real chapter id, which only the chapter list
+    // carries. If it has not arrived yet, wait for it instead of falling back to
+    // the media id: the API treats a media id as a *chapter* id and returns the
+    // comments of an unrelated, freshly updated chapter.
+    if (_allChapters.isEmpty && widget.slugUrl.isNotEmpty) {
+      try {
+        final chapters = await rust_api.getChapters(slugUrl: widget.slugUrl);
+        if (chapters.isNotEmpty) {
+          final sorted = List<Chapter>.from(chapters)
+            ..sort((a, b) {
+              final va = double.tryParse(a.volume) ?? 0.0;
+              final vb = double.tryParse(b.volume) ?? 0.0;
+              if (va != vb) return va.compareTo(vb);
+              return (double.tryParse(a.number) ?? 0.0)
+                  .compareTo(double.tryParse(b.number) ?? 0.0);
+            });
+          _allChapters = sorted;
+        }
+      } catch (_) {}
+    }
+    if (!mounted) return;
+
+    Chapter? currentChap;
+    for (final chapter in _allChapters) {
+      final sameVolume = chapter.volume == widget.volume ||
+          double.tryParse(chapter.volume) == double.tryParse(widget.volume);
+      final sameNumber = chapter.number == widget.number ||
+          double.tryParse(chapter.number) == double.tryParse(widget.number);
+      if (sameVolume && sameNumber) {
+        currentChap = chapter;
+        break;
+      }
+    }
+
+    final chapterId = currentChap?.id ?? 0;
+    final useChapter = chapterId > 0 && chapterId != _mangaId;
+    if (!useChapter && _mangaId <= 0) return;
+
     MangaCommentsModal.show(
       context,
-      relationType: currentChap.id > 0 ? 'chapter' : 'media',
-      relationId: currentChap.id > 0 ? currentChap.id : _mangaId,
+      relationType: useChapter ? 'chapter' : 'media',
+      relationId: useChapter ? chapterId : _mangaId,
       title: s.commentsTitle(widget.slugUrl, widget.volume, widget.number),
     );
   }

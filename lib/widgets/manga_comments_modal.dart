@@ -8,6 +8,7 @@ import 'package:mangaloader/src/rust/api/mangalib_client.dart' as rust_api;
 import 'package:mangaloader/src/rust/api/models.dart';
 import 'package:mangaloader/theme/app_tokens.dart';
 import 'package:mangaloader/utils/html_text.dart';
+import 'package:mangaloader/utils/comment_time.dart';
 
 class MangaCommentsModal extends ConsumerStatefulWidget {
   final String relationType; // "media" or "chapter"
@@ -718,18 +719,22 @@ class _MangaCommentsModalState extends ConsumerState<MangaCommentsModal> {
 
   String _formatDate(String dateStr, bool isRu) {
     final s = CommentsStrings(isRu);
-    try {
-      final dt = DateTime.parse(dateStr);
-      final now = DateTime.now();
-      final diff = now.difference(dt);
+    final parsed = DateTime.tryParse(dateStr);
+    if (parsed == null) return dateStr;
 
-      if (diff.inMinutes < 1) return s.justNow;
-      if (diff.inHours < 1) return s.minutesAgo('${diff.inMinutes}');
-      if (diff.inDays < 1) return s.hoursAgo('${diff.inHours}');
-      if (diff.inDays < 30) return s.daysAgo('${diff.inDays}');
-      return '${dt.day.toString().padLeft(2, '0')}.${dt.month.toString().padLeft(2, '0')}.${dt.year}';
-    } catch (_) {
-      return dateStr;
-    }
+    final dt = parsed.toLocal();
+    final diff = DateTime.now().difference(dt);
+
+    // MangaLib occasionally timestamps a whole comment page with the request
+    // time, which used to turn every row into "just now". A future timestamp is
+    // equally impossible, so both cases fall back to the exact date and time.
+    if (diff.isNegative || diff.inMinutes < 1) return _absoluteDate(dt);
+
+    if (diff.inHours < 1) return s.minutesAgo('${diff.inMinutes}');
+    if (diff.inDays < 1) return s.hoursAgo('${diff.inHours}');
+    if (diff.inDays < 30) return s.daysAgo('${diff.inDays}');
+    return _absoluteDate(dt);
   }
+
+  String _absoluteDate(DateTime dt) => formatCommentTimestamp(dt.toIso8601String());
 }

@@ -24,6 +24,7 @@ import 'package:mangaloader/src/rust/api/models.dart';
 import 'package:mangaloader/utils/title_match.dart';
 import 'package:mangaloader/utils/reading_order.dart';
 import 'package:mangaloader/utils/html_text.dart';
+import 'package:mangaloader/utils/comment_time.dart';
 import 'package:mangaloader/services/content_filter.dart';
 import 'package:mangaloader/theme/app_theme.dart';
 import 'package:mangaloader/theme/app_tokens.dart';
@@ -2384,13 +2385,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
   }
 
   Widget _buildCommentTile(CommentItem comment, bool isRu, {required bool isReply}) {
-    String dateStr = comment.createdAt;
-    if (dateStr.contains('T')) {
-      final parts = dateStr.split('T');
-      final date = parts.first;
-      final time = parts.length > 1 ? parts[1].split('.').first : '';
-      dateStr = '$date $time';
-    }
+    final dateStr = formatCommentTimestamp(comment.createdAt);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
