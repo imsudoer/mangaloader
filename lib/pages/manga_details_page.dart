@@ -1300,9 +1300,6 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
         // Other formats of the same story (manga / light novel / etc.)
         _buildAlternateEditionsSection(manga, isRu),
 
-        // Anime adaptation lookup plus manual search shortcuts.
-        _buildAnimeSection(manga, isRu),
-
         // Authors & Artists Cards
         if (manga.authors.isNotEmpty || manga.artists.isNotEmpty) ...[
           Card(
@@ -1437,6 +1434,9 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
 
         // Relations section (e.g. source novel, adaptation, sequel)
         _buildRelationsSection(manga.slugUrl, isRu),
+
+        // Anime adaptation lives below the relations, as a plain section.
+        _buildAnimeSection(manga, isRu),
 
         // Similar manga section
         _buildSimilarSection(manga.slugUrl, isRu),
@@ -1748,36 +1748,27 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
     final hitsAsync = ref.watch(animeAdaptationsProvider(AnimeLookupQuery(title)));
     const hintStyle = TextStyle(fontSize: 11, color: AppTokens.textSecondary);
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      color: AppTokens.surfaceCard,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppTokens.radiusMd),
-        side: const BorderSide(color: AppTokens.borderStrong),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.live_tv_rounded, size: 18, color: AppTokens.accent),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    s.animeSection,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8, left: 4),
+          child: Row(
+            children: [
+              const Icon(Icons.live_tv_rounded, size: 18, color: AppTokens.accent),
+              const SizedBox(width: 8),
+              Text(
+                s.animeSection,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
                 ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(s.animeSectionHint, style: hintStyle),
+              ),
+            ],
+          ),
+        ),
+        Text(s.animeSectionHint, style: hintStyle),
             const SizedBox(height: 10),
             hitsAsync.when(
               data: (hits) => hits.isEmpty
@@ -1825,9 +1816,8 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                 ),
               ],
             ),
-          ],
-        ),
-      ),
+        const SizedBox(height: 14),
+      ],
     );
   }
 
@@ -2580,8 +2570,17 @@ class _SliverTabBarDelegate extends SliverPersistentHeaderDelegate {
 
   double get _insetExtent => _topInset * _reveal;
 
+  double get _tabBarHeight {
+    // TabBar.preferredSize ignores its own padding, while the widget reserves it
+    // inside the bar; without this the pinned header is 12 px shorter than the
+    // tabs and its bottom border cuts through the active indicator.
+    final padding = _tabBar.padding;
+    return _tabBar.preferredSize.height +
+        (padding is EdgeInsets ? padding.vertical : 0.0);
+  }
+
   @override
-  double get minExtent => _tabBar.preferredSize.height + _compactExtent + _insetExtent;
+  double get minExtent => _tabBarHeight + _compactExtent + _insetExtent;
   @override
   double get maxExtent => minExtent;
 
