@@ -266,7 +266,8 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
         ),
         border: const Border(bottom: BorderSide(color: Color(0xFF2E2E2E), width: 1)),
       ),
-      child: Stack(
+      child: ClipRect(
+        child: Stack(
         children: [
           Positioned.fill(child: _buildHeaderBackdrop(manga.coverUrl)),
           Column(
@@ -561,6 +562,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
             ],
           ),
         ],
+      ),
       ),
     );
   }
