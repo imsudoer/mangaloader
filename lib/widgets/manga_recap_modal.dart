@@ -179,7 +179,7 @@ class _MangaRecapModalState extends ConsumerState<MangaRecapModal> {
                         !ContentFilter.isBlockedText(m.name) &&
                         !ContentFilter.isBlockedText(m.rusName))
                     .toList();
-                final cardWidth = (MediaQuery.sizeOf(context).width - 48).clamp(300.0, 400.0);
+                final cardWidth = (MediaQuery.sizeOf(context).width - 48).clamp(280.0, 400.0);
 
                 return SingleChildScrollView(
                   padding: const EdgeInsets.fromLTRB(16, 2, 16, 20),

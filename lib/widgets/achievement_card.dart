@@ -210,7 +210,7 @@ class AchievementCardFace extends StatelessWidget {
                   ),
                   SizedBox(height: compact ? 10 : 16),
                   Center(
-                    child: achievement.titleCoverUrl != null && achievement.titleCoverUrl!.isNotEmpty
+                    child: !hidden && achievement.titleCoverUrl != null && achievement.titleCoverUrl!.isNotEmpty
                         ? ClipRRect(
                             borderRadius: BorderRadius.circular(compact ? 8 : 12),
                             child: SizedBox(
