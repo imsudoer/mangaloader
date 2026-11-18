@@ -121,6 +121,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   bool _isFullscreen = false;
   bool _isAutoScrolling = false;
   double _autoScrollSpeed = 1.0;
+  double _autoScrollMilestone = 0;
   int _preloadRadius = 4;
   Timer? _autoScrollTimer;
   
@@ -1385,6 +1386,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
     setState(() {
       _isAutoScrolling = true;
+      _autoScrollMilestone =
+          _scrollController.hasClients ? _scrollController.offset : 0;
       // 60 fps ticks keep the motion smooth; speed is expressed in px per second.
       _autoScrollTimer = Timer.periodic(const Duration(milliseconds: 16), (timer) {
         if (!_scrollController.hasClients) return;
@@ -1394,6 +1397,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
           _showEndOfChapter();
         } else {
           _scrollController.jumpTo(nextOffset);
+          final viewport = _scrollController.position.viewportDimension;
+          if (viewport > 0 && nextOffset - _autoScrollMilestone >= viewport * 0.9) {
+            _autoScrollMilestone = nextOffset;
+            AchievementEvents.instance.increment('autoscroll_pages');
+          }
         }
       });
     });
