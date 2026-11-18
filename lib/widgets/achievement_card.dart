@@ -119,6 +119,10 @@ class AchievementCardFace extends StatelessWidget {
     final progress = achievement.progressRatio;
     final showProgress = !achievement.isUnlocked && achievement.maxProgress > 1;
 
+    if (compact) {
+      return _buildCompact(s, skin, hidden, title, description);
+    }
+
     final padding = compact ? 10.0 : 18.0;
     final artHeight = compact ? 68.0 : 124.0;
     final artWidth = compact ? 52.0 : 92.0;
@@ -167,12 +171,6 @@ class AchievementCardFace extends StatelessWidget {
                 ),
               ),
             ),
-            if (achievement.isUnlocked)
-              Positioned(
-                top: compact ? 8 : 12,
-                right: compact ? 8 : 12,
-                child: Icon(Icons.check_circle_rounded, size: compact ? 15 : 20, color: skin.light ? const Color(0xFF2E7D32) : const Color(0xFF8CF7C4)),
-              ),
             Padding(
               padding: EdgeInsets.all(padding),
               child: Column(
@@ -198,6 +196,14 @@ class AchievementCardFace extends StatelessWidget {
                         ),
                       ),
                       const Spacer(),
+                      if (achievement.isUnlocked) ...[
+                        Icon(
+                          Icons.check_circle_rounded,
+                          size: compact ? 11 : 14,
+                          color: skin.light ? const Color(0xFF2E7D32) : const Color(0xFF8CF7C4),
+                        ),
+                        const SizedBox(width: 4),
+                      ],
                       Text(
                         '+${achievement.xp} XP',
                         style: TextStyle(
@@ -306,6 +312,215 @@ class AchievementCardFace extends StatelessWidget {
                           letterSpacing: 1.1,
                           fontWeight: FontWeight.w800,
                         ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCompact(
+    AchievementsStrings s,
+    _CardSkin skin,
+    bool hidden,
+    String title,
+    String description,
+  ) {
+    final hasCover = !hidden &&
+        achievement.titleCoverUrl != null &&
+        achievement.titleCoverUrl!.isNotEmpty;
+    final artWidth = hasCover ? 50.0 : 46.0;
+    final artHeight = hasCover ? 66.0 : 46.0;
+    final art = hasCover
+        ? ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: SizedBox(
+              width: artWidth,
+              height: artHeight,
+              child: CachedNetworkImage(
+                imageUrl: achievement.titleCoverUrl!,
+                httpHeaders: const {'Referer': 'https://mangalib.org/'},
+                fit: BoxFit.cover,
+                placeholder: (_, __) => ColoredBox(color: skin.text.withValues(alpha: 0.1)),
+                errorWidget: (_, __, ___) => Icon(Icons.broken_image_rounded, color: skin.secondary, size: 18),
+              ),
+            ),
+          )
+        : Container(
+            width: artWidth,
+            height: artHeight,
+            decoration: BoxDecoration(
+              color: skin.text.withValues(alpha: 0.07),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: skin.border.withValues(alpha: 0.35)),
+            ),
+            child: Icon(
+              hidden ? Icons.lock_rounded : achievement.icon,
+              size: 21,
+              color: hidden ? skin.secondary : skin.text,
+            ),
+          );
+
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: skin.gradient,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: skin.border.withValues(alpha: 0.9), width: 1.1),
+        boxShadow: [
+          BoxShadow(color: skin.glow, blurRadius: 10, offset: const Offset(0, 8)),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(15),
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: CustomPaint(
+                painter: _MaterialPainter(
+                  material: achievement.material,
+                  light: skin.light,
+                  accent: skin.border,
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(11),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: skin.text.withValues(alpha: 0.10),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: skin.border.withValues(alpha: 0.55)),
+                        ),
+                        child: Text(
+                          _materialLabel(s),
+                          style: TextStyle(
+                            color: skin.secondary,
+                            fontSize: 7.5,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.4,
+                          ),
+                        ),
+                      ),
+                      if (achievement.titleSlug != null) ...[
+                        const SizedBox(width: 5),
+                        Icon(Icons.auto_stories_rounded, size: 10, color: skin.secondary),
+                      ],
+                      const Spacer(),
+                      if (achievement.isUnlocked) ...[
+                        Icon(
+                          Icons.check_circle_rounded,
+                          size: 11,
+                          color: skin.light ? const Color(0xFF2E7D32) : const Color(0xFF8CF7C4),
+                        ),
+                        const SizedBox(width: 4),
+                      ],
+                      Text(
+                        '+${achievement.xp} XP',
+                        style: TextStyle(
+                          color: skin.secondary,
+                          fontSize: 8.5,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      art,
+                      const SizedBox(width: 9),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              title,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: skin.text,
+                                fontSize: 12,
+                                height: 1.15,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            if (description.isNotEmpty) ...[
+                              const SizedBox(height: 3),
+                              Text(
+                                description,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: skin.secondary,
+                                  fontSize: 8.5,
+                                  height: 1.25,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Spacer(),
+                  if (achievement.isUnlocked)
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.check_circle_rounded,
+                          size: 10,
+                          color: skin.light ? const Color(0xFF2E7D32) : const Color(0xFF8CF7C4),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          s.unlockedLabel.toUpperCase(),
+                          style: TextStyle(
+                            color: skin.secondary,
+                            fontSize: 7.5,
+                            letterSpacing: 0.9,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ],
+                    )
+                  else if (achievement.maxProgress > 1) ...[
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(3),
+                      child: LinearProgressIndicator(
+                        value: achievement.progressRatio,
+                        minHeight: 4,
+                        backgroundColor: skin.text.withValues(alpha: 0.14),
+                        valueColor: AlwaysStoppedAnimation<Color>(skin.border),
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      s.progressOf('${achievement.currentProgress}', '${achievement.maxProgress}'),
+                      style: TextStyle(color: skin.secondary, fontSize: 8),
+                    ),
+                  ] else
+                    Text(
+                      s.lockedLabel.toUpperCase(),
+                      style: TextStyle(
+                        color: skin.secondary,
+                        fontSize: 7.5,
+                        letterSpacing: 0.9,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
                 ],

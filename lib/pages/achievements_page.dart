@@ -131,7 +131,7 @@ class _AchievementsPageState extends ConsumerState<AchievementsPage> {
                       maxCrossAxisExtent: 215,
                       mainAxisSpacing: 11,
                       crossAxisSpacing: 11,
-                      childAspectRatio: 0.64,
+                      childAspectRatio: 0.88,
                     ),
                     itemCount: filtered.length,
                     itemBuilder: (context, index) {
