@@ -19,11 +19,37 @@ class AchievementsStrings extends AppStrings {
 
   String get filterAll => isRu ? 'Все' : 'All';
   String get filterUnlocked => isRu ? 'Полученные' : 'Unlocked';
+  String get filterInProgress => isRu ? 'В процессе' : 'In progress';
   String get filterStreaks => isRu ? 'Стрики' : 'Streaks';
   String get filterChapters => isRu ? 'Главы' : 'Chapters';
   String get filterLibrary => isRu ? 'Библиотека' : 'Library';
   String get filterDownloads => isRu ? 'Оффлайн' : 'Downloads';
+  String get filterTitles => isRu ? 'Тайтлы' : 'Titles';
   String get filterSpecial => isRu ? 'Особые' : 'Special';
+  String get filterSecrets => isRu ? 'Секреты' : 'Secrets';
 
   String get share => isRu ? 'Поделиться' : 'Share';
+
+  String get levelLabel => isRu ? 'Уровень' : 'Level';
+  String get collectionLabel => isRu ? 'Коллекция' : 'Collection';
+  String get secretsLabel => isRu ? 'Секретов найдено' : 'Secrets found';
+  String get nearestTitle => isRu ? 'Ближайшее достижение' : 'Closest achievement';
+  String remaining(String value) => isRu ? 'осталось $value' : '$value to go';
+  String progressOf(String current, String max) => '$current / $max';
+  String get unlockedLabel => isRu ? 'Открыто' : 'Unlocked';
+  String get lockedLabel => isRu ? 'Закрыто' : 'Locked';
+  String get hintLabel => isRu ? 'Подсказка' : 'Hint';
+  String get rotateHint =>
+      isRu ? 'Потяните карточку, чтобы повернуть' : 'Drag the card to rotate it';
+  String get tapToOpen => isRu ? 'Нажмите, чтобы открыть' : 'Tap to open';
+  String get shareCard => isRu ? 'Поделиться карточкой' : 'Share card';
+  String get exportFailed =>
+      isRu ? 'Не удалось сохранить карточку' : 'Could not save the card';
+  String get secretTitle => '???';
+
+  String get materialPaper => isRu ? 'Бумага' : 'Paper';
+  String get materialPlastic => isRu ? 'Пластик' : 'Plastic';
+  String get materialMetal => isRu ? 'Металл' : 'Metal';
+  String get materialHolo => isRu ? 'Голография' : 'Holographic';
+  String get materialDiamond => isRu ? 'Алмаз' : 'Diamond';
 }

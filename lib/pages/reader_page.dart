@@ -19,6 +19,7 @@ import 'package:mangaloader/src/rust/api/cbz_export.dart' as rust_cbz;
 import 'package:mangaloader/src/rust/api/models.dart';
 import 'package:mangaloader/services/streak_notification_service.dart';
 import 'package:mangaloader/services/content_filter.dart';
+import 'package:mangaloader/services/achievement_events.dart';
 import 'package:mangaloader/services/reader_bookmarks.dart';
 import 'package:mangaloader/widgets/manga_comments_modal.dart';
 import 'package:mangaloader/widgets/error_placeholder.dart';
@@ -287,6 +288,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     _preloadRadius = prefs.preloadRadius.clamp(1, 12);
     _autoNextChapter = prefs.autoNextChapter;
     _prefetchNeighbours = prefs.prefetchNeighbours;
+    AchievementEvents.instance.addToSet(
+      '${_readMode.name}_days',
+      achievementDayKey(DateTime.now()),
+    );
   }
 
   /// Snapshot of the live reader state in the persisted [ReaderPrefs] format.
@@ -388,7 +393,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
           ),
       };
 
-  void _applyPreset(_ReaderPreset preset) => _updatePrefs(_prefsForPreset(preset));
+  void _applyPreset(_ReaderPreset preset) {
+    AchievementEvents.instance.addToSet('reader_presets', preset.name);
+    _updatePrefs(_prefsForPreset(preset));
+  }
 
   void _resetNextChapterTransition() {
     _nextChapterJob++;
@@ -741,6 +749,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     _appliedDualLayout = null;
     _pageIndexNotifier.value = _currentPageIndex;
 
+    if (_isDownloaded && _totalPages > 0) {
+      AchievementEvents.instance.increment('offline_reads');
+    }
+
     setState(() => _isLoading = false);
     
     // For vertical mode, scroll to saved position after first frame
@@ -754,6 +766,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
   void _jumpToPageIndex(int targetIndex) {
     if (targetIndex < 0 || targetIndex >= _totalPages) return;
+    if (targetIndex == _totalPages - 1 && _totalPages > 1) {
+      AchievementEvents.instance.increment('jump_to_end');
+    }
     _currentPageIndex = targetIndex;
     _pageIndexNotifier.value = targetIndex;
 
@@ -1075,6 +1090,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   void _onPageChanged(int index) {
     _currentPageIndex = index.clamp(0, _totalPages > 0 ? _totalPages - 1 : 0);
     _pageIndexNotifier.value = _currentPageIndex;
+    if (_isAutoScrolling) AchievementEvents.instance.increment('autoscroll_pages');
     if (!_isDownloaded && index < _totalPages) _preloadImages(index);
     _scheduleSaveProgress();
 
@@ -2487,6 +2503,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     );
     final updated = await ReaderBookmarkService.toggle(bookmark);
     if (!mounted) return !existed;
+    if (!existed) AchievementEvents.instance.increment('bookmarks_added');
     setState(() {
       _bookmarks = updated.where((entry) => entry.mangaId == _mangaId).toList()
         ..sort((a, b) => b.createdAt.compareTo(a.createdAt));

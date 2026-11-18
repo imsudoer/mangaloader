@@ -13,10 +13,10 @@ mod settings;
 mod stats;
 
 use crate::api::models::{
-    AppSettingItem, Chapter, ChapterHistory, ContinueReadingItem, CustomUserList,
-    DownloadedChapterInfo, DownloadedMangaGroup, LibraryEntry, MalImportResult, MangaDetails,
-    MangaRecapData, MangaSearchResult, ReadingHistoryItem, ReadingPosition, ReadingSessionInfo,
-    ReadingStatistics, ReadingStreakInfo, RecommendedManga,
+    AppSettingItem, AchievementSnapshot, Chapter, ChapterHistory, ContinueReadingItem,
+    CustomUserList, DownloadedChapterInfo, DownloadedMangaGroup, LibraryEntry, MalImportResult,
+    MangaDetails, MangaRecapData, MangaSearchResult, ReadingHistoryItem, ReadingPosition,
+    ReadingSessionInfo, ReadingStatistics, ReadingStreakInfo, RecommendedManga,
 };
 use anyhow::{Context, Result};
 use once_cell::sync::Lazy;
@@ -462,6 +462,10 @@ pub async fn record_reading_session(manga_id: i64, seconds: i64) -> Result<()> {
 
 pub async fn get_reading_session_stats() -> Result<ReadingSessionInfo> {
     stats::get_reading_session_stats()
+}
+
+pub async fn get_achievement_snapshot() -> Result<AchievementSnapshot> {
+    stats::get_achievement_snapshot()
 }
 
 pub async fn get_reading_history(limit: i64, offset: i64) -> Result<Vec<ReadingHistoryItem>> {

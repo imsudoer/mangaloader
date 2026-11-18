@@ -6,6 +6,7 @@ import 'package:mangaloader/l10n/strings/error_strings.dart';
 import 'package:mangaloader/providers/settings_provider.dart';
 import 'package:mangaloader/src/rust/api/mangalib_client.dart' as rust_api;
 import 'package:mangaloader/src/rust/api/models.dart';
+import 'package:mangaloader/services/achievement_events.dart';
 import 'package:mangaloader/theme/app_tokens.dart';
 import 'package:mangaloader/utils/html_text.dart';
 import 'package:mangaloader/utils/comment_time.dart';
@@ -162,6 +163,7 @@ class _MangaCommentsModalState extends ConsumerState<MangaCommentsModal> {
     try {
       final res = await rust_api.voteComment(commentId: comment.id, vote: newVote);
       if (res.success && mounted) {
+        AchievementEvents.instance.increment('votes_cast');
         setState(() {
           final idx = _rootComments.indexWhere((c) => c.id == comment.id);
           if (idx != -1) {
@@ -208,6 +210,9 @@ class _MangaCommentsModalState extends ConsumerState<MangaCommentsModal> {
       );
 
       _commentController.clear();
+      AchievementEvents.instance.increment('comments_posted');
+      if (_replyingTo != null) AchievementEvents.instance.increment('comment_replies');
+      AchievementEvents.instance.addToSet('comment_titles', widget.title);
       setState(() {
         if (_replyingTo == null) {
           _rootComments.insert(0, newComment);

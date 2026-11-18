@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mangaloader/theme/app_tokens.dart';
+import 'package:mangaloader/services/achievement_events.dart';
 
 /// Shared failure state: explains what happened instead of printing a raw
 /// exception, offers a retry, and hides the technical log behind a small copy
@@ -33,6 +34,7 @@ class ErrorPlaceholder extends StatelessWidget {
     final text = log?.trim() ?? '';
     if (text.isEmpty) return;
     await Clipboard.setData(ClipboardData(text: text));
+    AchievementEvents.instance.increment('copied_logs');
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(

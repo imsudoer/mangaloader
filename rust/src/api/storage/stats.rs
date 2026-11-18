@@ -1,9 +1,10 @@
 //! Reading progress, history, streaks, recaps and recommendations.
 
 use crate::api::models::{
-    ChapterHistory, ContinueReadingItem, Genre, GenreCount, MangaRecapData, ReadingHistoryItem,
-    ReadingPosition, ReadingSessionInfo, ReadingStatistics, ReadingStreakInfo, RecapMangaItem,
-    RecommendedManga, TimeOfDayDistribution,
+    AchievementMangaStat, AchievementSnapshot, ChapterHistory, ContinueReadingItem, Genre,
+    GenreCount, MangaRecapData, ReadingHistoryItem, ReadingPosition, ReadingSessionInfo,
+    ReadingStatistics, ReadingStreakInfo, RecapMangaItem, RecommendedManga,
+    TimeOfDayDistribution,
 };
 use crate::api::storage::with_conn;
 use anyhow::Result;
@@ -853,5 +854,225 @@ pub(crate) fn get_continue_reading_manga() -> Result<Vec<ContinueReadingItem>> {
         }
 
         Ok(list)
+    })
+}
+pub(crate) fn get_achievement_snapshot() -> Result<AchievementSnapshot> {
+    with_conn(|conn| {
+        let (completed_chapters, total_pages_read): (i64, i64) = conn.query_row(
+            "SELECT COUNT(1), COALESCE(SUM(CASE WHEN is_completed = 1 THEN total_pages ELSE page_index END), 0)
+             FROM chapter_history WHERE is_completed = 1 OR page_index > 0",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )?;
+
+        let (total_reading_seconds, max_session_seconds, total_sessions): (i64, i64, i64) = conn.query_row(
+            "SELECT COALESCE(SUM(session_seconds), 0), COALESCE(MAX(session_seconds), 0), COUNT(1) FROM reading_sessions",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        ).unwrap_or((0, 0, 0));
+
+        let empty_str = String::new();
+        let (first_read_at, last_read_at): (String, String) = conn.query_row(
+            "SELECT COALESCE(MIN(last_read_at), ''), COALESCE(MAX(last_read_at), '') FROM chapter_history",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        ).unwrap_or((empty_str.clone(), empty_str.clone()));
+
+        let mut reads_by_hour = vec![0i64; 24];
+        if let Ok(mut stmt) = conn.prepare(
+            "SELECT CAST(strftime('%H', last_read_at) AS INTEGER), COUNT(1)
+             FROM chapter_history GROUP BY 1",
+        ) {
+            if let Ok(rows) = stmt.query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?))) {
+                for (hour, count) in rows.flatten() {
+                    if (0..24).contains(&hour) {
+                        reads_by_hour[hour as usize] = count;
+                    }
+                }
+            }
+        }
+
+        let mut reads_by_weekday = vec![0i64; 7];
+        if let Ok(mut stmt) = conn.prepare(
+            "SELECT CAST(strftime('%w', last_read_at) AS INTEGER), COUNT(1)
+             FROM chapter_history GROUP BY 1",
+        ) {
+            if let Ok(rows) = stmt.query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?))) {
+                for (weekday, count) in rows.flatten() {
+                    // SQLite: Sunday = 0. The UI and achievements use Monday = 0.
+                    reads_by_weekday[((weekday + 6) % 7) as usize] += count;
+                }
+            }
+        }
+
+        let mut reads_by_month = vec![0i64; 12];
+        if let Ok(mut stmt) = conn.prepare(
+            "SELECT CAST(strftime('%m', last_read_at) AS INTEGER), COUNT(1)
+             FROM chapter_history GROUP BY 1",
+        ) {
+            if let Ok(rows) = stmt.query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?))) {
+                for (month, count) in rows.flatten() {
+                    if (1..=12).contains(&month) {
+                        reads_by_month[(month - 1) as usize] = count;
+                    }
+                }
+            }
+        }
+
+        let mut read_dates = Vec::new();
+        if let Ok(mut stmt) = conn.prepare(
+            "SELECT DISTINCT date(last_read_at) FROM chapter_history ORDER BY 1",
+        ) {
+            if let Ok(rows) = stmt.query_map([], |row| row.get::<_, String>(0)) {
+                for date in rows.flatten() {
+                    if !date.is_empty() {
+                        read_dates.push(date);
+                    }
+                }
+            }
+        }
+
+        let mut special: (i64, i64, i64, i64, i64, i64, i64, i64, i64) = (0, 0, 0, 0, 0, 0, 0, 0, 0);
+        if let Ok(mut stmt) = conn.prepare(
+            "SELECT
+               SUM(CASE WHEN CAST(strftime('%H', last_read_at) AS INTEGER) < 6 THEN 1 ELSE 0 END),
+               SUM(CASE WHEN CAST(strftime('%H', last_read_at) AS INTEGER) BETWEEN 5 AND 8 THEN 1 ELSE 0 END),
+               SUM(CASE WHEN CAST(strftime('%H', last_read_at) AS INTEGER) >= 18 THEN 1 ELSE 0 END),
+               SUM(CASE WHEN strftime('%w', last_read_at) IN ('0', '6') THEN 1 ELSE 0 END),
+               SUM(CASE WHEN strftime('%d', last_read_at) = '13' AND strftime('%w', last_read_at) = '5' THEN 1 ELSE 0 END),
+               SUM(CASE WHEN strftime('%m-%d', last_read_at) = '10-31' THEN 1 ELSE 0 END),
+               SUM(CASE WHEN strftime('%m-%d', last_read_at) = '01-01' AND CAST(strftime('%H', last_read_at) AS INTEGER) < 3 THEN 1 ELSE 0 END),
+               SUM(CASE WHEN strftime('%w', last_read_at) = '0' AND CAST(strftime('%H', last_read_at) AS INTEGER) = 4 THEN 1 ELSE 0 END),
+               SUM(CASE WHEN strftime('%H:%M', last_read_at) = '03:33' THEN 1 ELSE 0 END)
+             FROM chapter_history",
+        ) {
+            if let Ok(row) = stmt.query_row([], |row| {
+                Ok((
+                    row.get::<_, Option<i64>>(0)?.unwrap_or(0),
+                    row.get::<_, Option<i64>>(1)?.unwrap_or(0),
+                    row.get::<_, Option<i64>>(2)?.unwrap_or(0),
+                    row.get::<_, Option<i64>>(3)?.unwrap_or(0),
+                    row.get::<_, Option<i64>>(4)?.unwrap_or(0),
+                    row.get::<_, Option<i64>>(5)?.unwrap_or(0),
+                    row.get::<_, Option<i64>>(6)?.unwrap_or(0),
+                    row.get::<_, Option<i64>>(7)?.unwrap_or(0),
+                    row.get::<_, Option<i64>>(8)?.unwrap_or(0),
+                ))
+            }) {
+                special = row;
+            }
+        }
+
+        let mut monday_morning_reads = 0i64;
+        if let Ok(mut stmt) = conn.prepare(
+            "SELECT COUNT(1) FROM chapter_history
+             WHERE strftime('%w', last_read_at) = '1'
+               AND CAST(strftime('%H', last_read_at) AS INTEGER) BETWEEN 5 AND 8",
+        ) {
+            monday_morning_reads = stmt.query_row([], |row| row.get(0)).unwrap_or(0);
+        }
+
+        let double_shift_days: i64 = conn.query_row(
+            "SELECT COUNT(1) FROM (
+               SELECT date(last_read_at) AS d
+               FROM chapter_history
+               GROUP BY d
+               HAVING SUM(CASE WHEN CAST(strftime('%H', last_read_at) AS INTEGER) < 8 THEN 1 ELSE 0 END) > 0
+                  AND SUM(CASE WHEN CAST(strftime('%H', last_read_at) AS INTEGER) >= 22 THEN 1 ELSE 0 END) > 0
+             )",
+            [],
+            |row| row.get(0),
+        ).unwrap_or(0);
+
+        let (max_chapters_in_day, max_pages_in_day): (i64, i64) = conn.query_row(
+            "SELECT COALESCE(MAX(c), 0), COALESCE(MAX(p), 0) FROM (
+               SELECT COUNT(1) AS c,
+                      SUM(CASE WHEN is_completed = 1 THEN total_pages ELSE page_index END) AS p
+               FROM chapter_history
+               GROUP BY date(last_read_at)
+             )",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        ).unwrap_or((0, 0));
+
+        let completed_titles: i64 = conn.query_row(
+            "SELECT COUNT(DISTINCT manga_id) FROM user_lists WHERE list_type = 'completed'",
+            [],
+            |row| row.get(0),
+        ).unwrap_or(0);
+
+        let mut manga = Vec::new();
+        if let Ok(mut stmt) = conn.prepare(
+            "SELECT m.slug_url, m.name, m.rus_name, m.cover_url, m.manga_type, m.genres_json, m.chapters_count,
+                    COALESCE(m.release_date, '') AS release_date,
+                    COUNT(ch.number) AS chapters_read,
+                    MIN(ch.last_read_at) AS first_read_at,
+                    MAX(ch.last_read_at) AS last_read_at,
+                    EXISTS(SELECT 1 FROM user_lists ul WHERE ul.manga_id = m.id AND ul.list_type = 'completed') AS completed
+             FROM chapter_history ch
+             JOIN manga m ON m.id = ch.manga_id
+             GROUP BY m.id
+             ORDER BY chapters_read DESC, last_read_at DESC",
+        ) {
+            if let Ok(rows) = stmt.query_map([], |row| {
+                let genres_json: String = row.get(5)?;
+                let genres = serde_json::from_str::<Vec<Genre>>(&genres_json)
+                    .map(|list| list.into_iter().map(|g| g.name).collect::<Vec<_>>())
+                    .unwrap_or_default();
+                let release_date: String = row.get(7)?;
+                let chapters_read: i64 = row.get(8)?;
+                let total_chapters: i64 = row.get(6)?;
+                let completed: bool = row.get(11).unwrap_or(false)
+                    || (total_chapters > 0 && chapters_read >= total_chapters);
+                Ok(AchievementMangaStat {
+                    slug_url: row.get(0)?,
+                    name: row.get(1)?,
+                    rus_name: row.get(2)?,
+                    cover_url: row.get(3)?,
+                    manga_type: row.get(4)?,
+                    genres,
+                    release_date,
+                    chapters_read,
+                    total_chapters,
+                    first_read_at: row.get(9)?,
+                    last_read_at: row.get(10)?,
+                    is_completed: completed,
+                })
+            }) {
+                for item in rows.flatten() {
+                    manga.push(item);
+                }
+            }
+        }
+
+        Ok(AchievementSnapshot {
+            completed_chapters,
+            total_pages_read,
+            total_reading_seconds,
+            max_session_seconds,
+            total_sessions,
+            distinct_titles: manga.len() as i64,
+            completed_titles,
+            max_chapters_in_day,
+            max_pages_in_day,
+            night_reads: special.0,
+            early_reads: special.1,
+            evening_reads: special.2,
+            weekend_reads: special.3,
+            double_shift_days,
+            friday_13_reads: special.4,
+            halloween_reads: special.5,
+            new_year_reads: special.6,
+            sunday_night_reads: special.7,
+            monday_morning_reads,
+            read_at_333: special.8,
+            reads_by_hour,
+            reads_by_weekday,
+            reads_by_month,
+            read_dates,
+            first_read_at,
+            last_read_at,
+            manga,
+        })
     })
 }

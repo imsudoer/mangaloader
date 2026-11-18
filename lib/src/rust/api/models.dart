@@ -7,7 +7,193 @@ import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ContentFilterItem`, `LibraryUpdateItem`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+
+class AchievementMangaStat {
+  final String slugUrl;
+  final String name;
+  final String rusName;
+  final String coverUrl;
+  final String mangaType;
+  final List<String> genres;
+  final String releaseDate;
+  final PlatformInt64 chaptersRead;
+  final PlatformInt64 totalChapters;
+  final String firstReadAt;
+  final String lastReadAt;
+  final bool isCompleted;
+
+  const AchievementMangaStat({
+    required this.slugUrl,
+    required this.name,
+    required this.rusName,
+    required this.coverUrl,
+    required this.mangaType,
+    required this.genres,
+    required this.releaseDate,
+    required this.chaptersRead,
+    required this.totalChapters,
+    required this.firstReadAt,
+    required this.lastReadAt,
+    required this.isCompleted,
+  });
+
+  @override
+  int get hashCode =>
+      slugUrl.hashCode ^
+      name.hashCode ^
+      rusName.hashCode ^
+      coverUrl.hashCode ^
+      mangaType.hashCode ^
+      genres.hashCode ^
+      releaseDate.hashCode ^
+      chaptersRead.hashCode ^
+      totalChapters.hashCode ^
+      firstReadAt.hashCode ^
+      lastReadAt.hashCode ^
+      isCompleted.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is AchievementMangaStat &&
+          runtimeType == other.runtimeType &&
+          slugUrl == other.slugUrl &&
+          name == other.name &&
+          rusName == other.rusName &&
+          coverUrl == other.coverUrl &&
+          mangaType == other.mangaType &&
+          genres == other.genres &&
+          releaseDate == other.releaseDate &&
+          chaptersRead == other.chaptersRead &&
+          totalChapters == other.totalChapters &&
+          firstReadAt == other.firstReadAt &&
+          lastReadAt == other.lastReadAt &&
+          isCompleted == other.isCompleted;
+}
+
+class AchievementSnapshot {
+  final PlatformInt64 completedChapters;
+  final PlatformInt64 totalPagesRead;
+  final PlatformInt64 totalReadingSeconds;
+  final PlatformInt64 maxSessionSeconds;
+  final PlatformInt64 totalSessions;
+  final PlatformInt64 distinctTitles;
+  final PlatformInt64 completedTitles;
+  final PlatformInt64 maxChaptersInDay;
+  final PlatformInt64 maxPagesInDay;
+  final PlatformInt64 nightReads;
+  final PlatformInt64 earlyReads;
+  final PlatformInt64 eveningReads;
+  final PlatformInt64 weekendReads;
+  final PlatformInt64 doubleShiftDays;
+  final PlatformInt64 friday13Reads;
+  final PlatformInt64 halloweenReads;
+  final PlatformInt64 newYearReads;
+  final PlatformInt64 sundayNightReads;
+  final PlatformInt64 mondayMorningReads;
+  final PlatformInt64 readAt333;
+  final Int64List readsByHour;
+  final Int64List readsByWeekday;
+  final Int64List readsByMonth;
+  final List<String> readDates;
+  final String firstReadAt;
+  final String lastReadAt;
+  final List<AchievementMangaStat> manga;
+
+  const AchievementSnapshot({
+    required this.completedChapters,
+    required this.totalPagesRead,
+    required this.totalReadingSeconds,
+    required this.maxSessionSeconds,
+    required this.totalSessions,
+    required this.distinctTitles,
+    required this.completedTitles,
+    required this.maxChaptersInDay,
+    required this.maxPagesInDay,
+    required this.nightReads,
+    required this.earlyReads,
+    required this.eveningReads,
+    required this.weekendReads,
+    required this.doubleShiftDays,
+    required this.friday13Reads,
+    required this.halloweenReads,
+    required this.newYearReads,
+    required this.sundayNightReads,
+    required this.mondayMorningReads,
+    required this.readAt333,
+    required this.readsByHour,
+    required this.readsByWeekday,
+    required this.readsByMonth,
+    required this.readDates,
+    required this.firstReadAt,
+    required this.lastReadAt,
+    required this.manga,
+  });
+
+  @override
+  int get hashCode =>
+      completedChapters.hashCode ^
+      totalPagesRead.hashCode ^
+      totalReadingSeconds.hashCode ^
+      maxSessionSeconds.hashCode ^
+      totalSessions.hashCode ^
+      distinctTitles.hashCode ^
+      completedTitles.hashCode ^
+      maxChaptersInDay.hashCode ^
+      maxPagesInDay.hashCode ^
+      nightReads.hashCode ^
+      earlyReads.hashCode ^
+      eveningReads.hashCode ^
+      weekendReads.hashCode ^
+      doubleShiftDays.hashCode ^
+      friday13Reads.hashCode ^
+      halloweenReads.hashCode ^
+      newYearReads.hashCode ^
+      sundayNightReads.hashCode ^
+      mondayMorningReads.hashCode ^
+      readAt333.hashCode ^
+      readsByHour.hashCode ^
+      readsByWeekday.hashCode ^
+      readsByMonth.hashCode ^
+      readDates.hashCode ^
+      firstReadAt.hashCode ^
+      lastReadAt.hashCode ^
+      manga.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is AchievementSnapshot &&
+          runtimeType == other.runtimeType &&
+          completedChapters == other.completedChapters &&
+          totalPagesRead == other.totalPagesRead &&
+          totalReadingSeconds == other.totalReadingSeconds &&
+          maxSessionSeconds == other.maxSessionSeconds &&
+          totalSessions == other.totalSessions &&
+          distinctTitles == other.distinctTitles &&
+          completedTitles == other.completedTitles &&
+          maxChaptersInDay == other.maxChaptersInDay &&
+          maxPagesInDay == other.maxPagesInDay &&
+          nightReads == other.nightReads &&
+          earlyReads == other.earlyReads &&
+          eveningReads == other.eveningReads &&
+          weekendReads == other.weekendReads &&
+          doubleShiftDays == other.doubleShiftDays &&
+          friday13Reads == other.friday13Reads &&
+          halloweenReads == other.halloweenReads &&
+          newYearReads == other.newYearReads &&
+          sundayNightReads == other.sundayNightReads &&
+          mondayMorningReads == other.mondayMorningReads &&
+          readAt333 == other.readAt333 &&
+          readsByHour == other.readsByHour &&
+          readsByWeekday == other.readsByWeekday &&
+          readsByMonth == other.readsByMonth &&
+          readDates == other.readDates &&
+          firstReadAt == other.firstReadAt &&
+          lastReadAt == other.lastReadAt &&
+          manga == other.manga;
+}
 
 class AppSettingItem {
   final String key;

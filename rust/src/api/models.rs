@@ -506,3 +506,50 @@ pub struct RecommendedManga {
     pub score: f64,
     pub reason: String,
 }
+
+#[derive(Debug, Clone)]
+pub struct AchievementMangaStat {
+    pub slug_url: String,
+    pub name: String,
+    pub rus_name: String,
+    pub cover_url: String,
+    pub manga_type: String,
+    pub genres: Vec<String>,
+    pub release_date: String,
+    pub chapters_read: i64,
+    pub total_chapters: i64,
+    pub first_read_at: String,
+    pub last_read_at: String,
+    pub is_completed: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct AchievementSnapshot {
+    pub completed_chapters: i64,
+    pub total_pages_read: i64,
+    pub total_reading_seconds: i64,
+    pub max_session_seconds: i64,
+    pub total_sessions: i64,
+    pub distinct_titles: i64,
+    pub completed_titles: i64,
+    pub max_chapters_in_day: i64,
+    pub max_pages_in_day: i64,
+    pub night_reads: i64,
+    pub early_reads: i64,
+    pub evening_reads: i64,
+    pub weekend_reads: i64,
+    pub double_shift_days: i64,
+    pub friday_13_reads: i64,
+    pub halloween_reads: i64,
+    pub new_year_reads: i64,
+    pub sunday_night_reads: i64,
+    pub monday_morning_reads: i64,
+    pub read_at_333: i64,
+    pub reads_by_hour: Vec<i64>,
+    pub reads_by_weekday: Vec<i64>,
+    pub reads_by_month: Vec<i64>,
+    pub read_dates: Vec<String>,
+    pub first_read_at: String,
+    pub last_read_at: String,
+    pub manga: Vec<AchievementMangaStat>,
+}

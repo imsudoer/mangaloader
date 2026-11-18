@@ -7,7 +7,7 @@ import '../frb_generated.dart';
 import 'models.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `cache_etag`, `cache_store`, `cache_value`, `extract_text_from_tiptap`, `get_api_headers`, `get_img_headers`, `get_json_cached`, `get_json_inner`, `get_json`, `is_retryable_status`, `lock_json_cache`, `parse_manga_item`, `response_excerpt`
+// These functions are ignored because they are not marked as `pub`: `api_message`, `api_status_error`, `cache_etag`, `cache_store`, `cache_value`, `cookie_pair_from_export`, `extract_text_from_tiptap`, `extract_xsrf_token`, `get_api_headers`, `get_img_headers`, `get_json_cached`, `get_json_inner`, `get_json`, `has_session`, `is_html_response`, `is_retryable_status`, `lock_json_cache`, `login_required_error`, `mutation_headers`, `normalize_cookie_header`, `parse_cookie_pairs`, `parse_manga_item`, `redirected_away`, `response_excerpt`, `send_mutation`, `stored_cookie_header`, `stored_xsrf_token`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `CachedJson`, `JsonCache`
 
 String getAppArchitecture() =>

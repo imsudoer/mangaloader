@@ -33,6 +33,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   String dco_decode_String(dynamic raw);
 
   @protected
+  AchievementMangaStat dco_decode_achievement_manga_stat(dynamic raw);
+
+  @protected
+  AchievementSnapshot dco_decode_achievement_snapshot(dynamic raw);
+
+  @protected
   AppSettingItem dco_decode_app_setting_item(dynamic raw);
 
   @protected
@@ -115,6 +121,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<String> dco_decode_list_String(dynamic raw);
+
+  @protected
+  List<AchievementMangaStat> dco_decode_list_achievement_manga_stat(
+      dynamic raw);
 
   @protected
   List<AppSettingItem> dco_decode_list_app_setting_item(dynamic raw);
@@ -301,6 +311,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   String sse_decode_String(SseDeserializer deserializer);
 
   @protected
+  AchievementMangaStat sse_decode_achievement_manga_stat(
+      SseDeserializer deserializer);
+
+  @protected
+  AchievementSnapshot sse_decode_achievement_snapshot(
+      SseDeserializer deserializer);
+
+  @protected
   AppSettingItem sse_decode_app_setting_item(SseDeserializer deserializer);
 
   @protected
@@ -390,6 +408,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<String> sse_decode_list_String(SseDeserializer deserializer);
+
+  @protected
+  List<AchievementMangaStat> sse_decode_list_achievement_manga_stat(
+      SseDeserializer deserializer);
 
   @protected
   List<AppSettingItem> sse_decode_list_app_setting_item(
@@ -603,6 +625,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_String(String self, SseSerializer serializer);
 
   @protected
+  void sse_encode_achievement_manga_stat(
+      AchievementMangaStat self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_achievement_snapshot(
+      AchievementSnapshot self, SseSerializer serializer);
+
+  @protected
   void sse_encode_app_setting_item(
       AppSettingItem self, SseSerializer serializer);
 
@@ -698,6 +728,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_list_String(List<String> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_achievement_manga_stat(
+      List<AchievementMangaStat> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_app_setting_item(

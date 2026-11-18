@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mangaloader/services/update_checker.dart';
 import 'package:mangaloader/services/update_downloader.dart';
 import 'package:mangaloader/src/rust/api/storage.dart' as rust_storage;
+import 'package:mangaloader/services/achievement_events.dart';
 import 'package:mangaloader/src/rust/api/mangalib_client.dart' as rust_api;
 import 'package:mangaloader/src/rust/api/models.dart';
 
@@ -36,6 +37,8 @@ class PersistedSetting<T> extends StateNotifier<T> {
 }
 
 String _boolText(bool value) => value.toString();
+
+String _stringText(String value) => value;
 
 String _intText(int value) => value.toString();
 
@@ -190,6 +193,14 @@ Future<void> loadPersistentSettings(WidgetRef ref) async {
           );
     }
 
+    // 12.5 Recap card style and layout
+    if (has('recap_style')) {
+      ref.read(recapStyleProvider.notifier).set(map['recap_style']!, persist: false);
+    }
+    if (has('recap_layout')) {
+      ref.read(recapLayoutProvider.notifier).set(map['recap_layout']!, persist: false);
+    }
+
     // 13. Cookies & User Profile
     if (map.containsKey('cookies')) {
       final cookies = map['cookies']!;
@@ -224,7 +235,10 @@ final themeModeProvider = StateNotifierProvider<ThemeModeNotifier, ThemeMode>(
 class ThemeModeNotifier extends PersistedSetting<ThemeMode> {
   ThemeModeNotifier() : super(defaultValue: ThemeMode.dark, storageKey: 'theme_mode', encode: _themeModeText);
 
-  void setThemeMode(ThemeMode mode, {bool persist = true}) => set(mode, persist: persist);
+  void setThemeMode(ThemeMode mode, {bool persist = true}) {
+    if (persist) AchievementEvents.instance.increment('theme_switches');
+    set(mode, persist: persist);
+  }
 
   void toggle() {
     final next = state == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
@@ -252,6 +266,7 @@ class LocaleNotifier extends StateNotifier<Locale?> {
   LocaleNotifier() : super(null);
 
   void setLocale(Locale? locale, {bool persist = true}) {
+    if (persist) AchievementEvents.instance.increment('language_switches');
     state = locale;
     if (persist) {
       rust_storage.setSetting(key: 'locale', value: locale?.languageCode ?? 'system');
@@ -820,4 +835,17 @@ class UserProfileNotifier extends StateNotifier<UserProfile?> {
       }
     }
   }
+}
+// Recap card style and layout
+final recapStyleProvider = StateNotifierProvider<StringSettingNotifier, String>(
+  (ref) => StringSettingNotifier(defaultValue: 'night', storageKey: 'recap_style'),
+);
+
+final recapLayoutProvider = StateNotifierProvider<StringSettingNotifier, String>(
+  (ref) => StringSettingNotifier(defaultValue: 'poster', storageKey: 'recap_layout'),
+);
+
+class StringSettingNotifier extends PersistedSetting<String> {
+  StringSettingNotifier({required super.defaultValue, required super.storageKey})
+      : super(encode: _stringText);
 }

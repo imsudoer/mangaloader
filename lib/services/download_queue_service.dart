@@ -11,6 +11,7 @@ import 'package:path_provider/path_provider.dart';
 
 import 'package:mangaloader/providers/download_provider.dart';
 import 'package:mangaloader/providers/settings_provider.dart';
+import 'package:mangaloader/services/achievement_events.dart';
 import 'package:mangaloader/src/rust/api/download_engine.dart' as rust_download;
 import 'package:mangaloader/src/rust/api/models.dart';
 import 'package:mangaloader/src/rust/api/storage.dart' as rust_storage;
@@ -262,6 +263,16 @@ class DownloadQueueService {
     _resolveContainer(ref);
     _attachConnectivity();
     _attachSettingsListener();
+
+    try {
+      final rawSchedule = await rust_storage.getSetting(key: 'downloads_schedule');
+      if (rawSchedule != null && rawSchedule.isNotEmpty) {
+        final schedule = DownloadSchedule.fromJson(jsonDecode(rawSchedule));
+        if (schedule.contains(DateTime.now())) {
+          AchievementEvents.instance.increment('night_downloads');
+        }
+      }
+    } catch (_) {}
 
     final next = List<DownloadQueueItem>.from(items);
     var changed = false;

@@ -28,6 +28,7 @@ import 'package:mangaloader/utils/reading_order.dart';
 import 'package:mangaloader/utils/html_text.dart';
 import 'package:mangaloader/utils/comment_time.dart';
 import 'package:mangaloader/services/content_filter.dart';
+import 'package:mangaloader/services/achievement_events.dart';
 import 'package:mangaloader/theme/app_theme.dart';
 import 'package:mangaloader/theme/app_tokens.dart';
 
@@ -192,6 +193,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
               cleanError.contains('Не найдено');
           final errorStrings = ErrorStrings(isRu);
 
+          if (isMissing) AchievementEvents.instance.increment('dead_links');
           return Scaffold(
             appBar: AppBar(title: Text(s.errorTitle)),
             body: ErrorPlaceholder(

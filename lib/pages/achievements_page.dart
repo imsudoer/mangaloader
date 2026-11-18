@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:share_plus/share_plus.dart';
+
 import 'package:mangaloader/l10n/strings/achievements_strings.dart';
 import 'package:mangaloader/models/achievement.dart';
 import 'package:mangaloader/providers/achievements_provider.dart';
+import 'package:mangaloader/providers/streak_provider.dart';
+import 'package:mangaloader/services/achievement_events.dart';
 import 'package:mangaloader/theme/app_tokens.dart';
+import 'package:mangaloader/widgets/achievement_card.dart';
 
 class AchievementsPage extends ConsumerStatefulWidget {
   const AchievementsPage({super.key});
@@ -14,21 +17,51 @@ class AchievementsPage extends ConsumerStatefulWidget {
 }
 
 class _AchievementsPageState extends ConsumerState<AchievementsPage> {
-  String _selectedCategory = 'all';
+  static const List<String> _categories = [
+    'all',
+    'chapters',
+    'streak',
+    'library',
+    'downloads',
+    'titles',
+    'special',
+    'secrets',
+  ];
+  static const List<String> _filters = ['all', 'inProgress', 'unlocked'];
 
-  void _shareAchievement(Achievement a, bool isRu) {
-    final s = AchievementsStrings(isRu);
-    final title = isRu ? a.titleRu : a.titleEn;
-    final desc = isRu ? a.descRu : a.descEn;
-    final text = s.shareText(title, desc, '${a.xp}');
-    SharePlus.instance.share(ShareParams(text: text));
+  String _category = 'all';
+  String _filter = 'all';
+  final Stopwatch _session = Stopwatch();
+
+  @override
+  void initState() {
+    super.initState();
+    final events = AchievementEvents.instance;
+    events.increment('achievements_visits');
+    final chapters = ref.read(streakProvider).value?.totalChaptersRead.toInt() ?? 0;
+    if (chapters == 0) {
+      events.increment('start_of_path');
+    }
+    _session.start();
+  }
+
+  @override
+  void dispose() {
+    if (_session.isRunning) {
+      _session.stop();
+      final seconds = _session.elapsed.inSeconds;
+      if (seconds > 0) {
+        AchievementEvents.instance.increment('achievements_seconds', seconds);
+      }
+    }
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final overviewAsync = ref.watch(achievementsProvider);
     final isRu = Localizations.localeOf(context).languageCode == 'ru';
     final s = AchievementsStrings(isRu);
+    final overviewAsync = ref.watch(achievementsProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -36,300 +69,478 @@ class _AchievementsPageState extends ConsumerState<AchievementsPage> {
       ),
       body: overviewAsync.when(
         data: (overview) {
-          final list = overview.achievements.where((a) {
-            if (_selectedCategory == 'all') return true;
-            if (_selectedCategory == 'unlocked') return a.isUnlocked;
-            if (_selectedCategory == 'streak') return a.category == AchievementCategory.streak;
-            if (_selectedCategory == 'chapters') return a.category == AchievementCategory.chapters;
-            if (_selectedCategory == 'library') return a.category == AchievementCategory.library;
-            if (_selectedCategory == 'downloads') return a.category == AchievementCategory.downloads;
-            if (_selectedCategory == 'special') return a.category == AchievementCategory.special;
-            return true;
-          }).toList();
+          final all = overview.achievements;
+          final filtered = _applyFilters(all);
+          final counts = _categoryCounts(all);
+          final secretTotal = all.where((a) => a.isSecret).length;
+          final secretUnlocked = all.where((a) => a.isSecret && a.isUnlocked).length;
+          final nearest = _nearest(all);
 
-          return RefreshIndicator(
-            onRefresh: () async => ref.invalidate(achievementsProvider),
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                // Level & XP Hero Card
-                Card(
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    side: const BorderSide(color: AppTokens.borderStrong, width: 1),
-                  ),
-                  color: AppTokens.surfaceCard,
+          return CustomScrollView(
+            slivers: [
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                  child: _buildHero(s, overview, secretUnlocked, secretTotal),
+                ),
+              ),
+              if (nearest != null)
+                SliverToBoxAdapter(
                   child: Padding(
-                    padding: const EdgeInsets.all(18),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              width: 52,
-                              height: 52,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: AppTokens.accent.withValues(alpha: 0.25),
-                                border: Border.all(color: AppTokens.accent, width: 2),
-                              ),
-                              child: Center(
-                                child: Text(
-                                  '${overview.level}',
-                                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    isRu ? overview.levelTitleRu : overview.levelTitleEn,
-                                    style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Colors.white),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    s.xpProgress(
-                                      '${overview.totalXp}',
-                                      '${overview.unlockedCount}',
-                                      '${overview.totalCount}',
-                                    ),
-                                    style: const TextStyle(fontSize: 12.5, color: AppTokens.textPrimary),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 14),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(4),
-                          child: LinearProgressIndicator(
-                            value: overview.levelProgress,
-                            minHeight: 6,
-                            backgroundColor: AppTokens.border,
-                            valueColor: const AlwaysStoppedAnimation<Color>(AppTokens.accent),
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                    child: _buildNearest(s, nearest, isRu),
+                  ),
+                ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 0, 0),
+                  child: _buildCategoryRail(s, counts),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                  child: _buildFilters(s),
+                ),
+              ),
+              if (filtered.isEmpty)
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(32),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.filter_alt_off_rounded, size: 40, color: AppTokens.textSecondary),
+                          const SizedBox(height: 10),
+                          Text(
+                            isRu ? 'Здесь пока пусто' : 'Nothing here yet',
+                            style: const TextStyle(color: AppTokens.textSecondary, fontSize: 14),
                           ),
-                        ),
-                        const SizedBox(height: 6),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              '${overview.totalXp} XP',
-                              style: const TextStyle(fontSize: 11, color: AppTokens.textSecondary),
-                            ),
-                            Text(
-                              s.nextLevel('${overview.nextLevelXp}'),
-                              style: const TextStyle(fontSize: 11, color: AppTokens.textSecondary),
-                            ),
-                          ],
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 16),
-
-                // Category Filter Chips
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      _buildFilterChip('all', s.filterAll, overview.achievements.length),
-                      const SizedBox(width: 8),
-                      _buildFilterChip('unlocked', s.filterUnlocked, overview.unlockedCount),
-                      const SizedBox(width: 8),
-                      _buildFilterChip('streak', s.filterStreaks, 11),
-                      const SizedBox(width: 8),
-                      _buildFilterChip('chapters', s.filterChapters, 8),
-                      const SizedBox(width: 8),
-                      _buildFilterChip('library', s.filterLibrary, 6),
-                      const SizedBox(width: 8),
-                      _buildFilterChip('downloads', s.filterDownloads, 3),
-                      const SizedBox(width: 8),
-                      _buildFilterChip('special', s.filterSpecial, 3),
-                    ],
+                )
+              else
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+                  sliver: SliverGrid.builder(
+                    gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                      maxCrossAxisExtent: 215,
+                      mainAxisSpacing: 11,
+                      crossAxisSpacing: 11,
+                      childAspectRatio: 0.64,
+                    ),
+                    itemCount: filtered.length,
+                    itemBuilder: (context, index) {
+                      final achievement = filtered[index];
+                      return AchievementGridCard(
+                        achievement: achievement,
+                        isRu: isRu,
+                        onTap: () => AchievementDetailSheet.show(context, achievement, isRu),
+                      );
+                    },
                   ),
                 ),
-                const SizedBox(height: 14),
-
-                // Achievements List
-                ...list.map((a) => _buildAchievementCard(a, isRu)),
-              ],
-            ),
+            ],
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Ошибка: $e')),
-      ),
-    );
-  }
-
-  Widget _buildFilterChip(String key, String label, int count) {
-    final isSelected = _selectedCategory == key;
-    return FilterChip(
-      selected: isSelected,
-      label: Text('$label ($count)'),
-      labelStyle: TextStyle(
-        fontSize: 12,
-        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-        color: isSelected ? Colors.white : AppTokens.textPrimary,
-      ),
-      selectedColor: AppTokens.accent,
-      backgroundColor: AppTokens.surfaceRaised,
-      side: BorderSide(color: isSelected ? AppTokens.accent : AppTokens.borderStrong),
-      onSelected: (_) => setState(() => _selectedCategory = key),
-    );
-  }
-
-  Widget _buildAchievementCard(Achievement a, bool isRu) {
-    final s = AchievementsStrings(isRu);
-    final tierColor = a.getTierColor();
-    final isDone = a.isUnlocked;
-
-    return Card(
-      elevation: 0,
-      margin: const EdgeInsets.only(bottom: 10),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-        side: BorderSide(
-          color: isDone ? tierColor.withValues(alpha: 0.5) : AppTokens.border,
-          width: isDone ? 1.2 : 0.8,
+        error: (e, _) => Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.emoji_events_outlined, size: 44, color: AppTokens.textSecondary),
+                const SizedBox(height: 12),
+                Text(
+                  isRu ? 'Не удалось загрузить достижения' : 'Could not load achievements',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: AppTokens.textSecondary),
+                ),
+                const SizedBox(height: 12),
+                FilledButton.tonal(
+                  onPressed: () => ref.invalidate(achievementsProvider),
+                  child: Text(isRu ? 'Повторить' : 'Retry'),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
-      color: AppTokens.surfaceBase,
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Icon
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: isDone ? a.iconColor.withValues(alpha: 0.2) : const Color(0xFF2A2A2A),
-                border: Border.all(
-                  color: isDone ? a.iconColor.withValues(alpha: 0.6) : const Color(0xFF3A3A3A),
-                  width: 1.5,
-                ),
-              ),
-              child: Center(
-                child: Icon(
-                  a.icon,
-                  color: isDone ? a.iconColor : const Color(0xFF757575),
-                  size: 24,
-                ),
-              ),
-            ),
-            const SizedBox(width: 14),
+    );
+  }
 
-            // Content
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          isRu ? a.titleRu : a.titleEn,
-                          style: TextStyle(
-                            fontSize: 14.5,
-                            fontWeight: FontWeight.bold,
-                            color: isDone ? Colors.white : AppTokens.textSecondary,
-                          ),
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: tierColor.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: tierColor.withValues(alpha: 0.4)),
-                        ),
-                        child: Text(
-                          '+${a.xp} XP',
-                          style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: tierColor),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    isRu ? a.descRu : a.descEn,
-                    style: const TextStyle(fontSize: 12, color: AppTokens.textSecondary),
-                  ),
-                  const SizedBox(height: 8),
-
-                  // Progress bar or Done Badge
-                  if (a.maxProgress > 1) ...[
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(2),
-                      child: LinearProgressIndicator(
-                        value: a.progressRatio,
-                        minHeight: 4,
-                        backgroundColor: AppTokens.surfaceRaised,
-                        valueColor: AlwaysStoppedAnimation<Color>(isDone ? a.iconColor : AppTokens.accent),
+  Widget _buildHero(
+    AchievementsStrings s,
+    AchievementsOverview overview,
+    int secretUnlocked,
+    int secretTotal,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF232320), Color(0xFF171717)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppTokens.borderStrong),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              SizedBox(
+                width: 78,
+                height: 78,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    SizedBox(
+                      width: 78,
+                      height: 78,
+                      child: CircularProgressIndicator(
+                        value: overview.levelProgress,
+                        strokeWidth: 5,
+                        backgroundColor: AppTokens.border,
+                        valueColor: const AlwaysStoppedAnimation<Color>(AppTokens.accent),
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          '${a.currentProgress} / ${a.maxProgress}',
-                          style: const TextStyle(fontSize: 10.5, color: AppTokens.accent),
+                          '${overview.level}',
+                          style: const TextStyle(fontSize: 26, height: 1, fontWeight: FontWeight.w900, color: Colors.white),
                         ),
-                        if (isDone)
-                          InkWell(
-                            onTap: () => _shareAchievement(a, isRu),
-                            child: Row(
-                              children: [
-                                const Icon(Icons.share_rounded, size: 12, color: AppTokens.accent),
-                                const SizedBox(width: 4),
-                                Text(
-                                  s.share,
-                                  style: const TextStyle(fontSize: 10.5, color: AppTokens.accent, fontWeight: FontWeight.bold),
-                                ),
-                              ],
-                            ),
-                          ),
-                      ],
-                    ),
-                  ] else if (isDone) ...[
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        InkWell(
-                          onTap: () => _shareAchievement(a, isRu),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.share_rounded, size: 12, color: AppTokens.accent),
-                              const SizedBox(width: 4),
-                              Text(
-                                s.share,
-                                style: const TextStyle(fontSize: 10.5, color: AppTokens.accent, fontWeight: FontWeight.bold),
-                              ),
-                            ],
-                          ),
+                        const SizedBox(height: 2),
+                        Text(
+                          s.levelLabel.toUpperCase(),
+                          style: const TextStyle(fontSize: 7.5, letterSpacing: 1, color: AppTokens.textSecondary),
                         ),
                       ],
                     ),
                   ],
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      Localizations.localeOf(context).languageCode == 'ru'
+                          ? overview.levelTitleRu
+                          : overview.levelTitleEn,
+                      style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Colors.white),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                    '${overview.totalXp} XP · ${overview.nextLevelXp - overview.totalXp} '
+                    '${Localizations.localeOf(context).languageCode == 'ru' ? 'XP до ${overview.level + 1} ур.' : 'XP to lvl ${overview.level + 1}'}',
+                    style: const TextStyle(fontSize: 11.5, color: AppTokens.textSecondary),
+                  ),
+                    const SizedBox(height: 10),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: overview.levelProgress,
+                        minHeight: 6,
+                        backgroundColor: AppTokens.border,
+                        valueColor: const AlwaysStoppedAnimation<Color>(AppTokens.accent),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _heroStat(
+                  s.collectionLabel,
+                  '${overview.unlockedCount}/${overview.totalCount}',
+                  Icons.collections_bookmark_rounded,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _heroStat(
+                  s.secretsLabel,
+                  '$secretUnlocked/$secretTotal',
+                  Icons.lock_rounded,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _heroStat(
+                  s.levelLabel,
+                  '${overview.level}',
+                  Icons.military_tech_rounded,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _heroStat(String label, String value, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppTokens.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 14, color: AppTokens.accent),
+          const SizedBox(height: 5),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: Colors.white, fontSize: 13.5, fontWeight: FontWeight.w900),
+          ),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: AppTokens.textSecondary, fontSize: 8.5),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNearest(AchievementsStrings s, Achievement nearest, bool isRu) {
+    final remaining = nearest.maxProgress - nearest.currentProgress;
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: () => AchievementDetailSheet.show(context, nearest, isRu),
+      child: Container(
+        padding: const EdgeInsets.all(13),
+        decoration: BoxDecoration(
+          color: AppTokens.surfaceCard,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppTokens.accent.withValues(alpha: 0.35)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: AppTokens.accent.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(nearest.icon, size: 20, color: AppTokens.accent),
+            ),
+            const SizedBox(width: 11),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    s.nearestTitle.toUpperCase(),
+                    style: const TextStyle(fontSize: 8.5, letterSpacing: 1, color: AppTokens.textSecondary, fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    nearest.isSecret && !nearest.isUnlocked
+                        ? s.secretTitle
+                        : (isRu ? nearest.titleRu : nearest.titleEn),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.white, fontSize: 13.5, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 5),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(3),
+                    child: LinearProgressIndicator(
+                      value: nearest.progressRatio,
+                      minHeight: 4,
+                      backgroundColor: AppTokens.border,
+                      valueColor: const AlwaysStoppedAnimation<Color>(AppTokens.accent),
+                    ),
+                  ),
                 ],
               ),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              s.remaining('$remaining'),
+              style: const TextStyle(fontSize: 10.5, color: AppTokens.textSecondary),
             ),
           ],
         ),
       ),
     );
+  }
+
+  Widget _buildCategoryRail(AchievementsStrings s, Map<String, int> counts) {
+    final labels = <String, String>{
+      'all': s.filterAll,
+      'chapters': s.filterChapters,
+      'streak': s.filterStreaks,
+      'library': s.filterLibrary,
+      'downloads': s.filterDownloads,
+      'titles': s.filterTitles,
+      'special': s.filterSpecial,
+      'secrets': s.filterSecrets,
+    };
+    final icons = <String, IconData>{
+      'all': Icons.grid_view_rounded,
+      'chapters': Icons.menu_book_rounded,
+      'streak': Icons.local_fire_department_rounded,
+      'library': Icons.collections_bookmark_rounded,
+      'downloads': Icons.download_rounded,
+      'titles': Icons.auto_stories_rounded,
+      'special': Icons.auto_awesome_rounded,
+      'secrets': Icons.lock_rounded,
+    };
+
+    return SizedBox(
+      height: 38,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.only(right: 16),
+        itemCount: _categories.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 7),
+        itemBuilder: (context, index) {
+          final key = _categories[index];
+          final selected = key == _category;
+          return InkWell(
+            borderRadius: BorderRadius.circular(11),
+            onTap: () => setState(() => _category = key),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 170),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              decoration: BoxDecoration(
+                color: selected ? AppTokens.accent.withValues(alpha: 0.18) : AppTokens.surfaceRaised,
+                borderRadius: BorderRadius.circular(11),
+                border: Border.all(color: selected ? AppTokens.accent : AppTokens.borderStrong),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icons[key], size: 13, color: selected ? AppTokens.accent : AppTokens.textSecondary),
+                  const SizedBox(width: 5),
+                  Text(
+                    labels[key] ?? key,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: selected ? FontWeight.bold : FontWeight.w500,
+                      color: selected ? Colors.white : AppTokens.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(width: 5),
+                  Text(
+                    '${counts[key] ?? 0}',
+                    style: TextStyle(
+                      fontSize: 9.5,
+                      color: selected ? AppTokens.accent : AppTokens.textSecondary,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildFilters(AchievementsStrings s) {
+    final labels = <String, String>{
+      'all': s.filterAll,
+      'inProgress': s.filterInProgress,
+      'unlocked': s.filterUnlocked,
+    };
+    return Row(
+      children: [
+        for (var i = 0; i < _filters.length; i++) ...[
+          if (i > 0) const SizedBox(width: 7),
+          Expanded(
+            child: InkWell(
+              borderRadius: BorderRadius.circular(10),
+              onTap: () => setState(() => _filter = _filters[i]),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 170),
+                padding: const EdgeInsets.symmetric(vertical: 7),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: _filter == _filters[i] ? Colors.white.withValues(alpha: 0.08) : Colors.transparent,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: _filter == _filters[i] ? AppTokens.borderStrong : AppTokens.border,
+                  ),
+                ),
+                child: Text(
+                  labels[_filters[i]] ?? _filters[i],
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: _filter == _filters[i] ? FontWeight.bold : FontWeight.w500,
+                    color: _filter == _filters[i] ? Colors.white : AppTokens.textSecondary,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Map<String, int> _categoryCounts(List<Achievement> all) {
+    final counts = <String, int>{'all': all.length};
+    for (final category in AchievementCategory.values) {
+      counts[category.name] = all.where((a) => a.category == category).length;
+    }
+    return counts;
+  }
+
+  List<Achievement> _applyFilters(List<Achievement> all) {
+    var list = all.where((a) {
+      if (_category != 'all' && a.category.name != _category) return false;
+      if (_filter == 'unlocked') return a.isUnlocked;
+      if (_filter == 'inProgress') return !a.isUnlocked && a.currentProgress > 0;
+      return true;
+    }).toList();
+
+    list.sort((a, b) {
+      if (a.isUnlocked != b.isUnlocked) return a.isUnlocked ? -1 : 1;
+      final progress = b.progressRatio.compareTo(a.progressRatio);
+      if (progress != 0) return progress;
+      return b.tier.index.compareTo(a.tier.index);
+    });
+    return list;
+  }
+
+  Achievement? _nearest(List<Achievement> all) {
+    Achievement? best;
+    for (final achievement in all) {
+      if (achievement.isUnlocked) continue;
+      if (achievement.isSecret) continue;
+      if (achievement.currentProgress <= 0) continue;
+      if (best == null || achievement.progressRatio > best.progressRatio) {
+        best = achievement;
+      }
+    }
+    return best;
   }
 }

@@ -1,9 +1,14 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart' show Int64List;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mangaloader/models/achievement.dart';
 import 'package:mangaloader/providers/streak_provider.dart';
 import 'package:mangaloader/providers/library_provider.dart';
 import 'package:mangaloader/providers/settings_provider.dart';
+import 'package:mangaloader/services/achievement_catalog.dart';
+import 'package:mangaloader/services/achievement_events.dart';
 import 'package:mangaloader/src/rust/api/storage.dart' as rust_storage;
 import 'package:mangaloader/src/rust/api/models.dart';
 import 'package:mangaloader/theme/app_tokens.dart';
@@ -59,7 +64,7 @@ final achievementsProvider = FutureProvider<AchievementsOverview>((ref) async {
 
   completedMangaCount = libraryList.where((e) => e.listType == ListType.completed).length;
 
-  final all = <Achievement>[
+  final base = <Achievement>[
     // --- 1. STREAKS ---
     Achievement(
       id: 'streak_1',
@@ -536,6 +541,75 @@ final achievementsProvider = FutureProvider<AchievementsOverview>((ref) async {
     ),
   ];
 
+  final snapshot = await _loadAchievementSnapshot();
+  await AchievementEvents.instance.ensureLoaded();
+  final prefs = ref.watch(readerPrefsProvider);
+  final schedule = ref.watch(downloadScheduleProvider);
+  final wifiOnly = ref.watch(wifiOnlyDownloadsProvider);
+  final storageLimitMb = ref.watch(downloadsStorageLimitProvider);
+
+  int countType(ListType type) => libraryList.where((entry) => entry.listType == type).length;
+  var downloadBytes = 0;
+  try {
+    final groups = await rust_storage.getDownloadedMangaGroups();
+    for (final group in groups) {
+      downloadBytes += group.totalSizeBytes.toInt();
+    }
+  } catch (_) {}
+
+  final extra = buildExtraAchievements(
+    AchievementData(
+      snapshot: snapshot,
+      streakDays: streakDays,
+      totalChapters: totalChapters,
+      totalDays: totalDays,
+      downloads: downloadedChaptersCount,
+      downloadBytes: downloadBytes,
+      libraryCount: libraryList.length,
+      completedLibrary: completedMangaCount,
+      favorites: countType(ListType.favorites),
+      planned: countType(ListType.planToRead),
+      dropped: countType(ListType.dropped),
+      onHold: countType(ListType.onHold),
+      reading: countType(ListType.reading),
+      amoled: isAmoled,
+      scheduleEnabled: schedule.enabled,
+      wifiOnly: wifiOnly,
+      storageLimitSet: storageLimitMb > 0,
+      prefetchNeighbours: prefs.prefetchNeighbours,
+      library: libraryList,
+      events: AchievementEvents.instance,
+      now: DateTime.now(),
+    ),
+  );
+
+  final all = [...base, ...extra];
+  final metaIndex = all.indexWhere((achievement) => achievement.id == 'extra_collector');
+  if (metaIndex != -1) {
+    final meta = all[metaIndex];
+    final unlockedWithoutMeta = all.where((achievement) => achievement.isUnlocked).length;
+    all[metaIndex] = Achievement(
+      id: meta.id,
+      category: meta.category,
+      titleRu: meta.titleRu,
+      titleEn: meta.titleEn,
+      descRu: meta.descRu,
+      descEn: meta.descEn,
+      icon: meta.icon,
+      iconColor: meta.iconColor,
+      tier: meta.tier,
+      xp: meta.xp,
+      maxProgress: meta.maxProgress,
+      currentProgress: unlockedWithoutMeta.clamp(0, meta.maxProgress),
+      isUnlocked: unlockedWithoutMeta >= meta.maxProgress,
+      isSecret: meta.isSecret,
+      hintRu: meta.hintRu,
+      hintEn: meta.hintEn,
+      titleSlug: meta.titleSlug,
+      titleCoverUrl: meta.titleCoverUrl,
+    );
+  }
+
   int totalXp = 0;
   int unlockedCount = 0;
   for (final a in all) {
@@ -545,26 +619,27 @@ final achievementsProvider = FutureProvider<AchievementsOverview>((ref) async {
     }
   }
 
-  // Level formula: Level = sqrt(totalXp / 25) + 1
-  final level = (totalXp / 100).floor() + 1;
-  final currentLevelXp = (level - 1) * 100;
-  final nextLevelXp = level * 100;
+  // Progressive curve: the original linear 100 XP per level would drown the
+  // longer catalog in trivial levels.
+  final level = (math.sqrt(totalXp / 40)).floor() + 1;
+  final currentLevelXp = (level - 1) * (level - 1) * 40;
+  final nextLevelXp = level * level * 40;
 
   String levelTitleRu = 'Новичок';
   String levelTitleEn = 'Beginner';
-  if (level >= 20) {
+  if (level >= 24) {
     levelTitleRu = 'Бог манги';
     levelTitleEn = 'Manga God';
-  } else if (level >= 15) {
+  } else if (level >= 18) {
     levelTitleRu = 'Легендарный читатель';
     levelTitleEn = 'Legendary Reader';
-  } else if (level >= 10) {
+  } else if (level >= 13) {
     levelTitleRu = 'Мастер историй';
     levelTitleEn = 'Story Master';
-  } else if (level >= 6) {
+  } else if (level >= 8) {
     levelTitleRu = 'Опытный мангака-фан';
     levelTitleEn = 'Experienced Reader';
-  } else if (level >= 3) {
+  } else if (level >= 4) {
     levelTitleRu = 'Увлечённый читатель';
     levelTitleEn = 'Enthusiastic Reader';
   }
@@ -581,3 +656,39 @@ final achievementsProvider = FutureProvider<AchievementsOverview>((ref) async {
     totalCount: all.length,
   );
 });
+
+Future<AchievementSnapshot> _loadAchievementSnapshot() async {
+  try {
+    return await rust_storage.getAchievementSnapshot();
+  } catch (_) {
+    return AchievementSnapshot(
+      completedChapters: 0,
+      totalPagesRead: 0,
+      totalReadingSeconds: 0,
+      maxSessionSeconds: 0,
+      totalSessions: 0,
+      distinctTitles: 0,
+      completedTitles: 0,
+      maxChaptersInDay: 0,
+      maxPagesInDay: 0,
+      nightReads: 0,
+      earlyReads: 0,
+      eveningReads: 0,
+      weekendReads: 0,
+      doubleShiftDays: 0,
+      friday13Reads: 0,
+      halloweenReads: 0,
+      newYearReads: 0,
+      sundayNightReads: 0,
+      mondayMorningReads: 0,
+      readAt333: 0,
+      readsByHour: Int64List(24),
+      readsByWeekday: Int64List(7),
+      readsByMonth: Int64List(12),
+      readDates: const [],
+      firstReadAt: '',
+      lastReadAt: '',
+      manga: const [],
+    );
+  }
+}

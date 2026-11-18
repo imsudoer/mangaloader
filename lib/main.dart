@@ -30,6 +30,7 @@ import 'providers/settings_provider.dart';
 import 'services/streak_notification_service.dart';
 import 'services/chapter_tracker_service.dart';
 import 'services/download_queue_service.dart';
+import 'services/achievement_events.dart';
 import 'services/notification_navigation.dart';
 import 'services/window_state_service.dart';
 import 'package:mangaloader/theme/app_tokens.dart';
@@ -94,6 +95,10 @@ class _MangaLoaderAppState extends ConsumerState<MangaLoaderApp> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await loadPersistentSettings(ref);
+      final events = AchievementEvents.instance;
+      await events.ensureLoaded();
+      events.increment('app_opens');
+      events.addToSet('app_days', achievementDayKey(DateTime.now()));
       // Re-schedule with the language the user actually configured; the early call in
       // main() runs before preferences are read from the database.
       await StreakNotificationService.scheduleDailyStreakReminder(

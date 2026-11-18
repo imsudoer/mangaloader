@@ -7,7 +7,7 @@ import '../frb_generated.dart';
 import 'models.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `build_fts_query`, `get_conn`, `local_date`, `map_local_manga_row`, `rebuild_manga_fts`, `sort_downloaded_chapters_ascending`, `upsert_manga_fts_row`
+// These functions are ignored because they are not marked as `pub`: `get_conn`, `with_conn_mut`, `with_conn`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `BackupData`, `BackupUserList`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `fmt`, `fmt`
 
@@ -17,110 +17,13 @@ Future<void> initDatabase({required String appDir}) =>
 Future<void> saveManga({required MangaDetails manga}) =>
     RustLib.instance.api.crateApiStorageSaveManga(manga: manga);
 
+Future<MangaDetails?> getCachedManga({required String slugUrl}) =>
+    RustLib.instance.api.crateApiStorageGetCachedManga(slugUrl: slugUrl);
+
 Future<PlatformInt64> bulkImportBookmarks(
         {required List<MangaSearchResult> items, required String listType}) =>
     RustLib.instance.api
         .crateApiStorageBulkImportBookmarks(items: items, listType: listType);
-
-Future<MangaDetails?> getCachedManga({required String slugUrl}) =>
-    RustLib.instance.api.crateApiStorageGetCachedManga(slugUrl: slugUrl);
-
-/// Offline full-text search over every title stored locally (library, opened or
-/// downloaded). An empty query lists the most recently touched titles, which keeps
-/// the catalog usable without a network connection.
-Future<List<MangaSearchResult>> searchLibrary(
-        {required String query, required PlatformInt64 limit}) =>
-    RustLib.instance.api
-        .crateApiStorageSearchLibrary(query: query, limit: limit);
-
-Future<void> addToList(
-        {required PlatformInt64 mangaId, required String listType}) =>
-    RustLib.instance.api
-        .crateApiStorageAddToList(mangaId: mangaId, listType: listType);
-
-Future<void> removeFromList(
-        {required PlatformInt64 mangaId, required String listType}) =>
-    RustLib.instance.api
-        .crateApiStorageRemoveFromList(mangaId: mangaId, listType: listType);
-
-Future<List<LibraryEntry>> getList({required String listType}) =>
-    RustLib.instance.api.crateApiStorageGetList(listType: listType);
-
-Future<String?> getMangaListType({required PlatformInt64 mangaId}) =>
-    RustLib.instance.api.crateApiStorageGetMangaListType(mangaId: mangaId);
-
-Future<void> saveReadingProgress({required ReadingPosition progress}) =>
-    RustLib.instance.api.crateApiStorageSaveReadingProgress(progress: progress);
-
-Future<ReadingPosition?> getReadingProgress({required PlatformInt64 mangaId}) =>
-    RustLib.instance.api.crateApiStorageGetReadingProgress(mangaId: mangaId);
-
-Future<void> markChapterDownloaded(
-        {required PlatformInt64 mangaId,
-        required String volume,
-        required String number,
-        required PlatformInt64 pageCount,
-        required String downloadPath}) =>
-    RustLib.instance.api.crateApiStorageMarkChapterDownloaded(
-        mangaId: mangaId,
-        volume: volume,
-        number: number,
-        pageCount: pageCount,
-        downloadPath: downloadPath);
-
-Future<bool> isChapterDownloaded(
-        {required PlatformInt64 mangaId,
-        required String volume,
-        required String number}) =>
-    RustLib.instance.api.crateApiStorageIsChapterDownloaded(
-        mangaId: mangaId, volume: volume, number: number);
-
-Future<List<DownloadedChapterInfo>> getDownloadedChapters(
-        {required PlatformInt64 mangaId}) =>
-    RustLib.instance.api.crateApiStorageGetDownloadedChapters(mangaId: mangaId);
-
-Future<List<DownloadedChapterInfo>> getAllDownloadedChapters() =>
-    RustLib.instance.api.crateApiStorageGetAllDownloadedChapters();
-
-Future<List<DownloadedMangaGroup>> getDownloadedMangaGroups() =>
-    RustLib.instance.api.crateApiStorageGetDownloadedMangaGroups();
-
-Future<void> deleteDownloadedChapter(
-        {required PlatformInt64 mangaId,
-        required String volume,
-        required String number}) =>
-    RustLib.instance.api.crateApiStorageDeleteDownloadedChapter(
-        mangaId: mangaId, volume: volume, number: number);
-
-Future<void> deleteDownloadedManga({required PlatformInt64 mangaId}) =>
-    RustLib.instance.api.crateApiStorageDeleteDownloadedManga(mangaId: mangaId);
-
-Future<List<LibraryEntry>> getAllLibraryManga() =>
-    RustLib.instance.api.crateApiStorageGetAllLibraryManga();
-
-Future<void> markChapterRead(
-        {required PlatformInt64 mangaId,
-        required String volume,
-        required String number,
-        required PlatformInt64 pageIndex,
-        required PlatformInt64 totalPages,
-        required bool isCompleted}) =>
-    RustLib.instance.api.crateApiStorageMarkChapterRead(
-        mangaId: mangaId,
-        volume: volume,
-        number: number,
-        pageIndex: pageIndex,
-        totalPages: totalPages,
-        isCompleted: isCompleted);
-
-Future<ReadingStreakInfo> getReadingStreak() =>
-    RustLib.instance.api.crateApiStorageGetReadingStreak();
-
-Future<ReadingStreakInfo> recordChapterReadForStreak() =>
-    RustLib.instance.api.crateApiStorageRecordChapterReadForStreak();
-
-Future<ReadingStreakInfo> syncReadingStreak({required PlatformInt64 days}) =>
-    RustLib.instance.api.crateApiStorageSyncReadingStreak(days: days);
 
 Future<void> cacheChapters(
         {required PlatformInt64 mangaId, required List<Chapter> chapters}) =>
@@ -136,19 +39,24 @@ Future<void> updateMangaChaptersCount(
     RustLib.instance.api.crateApiStorageUpdateMangaChaptersCount(
         mangaId: mangaId, chaptersCount: chaptersCount);
 
-Future<List<ContinueReadingItem>> getContinueReadingManga() =>
-    RustLib.instance.api.crateApiStorageGetContinueReadingManga();
-
-Future<List<ChapterHistory>> getChapterHistory(
-        {required PlatformInt64 mangaId}) =>
-    RustLib.instance.api.crateApiStorageGetChapterHistory(mangaId: mangaId);
-
-Future<String> exportBackupJson() =>
-    RustLib.instance.api.crateApiStorageExportBackupJson();
-
-Future<bool> importBackupJson({required String jsonContent}) =>
+Future<void> addToList(
+        {required PlatformInt64 mangaId, required String listType}) =>
     RustLib.instance.api
-        .crateApiStorageImportBackupJson(jsonContent: jsonContent);
+        .crateApiStorageAddToList(mangaId: mangaId, listType: listType);
+
+Future<void> removeFromList(
+        {required PlatformInt64 mangaId, required String listType}) =>
+    RustLib.instance.api
+        .crateApiStorageRemoveFromList(mangaId: mangaId, listType: listType);
+
+Future<List<LibraryEntry>> getList({required String listType}) =>
+    RustLib.instance.api.crateApiStorageGetList(listType: listType);
+
+Future<List<LibraryEntry>> getAllLibraryManga() =>
+    RustLib.instance.api.crateApiStorageGetAllLibraryManga();
+
+Future<String?> getMangaListType({required PlatformInt64 mangaId}) =>
+    RustLib.instance.api.crateApiStorageGetMangaListType(mangaId: mangaId);
 
 Future<List<CustomUserList>> getCustomLists() =>
     RustLib.instance.api.crateApiStorageGetCustomLists();
@@ -194,23 +102,82 @@ Future<List<String>> getCustomTags({required PlatformInt64 mangaId}) =>
 Future<List<String>> getAllCustomTags() =>
     RustLib.instance.api.crateApiStorageGetAllCustomTags();
 
+Future<void> markChapterDownloaded(
+        {required PlatformInt64 mangaId,
+        required String volume,
+        required String number,
+        required PlatformInt64 pageCount,
+        required String downloadPath}) =>
+    RustLib.instance.api.crateApiStorageMarkChapterDownloaded(
+        mangaId: mangaId,
+        volume: volume,
+        number: number,
+        pageCount: pageCount,
+        downloadPath: downloadPath);
+
+Future<bool> isChapterDownloaded(
+        {required PlatformInt64 mangaId,
+        required String volume,
+        required String number}) =>
+    RustLib.instance.api.crateApiStorageIsChapterDownloaded(
+        mangaId: mangaId, volume: volume, number: number);
+
+Future<List<DownloadedChapterInfo>> getDownloadedChapters(
+        {required PlatformInt64 mangaId}) =>
+    RustLib.instance.api.crateApiStorageGetDownloadedChapters(mangaId: mangaId);
+
+Future<List<DownloadedChapterInfo>> getAllDownloadedChapters() =>
+    RustLib.instance.api.crateApiStorageGetAllDownloadedChapters();
+
+Future<List<DownloadedMangaGroup>> getDownloadedMangaGroups() =>
+    RustLib.instance.api.crateApiStorageGetDownloadedMangaGroups();
+
+Future<void> deleteDownloadedChapter(
+        {required PlatformInt64 mangaId,
+        required String volume,
+        required String number}) =>
+    RustLib.instance.api.crateApiStorageDeleteDownloadedChapter(
+        mangaId: mangaId, volume: volume, number: number);
+
+Future<void> deleteDownloadedManga({required PlatformInt64 mangaId}) =>
+    RustLib.instance.api.crateApiStorageDeleteDownloadedManga(mangaId: mangaId);
+
+Future<void> saveReadingProgress({required ReadingPosition progress}) =>
+    RustLib.instance.api.crateApiStorageSaveReadingProgress(progress: progress);
+
+Future<ReadingPosition?> getReadingProgress({required PlatformInt64 mangaId}) =>
+    RustLib.instance.api.crateApiStorageGetReadingProgress(mangaId: mangaId);
+
+Future<void> markChapterRead(
+        {required PlatformInt64 mangaId,
+        required String volume,
+        required String number,
+        required PlatformInt64 pageIndex,
+        required PlatformInt64 totalPages,
+        required bool isCompleted}) =>
+    RustLib.instance.api.crateApiStorageMarkChapterRead(
+        mangaId: mangaId,
+        volume: volume,
+        number: number,
+        pageIndex: pageIndex,
+        totalPages: totalPages,
+        isCompleted: isCompleted);
+
+Future<ReadingStreakInfo> getReadingStreak() =>
+    RustLib.instance.api.crateApiStorageGetReadingStreak();
+
+Future<ReadingStreakInfo> recordChapterReadForStreak() =>
+    RustLib.instance.api.crateApiStorageRecordChapterReadForStreak();
+
+Future<ReadingStreakInfo> syncReadingStreak({required PlatformInt64 days}) =>
+    RustLib.instance.api.crateApiStorageSyncReadingStreak(days: days);
+
+Future<List<ChapterHistory>> getChapterHistory(
+        {required PlatformInt64 mangaId}) =>
+    RustLib.instance.api.crateApiStorageGetChapterHistory(mangaId: mangaId);
+
 Future<ReadingStatistics> getReadingStatistics() =>
     RustLib.instance.api.crateApiStorageGetReadingStatistics();
-
-Future<String> exportMalXml() =>
-    RustLib.instance.api.crateApiStorageExportMalXml();
-
-Future<MalImportResult> importMalXml({required String xmlContent}) =>
-    RustLib.instance.api.crateApiStorageImportMalXml(xmlContent: xmlContent);
-
-Future<String?> getSetting({required String key}) =>
-    RustLib.instance.api.crateApiStorageGetSetting(key: key);
-
-Future<void> setSetting({required String key, required String value}) =>
-    RustLib.instance.api.crateApiStorageSetSetting(key: key, value: value);
-
-Future<List<AppSettingItem>> getAllSettings() =>
-    RustLib.instance.api.crateApiStorageGetAllSettings();
 
 Future<MangaRecapData> getMangaRecap() =>
     RustLib.instance.api.crateApiStorageGetMangaRecap();
@@ -222,6 +189,9 @@ Future<void> recordReadingSession(
 
 Future<ReadingSessionInfo> getReadingSessionStats() =>
     RustLib.instance.api.crateApiStorageGetReadingSessionStats();
+
+Future<AchievementSnapshot> getAchievementSnapshot() =>
+    RustLib.instance.api.crateApiStorageGetAchievementSnapshot();
 
 Future<List<ReadingHistoryItem>> getReadingHistory(
         {required PlatformInt64 limit, required PlatformInt64 offset}) =>
@@ -241,3 +211,33 @@ Future<void> clearReadingHistory() =>
 Future<List<RecommendedManga>> getRecommendations(
         {required PlatformInt64 limit}) =>
     RustLib.instance.api.crateApiStorageGetRecommendations(limit: limit);
+
+Future<List<ContinueReadingItem>> getContinueReadingManga() =>
+    RustLib.instance.api.crateApiStorageGetContinueReadingManga();
+
+Future<String?> getSetting({required String key}) =>
+    RustLib.instance.api.crateApiStorageGetSetting(key: key);
+
+Future<void> setSetting({required String key, required String value}) =>
+    RustLib.instance.api.crateApiStorageSetSetting(key: key, value: value);
+
+Future<List<AppSettingItem>> getAllSettings() =>
+    RustLib.instance.api.crateApiStorageGetAllSettings();
+
+Future<String> exportBackupJson() =>
+    RustLib.instance.api.crateApiStorageExportBackupJson();
+
+Future<bool> importBackupJson({required String jsonContent}) =>
+    RustLib.instance.api
+        .crateApiStorageImportBackupJson(jsonContent: jsonContent);
+
+Future<String> exportMalXml() =>
+    RustLib.instance.api.crateApiStorageExportMalXml();
+
+Future<MalImportResult> importMalXml({required String xmlContent}) =>
+    RustLib.instance.api.crateApiStorageImportMalXml(xmlContent: xmlContent);
+
+Future<List<MangaSearchResult>> searchLibrary(
+        {required String query, required PlatformInt64 limit}) =>
+    RustLib.instance.api
+        .crateApiStorageSearchLibrary(query: query, limit: limit);

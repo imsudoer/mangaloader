@@ -15,6 +15,7 @@ import 'package:mangaloader/widgets/reading_streak_button.dart';
 import 'package:mangaloader/widgets/continue_reading_section.dart';
 import 'package:mangaloader/services/streak_notification_service.dart';
 import 'package:mangaloader/services/content_filter.dart';
+import 'package:mangaloader/services/achievement_events.dart';
 import 'package:mangaloader/theme/app_tokens.dart';
 
 final homeDataProvider = FutureProvider.autoDispose<HomePageData>((ref) async {
@@ -94,13 +95,16 @@ class _HomePageState extends ConsumerState<HomePage> {
       appBar: AppBar(
         title: Row(
           children: [
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: AppTokens.accent,
-                borderRadius: BorderRadius.circular(8),
+            GestureDetector(
+              onTap: () => AchievementEvents.instance.increment('logo_taps'),
+              child: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: AppTokens.accent,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.menu_book_rounded, color: Colors.white, size: 20),
               ),
-              child: const Icon(Icons.menu_book_rounded, color: Colors.white, size: 20),
             ),
             const SizedBox(width: 10),
             const Text('Manga Loader', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 19)),
