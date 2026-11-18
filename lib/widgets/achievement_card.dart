@@ -659,9 +659,6 @@ class _AchievementDetailSheetState extends State<AchievementDetailSheet>
     final s = AchievementsStrings(widget.isRu);
     final a = widget.achievement;
     final hidden = a.isSecret && !a.isUnlocked;
-    final description = hidden
-        ? (widget.isRu ? a.hintRu : a.hintEn)
-        : (widget.isRu ? a.descRu : a.descEn);
     final title = hidden ? s.secretTitle : (widget.isRu ? a.titleRu : a.titleEn);
 
     return Container(
@@ -733,12 +730,6 @@ class _AchievementDetailSheetState extends State<AchievementDetailSheet>
                   Text(
                     s.rotateHint,
                     style: const TextStyle(color: Color(0xFF7D7D7D), fontSize: 11),
-                  ),
-                  const SizedBox(height: 14),
-                  Text(
-                    description,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: Color(0xFFCFCAC2), fontSize: 13, height: 1.45),
                   ),
                   if (!a.isUnlocked && a.maxProgress > 1) ...[
                     const SizedBox(height: 14),
