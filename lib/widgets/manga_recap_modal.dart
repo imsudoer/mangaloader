@@ -191,22 +191,22 @@ class _MangaRecapModalState extends ConsumerState<MangaRecapModal> {
                       _buildLayoutPicker(s, layout),
                       const SizedBox(height: 14),
                       Center(
-                        child: AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 240),
-                          switchInCurve: Curves.easeOutCubic,
-                          switchOutCurve: Curves.easeIn,
-                          transitionBuilder: (child, animation) => FadeTransition(
-                            opacity: animation,
-                            child: SlideTransition(
-                              position: Tween<Offset>(
-                                begin: const Offset(0, 0.02),
-                                end: Offset.zero,
-                              ).animate(animation),
-                              child: child,
+                        child: RepaintBoundary(
+                          key: _cardKey,
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 240),
+                            switchInCurve: Curves.easeOutCubic,
+                            switchOutCurve: Curves.easeIn,
+                            transitionBuilder: (child, animation) => FadeTransition(
+                              opacity: animation,
+                              child: SlideTransition(
+                                position: Tween<Offset>(
+                                  begin: const Offset(0, 0.02),
+                                  end: Offset.zero,
+                                ).animate(animation),
+                                child: child,
+                              ),
                             ),
-                          ),
-                          child: RepaintBoundary(
-                            key: _cardKey,
                             child: RecapCard(
                               key: ValueKey('${style.name}-${layout.name}'),
                               data: recap,
