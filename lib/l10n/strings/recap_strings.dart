@@ -31,4 +31,20 @@ class RecapStrings extends AppStrings {
   String chapters(String value) => isRu ? '$value гл.' : '$value ch.';
   String get shareCard =>
       isRu ? 'Поделиться карточкой итогов' : 'Share Recap Card';
+
+  String get styleLabel => isRu ? 'Стиль' : 'Style';
+  String get layoutLabel => isRu ? 'Вид' : 'Layout';
+  String get styleNight => isRu ? 'Ночь' : 'Night';
+  String get stylePaper => isRu ? 'Бумага' : 'Paper';
+  String get styleNeon => isRu ? 'Неон' : 'Neon';
+  String get styleKimono => isRu ? 'Кимоно' : 'Kimono';
+  String get layoutPoster => isRu ? 'Постер' : 'Poster';
+  String get layoutDossier => isRu ? 'Досье' : 'Dossier';
+  String get layoutTimeline => isRu ? 'Таймлайн' : 'Timeline';
+  String get activeDaysTitle => isRu ? 'Активных дней' : 'Active Days';
+  String get timeOfDayTitle => isRu ? 'Когда я читаю' : 'When I Read';
+  String get nightLabel => isRu ? 'Ночь' : 'Night';
+  String get morningLabel => isRu ? 'Утро' : 'Morning';
+  String get dayLabel => isRu ? 'День' : 'Day';
+  String get eveningLabel => isRu ? 'Вечер' : 'Evening';
 }

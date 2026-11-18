@@ -3,7 +3,6 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:mangaloader/l10n/strings/recap_strings.dart';
@@ -12,6 +11,7 @@ import 'package:mangaloader/src/rust/api/storage.dart' as rust_storage;
 import 'package:mangaloader/src/rust/api/models.dart';
 import 'package:mangaloader/services/content_filter.dart';
 import 'package:mangaloader/theme/app_tokens.dart';
+import 'package:mangaloader/widgets/recap_card.dart';
 
 class MangaRecapModal extends ConsumerStatefulWidget {
   const MangaRecapModal({super.key});
@@ -31,7 +31,28 @@ class MangaRecapModal extends ConsumerStatefulWidget {
 
 class _MangaRecapModalState extends ConsumerState<MangaRecapModal> {
   final GlobalKey _cardKey = GlobalKey();
+  late Future<MangaRecapData> _recapFuture;
   bool _isExporting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _recapFuture = rust_storage.getMangaRecap();
+  }
+
+  void _reload() {
+    setState(() => _recapFuture = rust_storage.getMangaRecap());
+  }
+
+  RecapStylePreset _styleOf(String value) => RecapStylePreset.values.firstWhere(
+        (style) => style.name == value,
+        orElse: () => RecapStylePreset.night,
+      );
+
+  RecapLayout _layoutOf(String value) => RecapLayout.values.firstWhere(
+        (layout) => layout.name == value,
+        orElse: () => RecapLayout.poster,
+      );
 
   Future<void> _shareRecapCard(bool isRu) async {
     final s = RecapStrings(isRu);
@@ -64,9 +85,7 @@ class _MangaRecapModalState extends ConsumerState<MangaRecapModal> {
         );
       }
     } finally {
-      if (mounted) {
-        setState(() => _isExporting = false);
-      }
+      if (mounted) setState(() => _isExporting = false);
     }
   }
 
@@ -75,11 +94,13 @@ class _MangaRecapModalState extends ConsumerState<MangaRecapModal> {
     final isRu = Localizations.localeOf(context).languageCode == 'ru';
     final s = RecapStrings(isRu);
     final userProfile = ref.watch(currentUserProfileProvider);
+    final style = _styleOf(ref.watch(recapStyleProvider));
+    final layout = _layoutOf(ref.watch(recapLayoutProvider));
 
     return Container(
-      height: MediaQuery.of(context).size.height * 0.9,
+      height: MediaQuery.sizeOf(context).height * 0.92,
       decoration: const BoxDecoration(
-        color: Color(0xFF161616),
+        color: Color(0xFF111111),
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Column(
@@ -96,19 +117,25 @@ class _MangaRecapModalState extends ConsumerState<MangaRecapModal> {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            padding: const EdgeInsets.fromLTRB(20, 12, 10, 8),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    const Icon(Icons.auto_awesome_rounded, color: AppTokens.accent, size: 22),
-                    const SizedBox(width: 10),
-                    Text(
-                      s.title,
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
-                    ),
-                  ],
+                const Icon(Icons.auto_awesome_rounded, color: AppTokens.accent, size: 22),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        s.title,
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                      ),
+                      Text(
+                        isRu ? 'Твой год в цифрах и обложках' : 'Your year in numbers and covers',
+                        style: const TextStyle(fontSize: 11.5, color: AppTokens.textSecondary),
+                      ),
+                    ],
+                  ),
                 ),
                 IconButton(
                   icon: const Icon(Icons.close_rounded, color: Colors.white70),
@@ -119,240 +146,81 @@ class _MangaRecapModalState extends ConsumerState<MangaRecapModal> {
           ),
           Expanded(
             child: FutureBuilder<MangaRecapData>(
-              future: rust_storage.getMangaRecap(),
+              future: _recapFuture,
               builder: (ctx, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
-
                 if (snapshot.hasError || snapshot.data == null) {
                   return Center(
-                    child: Text(
-                      s.loadFailed,
-                      style: const TextStyle(color: AppTokens.textSecondary),
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.insights_rounded, size: 42, color: AppTokens.textSecondary),
+                          const SizedBox(height: 12),
+                          Text(
+                            s.loadFailed,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(color: AppTokens.textSecondary),
+                          ),
+                          const SizedBox(height: 14),
+                          FilledButton.tonal(onPressed: _reload, child: Text(isRu ? 'Повторить' : 'Retry')),
+                        ],
+                      ),
                     ),
                   );
                 }
 
                 final recap = snapshot.data!;
-                // Regulatory filter: a recap card may expose titles that are
-                // prohibited in the RuStore build.
                 final topManga = recap.topManga
                     .where((m) =>
                         !ContentFilter.isBlockedText(m.name) &&
                         !ContentFilter.isBlockedText(m.rusName))
                     .toList();
+                final cardWidth = (MediaQuery.sizeOf(context).width - 48).clamp(300.0, 400.0);
 
                 return SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.fromLTRB(16, 2, 16, 20),
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // The Shareable Recap Card (RepaintBoundary)
-                      RepaintBoundary(
-                        key: _cardKey,
-                        child: Container(
-                          padding: const EdgeInsets.all(20),
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFF262626), Color(0xFF1A1A1A)],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
+                      _buildStylePicker(s, style),
+                      const SizedBox(height: 10),
+                      _buildLayoutPicker(s, layout),
+                      const SizedBox(height: 14),
+                      Center(
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 240),
+                          switchInCurve: Curves.easeOutCubic,
+                          switchOutCurve: Curves.easeIn,
+                          transitionBuilder: (child, animation) => FadeTransition(
+                            opacity: animation,
+                            child: SlideTransition(
+                              position: Tween<Offset>(
+                                begin: const Offset(0, 0.02),
+                                end: Offset.zero,
+                              ).animate(animation),
+                              child: child,
                             ),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: AppTokens.borderStrong, width: 1.2),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.5),
-                                blurRadius: 16,
-                                offset: const Offset(0, 8),
-                              ),
-                            ],
                           ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // Card Header with Logo / User
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.all(8),
-                                        decoration: BoxDecoration(
-                                          color: AppTokens.accent.withValues(alpha: 0.25),
-                                          borderRadius: BorderRadius.circular(10),
-                                        ),
-                                        child: const Icon(Icons.menu_book_rounded, color: AppTokens.textPrimary, size: 20),
-                                      ),
-                                      const SizedBox(width: 10),
-                                      Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          const Text(
-                                            'MANGA LOADER',
-                                            style: TextStyle(
-                                              color: AppTokens.textPrimary,
-                                              fontWeight: FontWeight.w900,
-                                              letterSpacing: 1.2,
-                                              fontSize: 13,
-                                            ),
-                                          ),
-                                          Text(
-                                            userProfile != null ? userProfile.username : s.summaryFallback,
-                                            style: const TextStyle(color: AppTokens.accent, fontSize: 11),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF383838),
-                                      borderRadius: BorderRadius.circular(20),
-                                    ),
-                                    child: Text(
-                                      '${DateTime.now().year}',
-                                      style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 20),
-
-                              // Big Stats Row
-                              Row(
-                                children: [
-                                  _buildStatBlock(
-                                    title: s.chaptersReadTitle,
-                                    value: '${recap.totalChaptersRead}',
-                                    icon: Icons.check_circle_outline_rounded,
-                                    color: AppTokens.accent,
-                                  ),
-                                  const SizedBox(width: 12),
-                                  _buildStatBlock(
-                                    title: s.pagesReadTitle,
-                                    value: '${recap.totalPagesRead}',
-                                    icon: Icons.pages_rounded,
-                                    color: const Color(0xFF6B8E23),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-                              Row(
-                                children: [
-                                  _buildStatBlock(
-                                    title: s.hoursTitle,
-                                    value: s.hours('${recap.estimatedReadingHours}'),
-                                    icon: Icons.timer_outlined,
-                                    color: const Color(0xFF4682B4),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  _buildStatBlock(
-                                    title: s.maxStreakTitle,
-                                    value: s.streakDays('${recap.maxStreak}'),
-                                    icon: Icons.local_fire_department_rounded,
-                                    color: Colors.orange,
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 20),
-
-                              // Top Genres
-                              if (recap.topGenres.isNotEmpty) ...[
-                                Text(
-                                  s.favoriteGenres,
-                                  style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
-                                ),
-                                const SizedBox(height: 10),
-                                ...recap.topGenres.take(3).map((g) => Padding(
-                                      padding: const EdgeInsets.only(bottom: 8),
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Row(
-                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                            children: [
-                                              Text(g.name, style: const TextStyle(color: AppTokens.textPrimary, fontSize: 12)),
-                                              Text('${g.percentage}%', style: const TextStyle(color: AppTokens.accent, fontSize: 12, fontWeight: FontWeight.bold)),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 4),
-                                          ClipRRect(
-                                            borderRadius: BorderRadius.circular(4),
-                                            child: LinearProgressIndicator(
-                                              value: g.percentage / 100.0,
-                                              backgroundColor: const Color(0xFF333333),
-                                              valueColor: const AlwaysStoppedAnimation(AppTokens.accent),
-                                              minHeight: 6,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    )),
-                                const SizedBox(height: 14),
-                              ],
-
-                              // Top Manga Read
-                              if (topManga.isNotEmpty) ...[
-                                Text(
-                                  s.topReadManga,
-                                  style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
-                                ),
-                                const SizedBox(height: 10),
-                                ...topManga.take(3).map((m) {
-                                  final title = m.rusName.isNotEmpty ? m.rusName : m.name;
-                                  return Padding(
-                                    padding: const EdgeInsets.only(bottom: 8),
-                                    child: Row(
-                                      children: [
-                                        ClipRRect(
-                                          borderRadius: BorderRadius.circular(6),
-                                          child: SizedBox(
-                                            width: 32,
-                                            height: 44,
-                                            child: m.coverUrl.isNotEmpty
-                                                ? CachedNetworkImage(
-                                                    imageUrl: m.coverUrl,
-                                                    fit: BoxFit.cover,
-                                                    errorWidget: (_, __, ___) => const Icon(Icons.image, size: 16),
-                                                  )
-                                                : const Icon(Icons.image, size: 16),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 10),
-                                        Expanded(
-                                          child: Text(
-                                            title,
-                                            style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                          decoration: BoxDecoration(
-                                            color: const Color(0xFF333333),
-                                            borderRadius: BorderRadius.circular(8),
-                                          ),
-                                          child: Text(
-                                            s.chapters('${m.chaptersRead}'),
-                                            style: const TextStyle(color: AppTokens.textPrimary, fontSize: 11),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                }),
-                              ],
-                            ],
+                          child: RepaintBoundary(
+                            key: _cardKey,
+                            child: RecapCard(
+                              key: ValueKey('${style.name}-${layout.name}'),
+                              data: recap,
+                              topManga: topManga,
+                              style: style,
+                              layout: layout,
+                              width: cardWidth,
+                              isRu: isRu,
+                              username: userProfile?.username,
+                            ),
                           ),
                         ),
                       ),
-                      const SizedBox(height: 20),
-
-                      // Share Action Button
+                      const SizedBox(height: 18),
                       FilledButton.icon(
                         style: FilledButton.styleFrom(
                           backgroundColor: AppTokens.accent,
@@ -362,14 +230,17 @@ class _MangaRecapModalState extends ConsumerState<MangaRecapModal> {
                         ),
                         onPressed: _isExporting ? null : () => _shareRecapCard(isRu),
                         icon: _isExporting
-                            ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              )
                             : const Icon(Icons.share_rounded, size: 20),
                         label: Text(
                           s.shareCard,
                           style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
                         ),
                       ),
-                      const SizedBox(height: 20),
                     ],
                   ),
                 );
@@ -381,34 +252,146 @@ class _MangaRecapModalState extends ConsumerState<MangaRecapModal> {
     );
   }
 
-  Widget _buildStatBlock({
-    required String title,
-    required String value,
-    required IconData icon,
-    required Color color,
-  }) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(14),
+  Widget _sectionLabel(String text) => Padding(
+        padding: const EdgeInsets.only(left: 2, bottom: 6),
+        child: Text(
+          text.toUpperCase(),
+          style: const TextStyle(
+            color: AppTokens.textSecondary,
+            fontSize: 9.5,
+            letterSpacing: 1.1,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      );
+
+  Widget _buildStylePicker(RecapStrings s, RecapStylePreset selected) {
+    final options = [
+      (RecapStylePreset.night, s.styleNight),
+      (RecapStylePreset.paper, s.stylePaper),
+      (RecapStylePreset.neon, s.styleNeon),
+      (RecapStylePreset.kimono, s.styleKimono),
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionLabel(s.styleLabel),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              for (var i = 0; i < options.length; i++) ...[
+                if (i > 0) const SizedBox(width: 8),
+                _styleChip(options[i].$1, options[i].$2, options[i].$1 == selected),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _styleChip(RecapStylePreset style, String label, bool selected) {
+    final palette = RecapPalette.of(style);
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: () => ref.read(recapStyleProvider.notifier).set(style.name),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
         decoration: BoxDecoration(
-          color: const Color(0xFF222222),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppTokens.border),
+          color: selected ? AppTokens.accent.withValues(alpha: 0.18) : AppTokens.surfaceRaised,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected ? AppTokens.accent : AppTokens.borderStrong,
+            width: selected ? 1.2 : 0.8,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 18,
+              height: 18,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(colors: palette.background),
+                shape: BoxShape.circle,
+                border: Border.all(color: palette.accent, width: 1.5),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: selected ? FontWeight.bold : FontWeight.w500,
+                color: selected ? Colors.white : AppTokens.textPrimary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLayoutPicker(RecapStrings s, RecapLayout selected) {
+    final options = [
+      (RecapLayout.poster, s.layoutPoster, Icons.grid_view_rounded),
+      (RecapLayout.dossier, s.layoutDossier, Icons.article_outlined),
+      (RecapLayout.timeline, s.layoutTimeline, Icons.view_timeline_outlined),
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionLabel(s.layoutLabel),
+        Row(
+          children: [
+            for (var i = 0; i < options.length; i++) ...[
+              if (i > 0) const SizedBox(width: 8),
+              Expanded(
+                child: _layoutChip(
+                  options[i].$1,
+                  options[i].$2,
+                  options[i].$3,
+                  options[i].$1 == selected,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _layoutChip(RecapLayout layout, String label, IconData icon, bool selected) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: () => ref.read(recapLayoutProvider.notifier).set(layout.name),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
+        decoration: BoxDecoration(
+          color: selected ? AppTokens.accent.withValues(alpha: 0.18) : AppTokens.surfaceRaised,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected ? AppTokens.accent : AppTokens.borderStrong,
+            width: selected ? 1.2 : 0.8,
+          ),
         ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(title, style: const TextStyle(color: AppTokens.textSecondary, fontSize: 11)),
-                Icon(icon, size: 16, color: color),
-              ],
-            ),
-            const SizedBox(height: 6),
+            Icon(icon, size: 17, color: selected ? AppTokens.accent : AppTokens.textSecondary),
+            const SizedBox(height: 3),
             Text(
-              value,
-              style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 10.5,
+                fontWeight: selected ? FontWeight.bold : FontWeight.w500,
+                color: selected ? Colors.white : AppTokens.textPrimary,
+              ),
             ),
           ],
         ),
