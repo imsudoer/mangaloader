@@ -18,6 +18,8 @@ import 'package:mangaloader/services/download_queue_service.dart';
 import 'package:mangaloader/widgets/download_button.dart';
 import 'package:mangaloader/widgets/skeleton.dart';
 import 'package:mangaloader/widgets/error_placeholder.dart';
+import 'package:mangaloader/widgets/cover_tilt.dart';
+import 'package:mangaloader/widgets/manga_cover_showcase.dart';
 import 'package:mangaloader/widgets/manga_card.dart' show coverHeroTag;
 import 'package:mangaloader/widgets/manga_share_modal.dart';
 import 'package:go_router/go_router.dart';
@@ -328,7 +330,18 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Cover Thumbnail
-                    ClipRRect(
+                    GestureDetector(
+                      onTap: () => MangaCoverShowcase.show(
+                        context,
+                        title: manga.rusName.isNotEmpty ? manga.rusName : manga.name,
+                        coverUrl: manga.coverUrl,
+                        rating: manga.ratingAverage,
+                        isRu: isRu,
+                      ),
+                      child: CoverTilt(
+                      borderRadius: 8,
+                      foil: (double.tryParse(manga.ratingAverage) ?? 0) >= 9,
+                      child: ClipRRect(
                       borderRadius: BorderRadius.circular(8),
                       child: Container(
                         decoration: BoxDecoration(
@@ -350,6 +363,8 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                           ),
                         ),
                       ),
+                      ),
+                    ),
                     ),
                     const SizedBox(width: 12),
 

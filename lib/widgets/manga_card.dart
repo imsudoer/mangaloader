@@ -6,6 +6,7 @@ import 'package:mangaloader/src/rust/api/models.dart';
 import 'package:mangaloader/providers/library_provider.dart';
 import 'package:mangaloader/theme/app_tokens.dart';
 import 'package:mangaloader/utils/search_highlight.dart';
+import 'package:mangaloader/widgets/cover_tilt.dart';
 
 /// Tag shared by a cover thumbnail and the large cover on the details header.
 String coverHeroTag(String slugUrl) => 'cover-$slugUrl';
@@ -246,7 +247,9 @@ class MangaCard extends ConsumerWidget {
     final libBadge = showLibraryBadge ? _buildLibraryStatusBadge(context, ref) : null;
     final ratingNum = double.tryParse(manga.ratingAverage) ?? 0.0;
 
-    return Container(
+    return CoverTilt(
+      foil: ratingNum >= 9,
+      child: Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
         boxShadow: const [
@@ -363,6 +366,7 @@ class MangaCard extends ConsumerWidget {
             ],
           ),
         ),
+      ),
       ),
     );
   }
