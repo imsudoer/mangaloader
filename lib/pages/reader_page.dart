@@ -148,7 +148,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   final FocusNode _focusNode = FocusNode();
   
   bool _isJumping = false;
-  Timer? _sliderDebounceTimer;
+  bool _isScrubbing = false;
   double _titleDragDx = 0;
 
   bool _autoNextChapter = false;
@@ -575,7 +575,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
   void _onVerticalScroll() {
     if (_readMode != ReadMode.vertical || !_scrollController.hasClients || _totalPages <= 1) return;
-    if (_isJumping) return;
+    if (_isJumping || _isScrubbing) return;
     
     final currentVisible = _findVisiblePageIndex();
     
@@ -618,7 +618,6 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     _scrollController.removeListener(_onVerticalScroll);
     _stopAutoScroll();
     _saveTimer?.cancel();
-    _sliderDebounceTimer?.cancel();
     _showControlsNotifier.dispose();
     _pageIndexNotifier.dispose();
     if (_mangaId > 0 && _totalPages > 0) {
@@ -2013,17 +2012,18 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                                       max: (_totalPages - 1).toDouble(),
                                       activeColor: AppTokens.accent,
                                       inactiveColor: AppTokens.border,
+                                      onChangeStart: (_) => _isScrubbing = true,
                                       onChanged: (val) {
+                                        // Move the thumb and the counter while dragging; the
+                                        // viewer jumps once the finger is released.
+                                        _pageIndexNotifier.value = val.round();
+                                      },
+                                      onChangeEnd: (val) {
+                                        _isScrubbing = false;
                                         final target = val.round();
-                                        // Update visual indicator immediately
-                                        _pageIndexNotifier.value = target;
-                                        // Debounce the actual scroll jump
-                                        _sliderDebounceTimer?.cancel();
-                                        _sliderDebounceTimer = Timer(const Duration(milliseconds: 150), () {
-                                          if (mounted && target != _currentPageIndex) {
-                                            _jumpToPageIndex(target);
-                                          }
-                                        });
+                                        if (target != _currentPageIndex) {
+                                          _jumpToPageIndex(target);
+                                        }
                                       },
                                     ),
                                   Row(
