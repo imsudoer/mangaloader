@@ -3,9 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:mangaloader/theme/app_tokens.dart';
 import 'package:mangaloader/services/achievement_events.dart';
 
-/// Shared failure state: explains what happened instead of printing a raw
-/// exception, offers a retry, and hides the technical log behind a small copy
-/// button so it can be sent to support without cluttering the screen.
+/// Error state with an explanation, retry and an optional copy-log action.
 class ErrorPlaceholder extends StatelessWidget {
   const ErrorPlaceholder({
     super.key,

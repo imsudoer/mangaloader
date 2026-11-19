@@ -5,9 +5,7 @@ import 'package:mangaloader/theme/app_tokens.dart';
 
 enum SocialAction { vote, comment }
 
-/// Bottom sheet that explains why a social action needs an account. Replaces the
-/// old snackbar, which belonged to the root scaffold messenger and stayed on the
-/// previous screen after the reader was closed.
+/// Sign-in prompt for votes and comments.
 class SocialAuthSheet {
   static Future<void> show(BuildContext context, SocialAction action) async {
     final s = CommentsStrings.of(context);

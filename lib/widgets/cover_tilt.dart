@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 
-/// Gives manga covers a tactile 3D press: the card tilts toward the finger,
-/// catches a moving highlight and springs back on release. A raw [Listener] is
-/// used on purpose so scrolling and the card's own tap stay untouched.
+/// Tilts a cover while a pointer is down and restores it on release. The raw
+/// Listener leaves scrolling and the card's own tap untouched.
 class CoverTilt extends StatefulWidget {
   const CoverTilt({
     super.key,
@@ -16,7 +15,7 @@ class CoverTilt extends StatefulWidget {
   final Widget child;
   final double borderRadius;
 
-  /// Adds a permanent iridescent sheen for exceptional covers (9+ rating).
+  /// Permanent iridescent sheen for covers rated 9+.
   final bool foil;
   final bool enabled;
   final double maxTilt;

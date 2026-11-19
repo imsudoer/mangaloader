@@ -231,7 +231,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         : ReaderStrings(ref.read(localeProvider)?.languageCode != 'en')
             .chapterTitle(widget.volume, widget.number);
     _updateWindowTitle();
-    _loadChapter();
+    // Localizations are not readable during initState, so the first load waits
+    // for the first frame.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _loadChapter();
+    });
   }
 
   void _restorePreferences() {
@@ -498,7 +502,18 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
   int _findVisiblePageIndex() {
     if (_totalPages <= 1 || !_scrollController.hasClients) return 0;
-    final target = _scrollController.offset + MediaQuery.of(context).size.height * 0.35;
+    final focusY = MediaQuery.of(context).size.height * 0.35;
+
+    // Mounted pages report their real box, which stays correct while the images
+    // decode; the estimated list below is only needed for off-screen targets.
+    for (int i = 0; i < _pageKeys.length; i++) {
+      final box = _pageKeys[i].currentContext?.findRenderObject() as RenderBox?;
+      if (box == null || !box.hasSize) continue;
+      final top = box.localToGlobal(Offset.zero).dy;
+      if (top <= focusY && top + box.size.height > focusY) return i;
+    }
+
+    final target = _scrollController.offset + focusY;
     final fallback = _fallbackPageHeight();
     double accumulated = 0;
     for (int i = 0; i < _totalPages; i++) {
@@ -509,7 +524,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   }
 
   void _onPageMeasured(int index, double height) {
-    if (height <= 0) return;
+    // A page that is still decoding lays out at its padding height, which must
+    // not overwrite the real measurement of the previous frame.
+    if (height < 16) return;
     final previous = _pageHeights[index];
     if (previous == null || (previous - height).abs() > 0.5) {
       _pageHeights[index] = height;
@@ -3642,6 +3659,7 @@ class _VerticalReaderPageItemState extends State<_VerticalReaderPageItem> {
   bool _isLoadingCbz = false;
   bool _cbzError = false;
   double _reportedHeight = 0;
+  bool _probesScheduled = false;
 
   @override
   void initState() {
@@ -3664,9 +3682,23 @@ class _VerticalReaderPageItemState extends State<_VerticalReaderPageItem> {
     if (!mounted) return;
     final box = context.findRenderObject() as RenderBox?;
     if (box == null || !box.hasSize) return;
+    // Padding-only frames while the bitmap decodes are not page heights.
+    if (box.size.height < 16) return;
     if ((box.size.height - _reportedHeight).abs() < 1.0) return;
     _reportedHeight = box.size.height;
     widget.onMeasuredHeight(box.size.height);
+  }
+
+  /// The decoded bitmap can replace the placeholder several frames after the last
+  /// build, so keep probing while it settles instead of trusting the first size.
+  void _scheduleHeightProbes() {
+    if (_probesScheduled) return;
+    _probesScheduled = true;
+    for (final delay in const [0, 120, 400, 900]) {
+      Future<void>.delayed(Duration(milliseconds: delay), () {
+        if (mounted) _reportHeight();
+      });
+    }
   }
 
   void _loadCbzBytes() async {
@@ -3680,6 +3712,7 @@ class _VerticalReaderPageItemState extends State<_VerticalReaderPageItem> {
           _cbzError = bytes == null;
           _isLoadingCbz = false;
         });
+        _scheduleHeightProbes();
       }
     } catch (_) {
       if (mounted) {
@@ -3687,6 +3720,7 @@ class _VerticalReaderPageItemState extends State<_VerticalReaderPageItem> {
           _cbzError = true;
           _isLoadingCbz = false;
         });
+        _scheduleHeightProbes();
       }
     }
   }
@@ -3760,13 +3794,16 @@ class _VerticalReaderPageItemState extends State<_VerticalReaderPageItem> {
         filterQuality: FilterQuality.high,
         memCacheWidth: cacheWidth,
         memCacheHeight: cacheHeight,
-        // Do NOT set width/height on CachedNetworkImage — use imageBuilder for proper sizing
-        imageBuilder: (ctx, imageProvider) => Image(
-          image: imageProvider,
-          width: itemWidth,
-          fit: BoxFit.fitWidth,
-          filterQuality: FilterQuality.high,
-        ),
+        // Width/height on CachedNetworkImage break sizing; imageBuilder sizes the image itself.
+        imageBuilder: (ctx, imageProvider) {
+          _scheduleHeightProbes();
+          return Image(
+            image: imageProvider,
+            width: itemWidth,
+            fit: BoxFit.fitWidth,
+            filterQuality: FilterQuality.high,
+          );
+        },
         placeholder: (ctx, url) => Container(
           width: itemWidth,
           height: placeholderHeight,
@@ -3815,11 +3852,21 @@ class _VerticalReaderPageItemState extends State<_VerticalReaderPageItem> {
 
     // Use Align + ConstrainedBox: width is bounded to itemWidth, height is unconstrained.
     // This prevents tall images from being vertically compressed.
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 1),
-      child: Align(
-        alignment: Alignment.center,
-        child: widget.applyColorFilter(content),
+    return SizeChangedLayoutNotifier(
+      child: NotificationListener<SizeChangedLayoutNotification>(
+        onNotification: (_) {
+          // The bitmap arrives after the first layout, so the real height has to
+          // be reported again instead of keeping the placeholder estimate.
+          WidgetsBinding.instance.addPostFrameCallback((_) => _reportHeight());
+          return true;
+        },
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 1),
+          child: Align(
+            alignment: Alignment.center,
+            child: widget.applyColorFilter(content),
+          ),
+        ),
       ),
     );
   }

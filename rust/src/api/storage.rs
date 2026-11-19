@@ -264,9 +264,7 @@ pub async fn init_database(app_dir: String) -> Result<()> {
     Ok(())
 }
 
-// ---------------------------------------------------------------------------
 // Manga cache
-// ---------------------------------------------------------------------------
 
 pub async fn save_manga(manga: MangaDetails) -> Result<()> {
     manga::save_manga(manga)
@@ -295,9 +293,7 @@ pub async fn update_manga_chapters_count(manga_id: i64, chapters_count: i64) -> 
     manga::update_manga_chapters_count(manga_id, chapters_count)
 }
 
-// ---------------------------------------------------------------------------
 // Library lists, custom lists and custom tags
-// ---------------------------------------------------------------------------
 
 pub async fn add_to_list(manga_id: i64, list_type: String) -> Result<()> {
     library::add_to_list(manga_id, &list_type)
@@ -363,9 +359,7 @@ pub async fn get_all_custom_tags() -> Result<Vec<String>> {
     library::get_all_custom_tags()
 }
 
-// ---------------------------------------------------------------------------
 // Downloads
-// ---------------------------------------------------------------------------
 
 pub async fn mark_chapter_downloaded(
     manga_id: i64,
@@ -409,9 +403,7 @@ pub async fn delete_downloaded_manga(manga_id: i64) -> Result<()> {
     downloads::delete_downloaded_manga(manga_id)
 }
 
-// ---------------------------------------------------------------------------
 // Reading progress, history, streaks and statistics
-// ---------------------------------------------------------------------------
 
 pub async fn save_reading_progress(progress: ReadingPosition) -> Result<()> {
     stats::save_reading_progress(progress)
@@ -492,9 +484,7 @@ pub async fn get_continue_reading_manga() -> Result<Vec<ContinueReadingItem>> {
     stats::get_continue_reading_manga()
 }
 
-// ---------------------------------------------------------------------------
 // Settings and import/export
-// ---------------------------------------------------------------------------
 
 pub async fn get_setting(key: String) -> Result<Option<String>> {
     settings::get_setting(key)
@@ -524,9 +514,7 @@ pub async fn import_mal_xml(xml_content: String) -> Result<MalImportResult> {
     settings::import_mal_xml(xml_content)
 }
 
-// ---------------------------------------------------------------------------
 // Offline search
-// ---------------------------------------------------------------------------
 
 pub async fn search_library(query: String, limit: i64) -> Result<Vec<MangaSearchResult>> {
     search::search_library(query, limit)
