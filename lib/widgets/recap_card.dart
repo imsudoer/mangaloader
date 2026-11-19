@@ -92,8 +92,7 @@ class RecapPalette {
   }
 }
 
-/// Shareable recap card. All visual choices live here so the modal can render
-/// exactly the same widget that is exported to an image.
+/// Recap card used for the preview and the exported image.
 class RecapCard extends StatelessWidget {
   const RecapCard({
     super.key,

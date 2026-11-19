@@ -212,9 +212,9 @@ class StreakNotificationService {
     }
   }
 
-  /// Posts a per-chapter notification, unless quiet hours are active or the user
-  /// asked for one daily digest — then the event is merged into [digestStateKey]
-  /// and posted later by [flushDigestIfDue].
+  /// Posts a per-chapter notification unless quiet hours are active or a daily
+  /// digest is requested. Digest events merge into [digestStateKey] and are
+  /// posted later by [flushDigestIfDue].
   static Future<void> showChapterUpdateNotification({
     required int mangaId,
     required String mangaTitle,

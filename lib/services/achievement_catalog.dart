@@ -5,8 +5,6 @@ import 'package:mangaloader/models/achievement.dart';
 import 'package:mangaloader/services/achievement_events.dart';
 import 'package:mangaloader/src/rust/api/models.dart';
 
-/// Everything the extra achievements need. The catalog itself stays a pure
-/// function of this data so the provider only has to fetch the snapshot once.
 class AchievementData {
   const AchievementData({
     required this.snapshot,
@@ -55,9 +53,6 @@ class AchievementData {
   final DateTime now;
 }
 
-/// Adds the new achievements to the original streak/chapter/library/download
-/// set. Exact duplicates of milestones that already exist are intentionally not
-/// repeated: their old cards keep the unlock and XP.
 List<Achievement> buildExtraAchievements(AchievementData d) {
   final snap = d.snapshot;
   final manga = snap.manga;
@@ -175,7 +170,6 @@ List<Achievement> buildExtraAchievements(AchievementData d) {
   bool hasReturnAfterGap() {
     for (var i = 1; i < dates.length; i++) {
       if (dates[i].difference(dates[i - 1]).inDays <= 1) continue;
-      // Three consecutive days after the pause.
       final run = [dates[i]];
       for (var j = i + 1; j < dates.length && run.length < 3; j++) {
         if (dates[j].difference(run.last).inDays == 1) {
@@ -264,7 +258,6 @@ List<Achievement> buildExtraAchievements(AchievementData d) {
   final prefetchOn = d.prefetchNeighbours;
 
   final list = <Achievement>[
-    // ---------------- Volume and reading rhythm ----------------
     _make(
       id: 'extra_chap_10',
       category: AchievementCategory.chapters,
@@ -384,7 +377,6 @@ List<Achievement> buildExtraAchievements(AchievementData d) {
       current: snap.totalReadingSeconds.toInt(),
     ),
 
-    // ---------------- Time and streaks ----------------
     _make(
       id: 'extra_return',
       category: AchievementCategory.streak,
@@ -498,7 +490,6 @@ List<Achievement> buildExtraAchievements(AchievementData d) {
       current: seasons.length >= 4 ? 1 : 0,
     ),
 
-    // ---------------- Genres and formats ----------------
     _make(
       id: 'extra_genres_5',
       category: AchievementCategory.special,
@@ -638,7 +629,6 @@ List<Achievement> buildExtraAchievements(AchievementData d) {
       current: hasFreshTitle() ? 1 : 0,
     ),
 
-    // ---------------- Title-bound ----------------
     titleCard(
       id: 'title_horimiya',
       titleRu: 'Соседи по парте',
@@ -870,7 +860,6 @@ List<Achievement> buildExtraAchievements(AchievementData d) {
       descEn: 'Read 10 chapters of Blue Lock',
     ),
 
-    // ---------------- Library ----------------
     _make(
       id: 'extra_all_categories',
       category: AchievementCategory.library,
@@ -957,7 +946,6 @@ List<Achievement> buildExtraAchievements(AchievementData d) {
       current: completedInSameGenre(),
     ),
 
-    // ---------------- Downloads and offline ----------------
     _make(
       id: 'extra_archive_100',
       category: AchievementCategory.downloads,
@@ -1049,7 +1037,6 @@ List<Achievement> buildExtraAchievements(AchievementData d) {
       current: prefetchOn ? 1 : 0,
     ),
 
-    // ---------------- Comments ----------------
     _make(
       id: 'extra_first_vote',
       category: AchievementCategory.special,
@@ -1122,7 +1109,6 @@ List<Achievement> buildExtraAchievements(AchievementData d) {
       current: silentReader ? 1 : 0,
     ),
 
-    // ---------------- Secrets and interface ----------------
     _make(
       id: 'extra_night_manual',
       category: AchievementCategory.secrets,

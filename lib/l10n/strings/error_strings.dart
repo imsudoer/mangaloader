@@ -1,9 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:mangaloader/l10n/app_strings.dart';
 
-/// Strings for the shared failure placeholder. Kept separate from page strings
-/// because the same widget is used by the catalog, the reader and the comments
-/// sheet.
 class ErrorStrings extends AppStrings {
   const ErrorStrings(super.isRu);
 

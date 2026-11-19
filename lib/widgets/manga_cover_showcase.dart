@@ -9,9 +9,7 @@ import 'package:share_plus/share_plus.dart';
 
 import 'package:mangaloader/theme/app_tokens.dart';
 
-/// A rotatable cover card for a single title, opened from the details header.
-/// It gives normal manga covers the same tactile treatment as collectible
-/// achievement cards without touching list scrolling.
+/// Rotatable cover preview opened from the details header.
 class MangaCoverShowcase extends StatefulWidget {
   const MangaCoverShowcase({
     super.key,

@@ -2,9 +2,8 @@ import 'dart:convert';
 
 import 'package:mangaloader/src/rust/api/storage.dart' as rust_storage;
 
-/// Small persistent counter store for achievements that cannot be derived from
-/// the reading database (taps, copied logs, used reader presets, ...). Values are
-/// kept in memory and flushed to the settings table after every change.
+/// Counters for actions that are not stored in the reading database. Values stay
+/// in memory and are written to app_settings after each change.
 class AchievementEvents {
   AchievementEvents._();
 
@@ -52,7 +51,7 @@ class AchievementEvents {
         }
       }
     } catch (_) {
-      // A malformed counter blob must never break the achievements screen.
+      // Malformed JSON is ignored.
     } finally {
       _loaded = true;
       _loading = null;

@@ -50,7 +50,6 @@ final achievementsProvider = FutureProvider<AchievementsOverview>((ref) async {
   final totalChapters = streak?.totalChaptersRead.toInt() ?? 0;
   final totalDays = streak?.totalDaysRead.toInt() ?? 0;
 
-  // Query SQLite for additional statistics
   int downloadedChaptersCount = 0;
   int completedMangaCount = 0;
   final libraryCount = libraryList.length;
@@ -65,7 +64,6 @@ final achievementsProvider = FutureProvider<AchievementsOverview>((ref) async {
   completedMangaCount = libraryList.where((e) => e.listType == ListType.completed).length;
 
   final base = <Achievement>[
-    // --- 1. STREAKS ---
     Achievement(
       id: 'streak_1',
       category: AchievementCategory.streak,
@@ -232,7 +230,6 @@ final achievementsProvider = FutureProvider<AchievementsOverview>((ref) async {
       isUnlocked: streakDays >= 1000,
     ),
 
-    // --- 2. CHAPTERS READ ---
     Achievement(
       id: 'chap_1',
       category: AchievementCategory.chapters,
@@ -354,7 +351,6 @@ final achievementsProvider = FutureProvider<AchievementsOverview>((ref) async {
       isUnlocked: totalChapters >= 5000,
     ),
 
-    // --- 3. LIBRARY & COLLECTION ---
     Achievement(
       id: 'lib_1',
       category: AchievementCategory.library,
@@ -446,7 +442,6 @@ final achievementsProvider = FutureProvider<AchievementsOverview>((ref) async {
       isUnlocked: completedMangaCount >= 10,
     ),
 
-    // --- 4. DOWNLOADS & OFFLINE ---
     Achievement(
       id: 'down_1',
       category: AchievementCategory.downloads,
@@ -493,7 +488,6 @@ final achievementsProvider = FutureProvider<AchievementsOverview>((ref) async {
       isUnlocked: downloadedChaptersCount >= 100,
     ),
 
-    // --- 5. SPECIAL & MISC ---
     Achievement(
       id: 'spec_amoled',
       category: AchievementCategory.special,
@@ -619,8 +613,7 @@ final achievementsProvider = FutureProvider<AchievementsOverview>((ref) async {
     }
   }
 
-  // Progressive curve: the original linear 100 XP per level would drown the
-  // longer catalog in trivial levels.
+  // Progressive curve: 100 XP per level would make the longer catalog trivial.
   final level = (math.sqrt(totalXp / 40)).floor() + 1;
   final currentLevelXp = (level - 1) * (level - 1) * 40;
   final nextLevelXp = level * level * 40;
