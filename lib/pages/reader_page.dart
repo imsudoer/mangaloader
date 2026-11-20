@@ -2420,9 +2420,21 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                               minimumSize: Size.zero,
                               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                             ),
-                            child: Text(
-                              '${(_zoomLevel * 100).toInt()}%',
-                              style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                            child: ValueListenableBuilder<Matrix4>(
+                              valueListenable: _verticalZoomTransform,
+                              builder: (context, matrix, _) {
+                                final pinch = _readMode == ReadMode.vertical
+                                    ? matrix.getMaxScaleOnAxis()
+                                    : 1.0;
+                                return Text(
+                                  '${(_zoomLevel * pinch * 100).round()}%',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                );
+                              },
                             ),
                           ),
                           IconButton(
