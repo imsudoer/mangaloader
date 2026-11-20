@@ -2,6 +2,11 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:mangaloader/desktop/desktop_layout.dart';
+import 'package:mangaloader/desktop/desktop_platform.dart';
+import 'package:mangaloader/desktop/desktop_providers.dart';
+import 'package:mangaloader/desktop/desktop_widgets.dart';
+import 'package:mangaloader/l10n/strings/desktop_strings.dart';
 import 'package:mangaloader/l10n/strings/history_strings.dart';
 import 'package:mangaloader/providers/settings_provider.dart';
 import 'package:mangaloader/src/rust/api/models.dart';
@@ -10,6 +15,7 @@ import 'package:shimmer/shimmer.dart';
 
 import 'package:mangaloader/services/content_filter.dart';
 import 'package:mangaloader/services/update_checker.dart';
+import 'package:mangaloader/theme/app_tokens.dart';
 import 'package:mangaloader/widgets/glass_scrollbar.dart';
 
 final historyProvider = FutureProvider.autoDispose<List<ReadingHistoryItem>>((ref) async {
@@ -87,6 +93,12 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
     final isRu = ref.watch(localeProvider)?.languageCode != 'en';
     final s = HistoryStrings(isRu);
     final historyAsync = ref.watch(historyProvider);
+
+    if (isDesktopPlatform) {
+      ref.listen<int>(desktopRefreshProvider, (_, __) {
+        ref.invalidate(historyProvider);
+      });
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -166,6 +178,10 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
           for (final item in items) {
             final group = _getDateGroup(item.lastReadAt, isRu);
             groups.putIfAbsent(group, () => []).add(item);
+          }
+
+          if (isDesktopPlatform) {
+            return _buildDesktopHistory(groups, isRu);
           }
 
           return RefreshIndicator(
@@ -320,7 +336,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
                                     icon: const Icon(Icons.play_arrow_rounded, size: 20),
                                     onPressed: () {
                                       context.push(
-                                        '/reader/${item.slugUrl}/${item.volume}/${item.number}?mangaId=${item.mangaId}',
+                                        '/read/${item.slugUrl}/${item.volume}/${item.number}?mangaId=${item.mangaId}',
                                       );
                                     },
                                   ),
@@ -361,5 +377,315 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
         ),
       ),
     );
+  }
+
+  Widget _buildDesktopHistory(
+    Map<String, List<ReadingHistoryItem>> groups,
+    bool isRu,
+  ) {
+    final d = DesktopStrings(isRu);
+    return RefreshIndicator(
+      onRefresh: () async => ref.invalidate(historyProvider),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(
+            maxWidth: DesktopLayout.tableMaxWidth,
+          ),
+          child: GlassScrollbar(
+            child: ListView(
+            padding: const EdgeInsets.all(24),
+            children: [
+              for (final entry in groups.entries) ...[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(4, 8, 4, 8),
+                  child: Row(
+                    children: [
+                      Text(
+                        entry.key,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: AppTokens.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '${entry.value.length}',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppTokens.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Card(
+                  margin: EdgeInsets.zero,
+                  clipBehavior: Clip.antiAlias,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    side: const BorderSide(
+                      color: AppTokens.borderStrong,
+                      width: 1,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      DesktopTableHeader(
+                        children: [
+                          const SizedBox(width: 52),
+                          DesktopTableHeaderCell(
+                            label: d.columnTitle,
+                            flex: 5,
+                          ),
+                          DesktopTableHeaderCell(
+                            label: d.columnChapter,
+                            flex: 3,
+                          ),
+                          DesktopTableHeaderCell(
+                            label: d.columnReadAt,
+                            flex: 2,
+                          ),
+                          DesktopTableHeaderCell(
+                            label: d.columnProgress,
+                            flex: 2,
+                          ),
+                          const SizedBox(width: 88),
+                        ],
+                      ),
+                      for (var index = 0; index < entry.value.length; index++)
+                        _buildDesktopHistoryRow(
+                          entry.value[index],
+                          isRu,
+                          showDivider: index > 0,
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 18),
+              ],
+            ],
+          ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDesktopHistoryRow(
+    ReadingHistoryItem item,
+    bool isRu, {
+    required bool showDivider,
+  }) {
+    final s = HistoryStrings(isRu);
+    final d = DesktopStrings(isRu);
+    final title = item.rusName.isNotEmpty ? item.rusName : item.name;
+
+    return DesktopHoverSurface(
+      onTap: () => context.push('/manga/${item.slugUrl}'),
+      onSecondaryTapDown: (details) => _showDesktopHistoryMenu(
+        item,
+        details.globalPosition,
+        isRu,
+      ),
+      builder: (context, hovered) {
+        return Container(
+          height: 60,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          decoration: BoxDecoration(
+            color: hovered
+                ? Colors.white.withValues(alpha: 0.035)
+                : Colors.transparent,
+            border: showDivider
+                ? const Border(
+                    top: BorderSide(color: AppTokens.border, width: 1),
+                  )
+                : null,
+          ),
+          child: Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(5),
+                child: CachedNetworkImage(
+                  imageUrl: item.coverUrl,
+                  width: 38,
+                  height: 50,
+                  fit: BoxFit.cover,
+                  placeholder: (_, __) => Container(color: AppTokens.border),
+                  errorWidget: (_, __, ___) => Container(
+                    color: AppTokens.border,
+                    child: const Icon(
+                      Icons.menu_book_rounded,
+                      size: 15,
+                      color: AppTokens.textSecondary,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                flex: 5,
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppTokens.textPrimary,
+                  ),
+                ),
+              ),
+              Expanded(
+                flex: 3,
+                child: Text(
+                  s.chapterLabel(item.volume, item.number),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppTokens.textPrimary,
+                  ),
+                ),
+              ),
+              Expanded(
+                flex: 2,
+                child: Text(
+                  _formatDate(item.lastReadAt, isRu),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    color: AppTokens.textSecondary,
+                  ),
+                ),
+              ),
+              Expanded(
+                flex: 2,
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: _buildDesktopProgress(item, s),
+                ),
+              ),
+              SizedBox(
+                width: 88,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    IconButton(
+                      tooltip: d.openReader,
+                      visualDensity: VisualDensity.compact,
+                      icon: const Icon(Icons.play_arrow_rounded, size: 19),
+                      onPressed: () => context.push(
+                        '/read/${item.slugUrl}/${item.volume}/${item.number}?mangaId=${item.mangaId}',
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: d.removeFromHistory,
+                      visualDensity: VisualDensity.compact,
+                      icon: const Icon(
+                        Icons.delete_outline_rounded,
+                        size: 17,
+                        color: Colors.redAccent,
+                      ),
+                      onPressed: () => _removeHistoryItem(item),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildDesktopProgress(ReadingHistoryItem item, HistoryStrings s) {
+    if (item.isCompleted) {
+      return _desktopProgressChip(
+        s.completed,
+        const Color(0xFF4CAF50),
+      );
+    }
+    if (item.pageIndex > 0) {
+      return _desktopProgressChip(
+        s.page(
+          '${item.pageIndex + 1}${item.totalPages > 0 ? "/${item.totalPages}" : ""}',
+        ),
+        Colors.amber,
+      );
+    }
+    return const SizedBox.shrink();
+  }
+
+  Widget _desktopProgressChip(String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w600,
+          color: color,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _removeHistoryItem(ReadingHistoryItem item) async {
+    await rust_storage.deleteReadingHistoryItem(
+      mangaId: item.mangaId,
+      volume: item.volume,
+      number: item.number,
+    );
+    ref.invalidate(historyProvider);
+  }
+
+  Future<void> _showDesktopHistoryMenu(
+    ReadingHistoryItem item,
+    Offset position,
+    bool isRu,
+  ) async {
+    final d = DesktopStrings(isRu);
+    final action = await showDesktopMenu<String>(
+      context: context,
+      globalPosition: position,
+      items: [
+        desktopMenuItem(
+          value: 'details',
+          icon: Icons.open_in_new_rounded,
+          label: d.openDetails,
+        ),
+        desktopMenuItem(
+          value: 'read',
+          icon: Icons.play_arrow_rounded,
+          label: d.continueReading,
+        ),
+        const PopupMenuDivider(),
+        desktopMenuItem(
+          value: 'remove',
+          icon: Icons.delete_outline_rounded,
+          label: d.removeFromHistory,
+          destructive: true,
+        ),
+      ],
+    );
+    if (!mounted || action == null) return;
+    if (action == 'details') {
+      await context.push('/manga/${item.slugUrl}');
+    } else if (action == 'read') {
+      await context.push(
+        '/read/${item.slugUrl}/${item.volume}/${item.number}?mangaId=${item.mangaId}',
+      );
+    } else if (action == 'remove') {
+      await _removeHistoryItem(item);
+    }
   }
 }

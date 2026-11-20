@@ -17,6 +17,11 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:mangaloader/utils/plural.dart';
 import 'package:mangaloader/utils/fuzzy_search.dart';
+import 'package:mangaloader/desktop/desktop_layout.dart';
+import 'package:mangaloader/desktop/desktop_platform.dart';
+import 'package:mangaloader/desktop/desktop_providers.dart';
+import 'package:mangaloader/desktop/desktop_widgets.dart';
+import 'package:mangaloader/l10n/strings/desktop_strings.dart';
 import 'package:mangaloader/theme/app_tokens.dart';
 import 'package:mangaloader/widgets/skeleton.dart';
 import 'package:mangaloader/widgets/glass_scrollbar.dart';
@@ -335,6 +340,12 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
         ref.watch(downloadedMangaIdsProvider).valueOrNull ?? const <int>{};
     final hasSelectedDownloads = selectedEntries
         .any((entry) => downloadedIds.contains(entry.mangaId.toInt()));
+
+    if (isDesktopPlatform) {
+      ref.listen<int>(desktopRefreshProvider, (_, __) {
+        ref.read(libraryProvider.notifier).loadAll();
+      });
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -667,17 +678,23 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
   Widget _buildGridView(List<LibraryEntry> items, bool isRu) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final crossAxisCount = (constraints.maxWidth / 160).floor().clamp(2, 6);
-        return GridView.builder(
-          padding: const EdgeInsets.all(12),
+        final crossAxisCount = isDesktopPlatform
+            ? DesktopLayout.gridColumns(
+                constraints.maxWidth,
+                minTileWidth: 184,
+                max: 12,
+              )
+            : (constraints.maxWidth / 160).floor().clamp(2, 6);
+        final grid = GridView.builder(
+          padding: EdgeInsets.all(isDesktopPlatform ? 24 : 12),
           // ignore: deprecated_member_use
           cacheExtent: 600.0,
           physics: const AlwaysScrollableScrollPhysics(),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: crossAxisCount,
             childAspectRatio: 0.65,
-            crossAxisSpacing: 10,
-            mainAxisSpacing: 10,
+            crossAxisSpacing: isDesktopPlatform ? 14 : 10,
+            mainAxisSpacing: isDesktopPlatform ? 14 : 10,
           ),
           itemCount: items.length,
           itemBuilder: (ctx, i) {
@@ -686,7 +703,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
             final isSelected = _selectedMangaIds.contains(entry.mangaId.toInt());
             final unreadLabel = _unreadLabel(entry, isRu);
 
-            return Card(
+            final card = Card(
               elevation: 0,
               clipBehavior: Clip.antiAlias,
               shape: RoundedRectangleBorder(
@@ -846,14 +863,37 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
                 ),
               ),
             );
+            if (!isDesktopPlatform) return card;
+            return GestureDetector(
+              onSecondaryTapDown: (details) => _showDesktopEntryMenu(
+                entry,
+                details.globalPosition,
+                isRu,
+              ),
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: card,
+              ),
+            );
           },
         );
+        if (isDesktopPlatform) {
+          return Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(
+                maxWidth: DesktopLayout.pageMaxWidth,
+              ),
+              child: grid,
+            ),
+          );
+        }
+        return grid;
       },
     );
   }
 
   Widget _buildListView(List<LibraryEntry> items, bool isRu) {
-    return ListView.separated(
+    final list = ListView.separated(
       padding: const EdgeInsets.all(12),
       // ignore: deprecated_member_use
       cacheExtent: 600.0,
@@ -881,7 +921,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
           ),
         );
 
-        return Card(
+        final card = Card(
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
             side: BorderSide(
@@ -996,7 +1036,21 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
               : () => _enterSelectionMode(entry),
           ),
         );
+        if (!isDesktopPlatform) return card;
+        return GestureDetector(
+          onSecondaryTapDown: (details) => _showDesktopEntryMenu(
+            entry,
+            details.globalPosition,
+            isRu,
+          ),
+          child: MouseRegion(cursor: SystemMouseCursors.click, child: card),
+        );
       },
+    );
+    if (!isDesktopPlatform) return list;
+    return DesktopWidthLimit(
+      maxWidth: DesktopLayout.formMaxWidth,
+      child: list,
     );
   }
 
@@ -1343,6 +1397,113 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
           : s.removedWithFailures('$removed', '$failed'),
       failed: failed,
     );
+  }
+
+  Future<void> _showDesktopEntryMenu(
+    LibraryEntry entry,
+    Offset position,
+    bool isRu,
+  ) async {
+    final s = LibraryStrings(isRu);
+    final d = DesktopStrings(isRu);
+    final action = await showDesktopMenu<String>(
+      context: context,
+      globalPosition: position,
+      items: [
+        desktopMenuItem(
+          value: 'open',
+          icon: Icons.open_in_new_rounded,
+          label: s.viewDetails,
+        ),
+        desktopMenuItem(
+          value: 'read',
+          icon: Icons.play_arrow_rounded,
+          label: d.startReading,
+        ),
+        const PopupMenuDivider(),
+        desktopMenuItem(
+          value: 'move',
+          icon: Icons.drive_file_move_outline,
+          label: s.moveToList,
+        ),
+        desktopMenuItem(
+          value: 'remove',
+          icon: Icons.playlist_remove_rounded,
+          label: s.removeFromLibrary,
+          destructive: true,
+        ),
+      ],
+    );
+    if (!mounted || action == null) return;
+
+    if (action == 'open') {
+      await context.push('/manga/${entry.slugUrl}');
+    } else if (action == 'read') {
+      await _startReadingEntry(entry);
+    } else if (action == 'move') {
+      await _moveEntryToList(entry, position, isRu);
+    } else if (action == 'remove') {
+      await _removeEntryFromLibrary(entry, isRu);
+    }
+  }
+
+  Future<String?> _pickListTypeDesktop(Offset position, bool isRu) {
+    final s = LibraryStrings(isRu);
+    return showDesktopMenu<String>(
+      context: context,
+      globalPosition: position,
+      items: _listTypeOptions
+          .map(
+            (option) => desktopMenuItem(
+              value: option.key,
+              icon: option.icon,
+              label: _listTypeLabel(option.key, s),
+            ),
+          )
+          .toList(),
+    );
+  }
+
+  Future<void> _moveEntryToList(
+    LibraryEntry entry,
+    Offset position,
+    bool isRu,
+  ) async {
+    final s = LibraryStrings(isRu);
+    final target = await _pickListTypeDesktop(position, isRu);
+    if (target == null || !mounted) return;
+    try {
+      await rust_storage.removeFromList(
+        mangaId: entry.mangaId,
+        listType: listTypeToStorageKey(entry.listType),
+      );
+      await rust_storage.addToList(mangaId: entry.mangaId, listType: target);
+      await ref.read(libraryProvider.notifier).loadAll();
+      _showBulkSnackBar(s.titlesMoved('1'));
+    } catch (_) {
+      _showBulkSnackBar(s.movedWithFailures('0', '1'), failed: 1);
+    }
+  }
+
+  Future<void> _removeEntryFromLibrary(LibraryEntry entry, bool isRu) async {
+    final s = LibraryStrings(isRu);
+    final confirmed = await _confirmBulkAction(
+      isRu: isRu,
+      title: s.removeFromLibraryTitle,
+      message: s.removeFromLibraryMessage('1'),
+      confirmLabel: s.remove,
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await rust_storage.removeFromList(
+        mangaId: entry.mangaId,
+        listType: listTypeToStorageKey(entry.listType),
+      );
+      await ref.read(libraryProvider.notifier).loadAll();
+      _showBulkSnackBar(s.removedFromLibrary('1'));
+    } catch (_) {
+      _showBulkSnackBar(s.removedWithFailures('0', '1'), failed: 1);
+    }
   }
 
   void _showMangaActionSheet(BuildContext context, LibraryEntry entry, bool isRu) {

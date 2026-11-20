@@ -11,6 +11,11 @@ import 'package:mangaloader/src/rust/api/models.dart';
 import 'package:mangaloader/services/content_filter.dart';
 import 'package:mangaloader/services/download_queue_service.dart';
 import 'package:mangaloader/services/update_checker.dart';
+import 'package:mangaloader/desktop/desktop_layout.dart';
+import 'package:mangaloader/desktop/desktop_platform.dart';
+import 'package:mangaloader/desktop/desktop_providers.dart';
+import 'package:mangaloader/desktop/desktop_widgets.dart';
+import 'package:mangaloader/l10n/strings/desktop_strings.dart';
 import 'package:mangaloader/theme/app_tokens.dart';
 import 'package:mangaloader/widgets/glass_scrollbar.dart';
 import 'package:mangaloader/utils/fuzzy_search.dart';
@@ -28,6 +33,7 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
   String _searchQuery = '';
   String _sortBy = 'title'; // 'title', 'chapters', 'size', 'recent'
   final Map<int, bool> _groupAscending = {};
+  final Set<int> _expandedDesktopGroups = {};
   List<DownloadQueueItem> _queueItems = DownloadQueueService.instance.items;
   bool _queuePaused = DownloadQueueService.instance.isPaused;
 
@@ -567,6 +573,10 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
 
     ref.listen<int>(downloadCompletionTickProvider, (_, __) => _loadDownloaded(silent: true));
 
+    if (isDesktopPlatform) {
+      ref.listen<int>(desktopRefreshProvider, (_, __) => _loadDownloaded());
+    }
+
     // Filter & Sort manga groups
     final query = _searchQuery.trim();
     var filteredGroups =
@@ -657,10 +667,12 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
       ),
       body: RefreshIndicator(
         onRefresh: _loadDownloaded,
-        child: GlassScrollbar(
-          child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
+child: DesktopWidthLimit(
+          maxWidth: DesktopLayout.tableMaxWidth,
+          child: GlassScrollbar(
+            child: ListView(
+              padding: EdgeInsets.all(isDesktopPlatform ? 24 : 16),
+              children: [
             _buildStorageCard(isRu, storageLimitMb),
 
             // Persistent queue: queued, waiting for Wi-Fi, failed and finished rows
@@ -825,6 +837,8 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
                   ),
                 ),
               )
+            else if (isDesktopPlatform)
+              _buildDesktopGroupsTable(filteredGroups, isRu)
             else
               ...filteredGroups.map((group) {
                 final title = group.rusName.isNotEmpty ? group.rusName : group.name;
@@ -959,8 +973,8 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
                               ),
                               child: const Icon(Icons.archive_outlined, color: AppTokens.textPrimary, size: 18),
                             ),
-                            title: Text('Том ${ch.volume} Глава ${ch.number}', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-                            subtitle: Text('${ch.pageCount} стр. • ${ch.downloadedAt.split("T").first}', style: const TextStyle(fontSize: 11, color: AppTokens.textSecondary)),
+                            title: Text(s.chapterLabel(ch.volume, ch.number), style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                            subtitle: Text(s.chapterMeta('${ch.pageCount}', ch.downloadedAt.split("T").first), style: const TextStyle(fontSize: 11, color: AppTokens.textSecondary)),
                             trailing: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
@@ -992,10 +1006,442 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
                   ),
                 );
               }),
-          ],
+              ],
+            ),
+          ),
         ),
       ),
+    );
+  }
+
+  List<DownloadedChapterInfo> _sortedGroupChapters(DownloadedMangaGroup group) {
+    final chapters = List<DownloadedChapterInfo>.from(group.chapters);
+    chapters.sort((a, b) {
+      final volA = double.tryParse(a.volume) ?? 0.0;
+      final volB = double.tryParse(b.volume) ?? 0.0;
+      final numA = double.tryParse(a.number) ?? 0.0;
+      final numB = double.tryParse(b.number) ?? 0.0;
+      final byVolume = volA.compareTo(volB);
+      if (byVolume != 0) return byVolume;
+      return numA.compareTo(numB);
+    });
+    return (_groupAscending[group.mangaId] ?? true)
+        ? chapters
+        : chapters.reversed.toList();
+  }
+
+  Widget _buildDesktopGroupsTable(
+    List<DownloadedMangaGroup> groups,
+    bool isRu,
+  ) {
+    final d = DesktopStrings(isRu);
+    return Card(
+      margin: EdgeInsets.zero,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: const BorderSide(color: AppTokens.borderStrong, width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          DesktopTableHeader(
+            children: [
+              const SizedBox(width: 30),
+              const SizedBox(width: 50),
+              const SizedBox(width: 12),
+              DesktopTableHeaderCell(label: d.columnTitle, flex: 5),
+              DesktopTableHeaderCell(label: d.columnChapters, flex: 2),
+              DesktopTableHeaderCell(label: d.columnSize, flex: 2),
+              const SizedBox(width: 112),
+            ],
+          ),
+          for (var index = 0; index < groups.length; index++) ...[
+            if (index > 0) const Divider(height: 1, color: AppTokens.border),
+            _buildDesktopGroupRow(groups[index], isRu),
+          ],
+        ],
       ),
     );
+  }
+
+  Widget _buildDesktopGroupRow(DownloadedMangaGroup group, bool isRu) {
+    final s = DownloadsStrings(isRu);
+    final title = group.rusName.isNotEmpty ? group.rusName : group.name;
+    final expanded = _expandedDesktopGroups.contains(group.mangaId);
+    final chapters = _sortedGroupChapters(group);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        DesktopHoverSurface(
+          onTap: () => setState(() {
+            if (!_expandedDesktopGroups.remove(group.mangaId)) {
+              _expandedDesktopGroups.add(group.mangaId);
+            }
+          }),
+          onSecondaryTapDown: (details) =>
+              _showDesktopGroupMenu(group, details.globalPosition, isRu),
+          builder: (context, hovered) {
+            return AnimatedContainer(
+              duration: AppTokens.fast,
+              color: hovered
+                  ? Colors.white.withValues(alpha: 0.035)
+                  : Colors.transparent,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 30,
+                    child: Icon(
+                      expanded
+                          ? Icons.keyboard_arrow_down_rounded
+                          : Icons.keyboard_arrow_right_rounded,
+                      size: 19,
+                      color: AppTokens.textSecondary,
+                    ),
+                  ),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: SizedBox(
+                      width: 38,
+                      height: 52,
+                      child: group.coverUrl.isNotEmpty
+                          ? CachedNetworkImage(
+                              imageUrl: group.coverUrl,
+                              httpHeaders: const {
+                                'Referer': 'https://mangalib.org/',
+                              },
+                              fit: BoxFit.cover,
+                              placeholder: (_, __) =>
+                                  Container(color: AppTokens.border),
+                              errorWidget: (_, __, ___) => Container(
+                                color: AppTokens.border,
+                                child: const Icon(
+                                  Icons.menu_book_rounded,
+                                  size: 16,
+                                  color: AppTokens.accent,
+                                ),
+                              ),
+                            )
+                          : Container(
+                              color: AppTokens.border,
+                              child: const Icon(
+                                Icons.menu_book_rounded,
+                                size: 16,
+                                color: AppTokens.accent,
+                              ),
+                            ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 5,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w600,
+                            color: AppTokens.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          group.slugUrl,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 10.5,
+                            color: AppTokens.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    flex: 2,
+                    child: Text(
+                      '${group.chapters.length} ${s.chapterCountShort}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppTokens.textPrimary,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    flex: 2,
+                    child: Text(
+                      _formatBytes(group.totalSizeBytes.toInt()),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppTokens.textSecondary,
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 112,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        if (group.slugUrl.isNotEmpty)
+                          IconButton(
+                            tooltip: s.openDetails,
+                            visualDensity: VisualDensity.compact,
+                            icon: const Icon(
+                              Icons.info_outline_rounded,
+                              size: 18,
+                            ),
+                            onPressed: () =>
+                                context.push('/manga/${group.slugUrl}'),
+                          ),
+                        IconButton(
+                          tooltip: s.deleteAllChapters,
+                          visualDensity: VisualDensity.compact,
+                          icon: const Icon(
+                            Icons.delete_outline_rounded,
+                            size: 18,
+                            color: Colors.redAccent,
+                          ),
+                          onPressed: () => _deleteManga(group, isRu),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+        if (expanded) _buildDesktopChapters(group, chapters, isRu),
+      ],
+    );
+  }
+
+  Widget _buildDesktopChapters(
+    DownloadedMangaGroup group,
+    List<DownloadedChapterInfo> chapters,
+    bool isRu,
+  ) {
+    final s = DownloadsStrings(isRu);
+    final ascending = _groupAscending[group.mangaId] ?? true;
+    return Container(
+      color: AppTokens.surfaceDeep.withValues(alpha: 0.5),
+      padding: const EdgeInsets.fromLTRB(58, 2, 12, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Text(
+                s.chaptersInOrder,
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: AppTokens.textSecondary,
+                ),
+              ),
+              const Spacer(),
+              TextButton.icon(
+                style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                onPressed: () => setState(() {
+                  _groupAscending[group.mangaId] = !ascending;
+                }),
+                icon: Icon(
+                  ascending
+                      ? Icons.arrow_upward_rounded
+                      : Icons.arrow_downward_rounded,
+                  size: 14,
+                ),
+                label: Text(
+                  ascending ? s.ascending : s.descending,
+                  style: const TextStyle(fontSize: 11),
+                ),
+              ),
+            ],
+          ),
+          for (final chapter in chapters)
+            _buildDesktopChapterRow(group, chapter, isRu),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDesktopChapterRow(
+    DownloadedMangaGroup group,
+    DownloadedChapterInfo chapter,
+    bool isRu,
+  ) {
+    final s = DownloadsStrings(isRu);
+    final date = chapter.downloadedAt.split('T').first;
+
+    return DesktopHoverSurface(
+      onTap: () => _openLocalChapter(chapter),
+      onSecondaryTapDown: (details) => _showDesktopChapterMenu(
+        group,
+        chapter,
+        details.globalPosition,
+        isRu,
+      ),
+      builder: (context, hovered) {
+        return Container(
+          height: 40,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          decoration: BoxDecoration(
+            color: hovered
+                ? Colors.white.withValues(alpha: 0.04)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Row(
+            children: [
+              const SizedBox(
+                width: 28,
+                child: Icon(
+                  Icons.archive_outlined,
+                  size: 15,
+                  color: AppTokens.textSecondary,
+                ),
+              ),
+              Expanded(
+                child: Text(
+                  s.chapterLabel(chapter.volume, chapter.number),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w500,
+                    color: AppTokens.textPrimary,
+                  ),
+                ),
+              ),
+              SizedBox(
+                width: 96,
+                child: Text(
+                  '${chapter.pageCount} ${s.pageShort}',
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    color: AppTokens.textSecondary,
+                  ),
+                ),
+              ),
+              SizedBox(
+                width: 110,
+                child: Text(
+                  date,
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    color: AppTokens.textSecondary,
+                  ),
+                ),
+              ),
+              IconButton(
+                tooltip: s.read,
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.play_arrow_rounded, size: 18),
+                onPressed: () => _openLocalChapter(chapter),
+              ),
+              IconButton(
+                tooltip: s.deleteChapter,
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(
+                  Icons.delete_outline_rounded,
+                  size: 17,
+                  color: Colors.redAccent,
+                ),
+                onPressed: () => _deleteChapter(group, chapter, isRu),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _openLocalChapter(DownloadedChapterInfo chapter) {
+    context.push(
+      '/read-local?path=${Uri.encodeComponent(chapter.downloadPath)}',
+    );
+  }
+
+  Future<void> _showDesktopGroupMenu(
+    DownloadedMangaGroup group,
+    Offset position,
+    bool isRu,
+  ) async {
+    final s = DownloadsStrings(isRu);
+    final d = DesktopStrings(isRu);
+    final chapters = _sortedGroupChapters(group);
+    final action = await showDesktopMenu<String>(
+      context: context,
+      globalPosition: position,
+      items: [
+        if (group.slugUrl.isNotEmpty)
+          desktopMenuItem(
+            value: 'details',
+            icon: Icons.open_in_new_rounded,
+            label: d.openDetails,
+          ),
+        if (chapters.isNotEmpty)
+          desktopMenuItem(
+            value: 'read',
+            icon: Icons.play_arrow_rounded,
+            label: d.openReader,
+          ),
+        const PopupMenuDivider(),
+        desktopMenuItem(
+          value: 'delete',
+          icon: Icons.delete_outline_rounded,
+          label: s.deleteAllChapters,
+          destructive: true,
+        ),
+      ],
+    );
+    if (!mounted || action == null) return;
+    if (action == 'details') {
+      await context.push('/manga/${group.slugUrl}');
+    } else if (action == 'read' && chapters.isNotEmpty) {
+      _openLocalChapter(chapters.first);
+    } else if (action == 'delete') {
+      await _deleteManga(group, isRu);
+    }
+  }
+
+  Future<void> _showDesktopChapterMenu(
+    DownloadedMangaGroup group,
+    DownloadedChapterInfo chapter,
+    Offset position,
+    bool isRu,
+  ) async {
+    final s = DownloadsStrings(isRu);
+    final d = DesktopStrings(isRu);
+    final action = await showDesktopMenu<String>(
+      context: context,
+      globalPosition: position,
+      items: [
+        desktopMenuItem(
+          value: 'read',
+          icon: Icons.play_arrow_rounded,
+          label: d.openReader,
+        ),
+        desktopMenuItem(
+          value: 'delete',
+          icon: Icons.delete_outline_rounded,
+          label: s.deleteChapter,
+          destructive: true,
+        ),
+      ],
+    );
+    if (!mounted || action == null) return;
+    if (action == 'read') {
+      _openLocalChapter(chapter);
+    } else if (action == 'delete') {
+      await _deleteChapter(group, chapter, isRu);
+    }
   }
 }

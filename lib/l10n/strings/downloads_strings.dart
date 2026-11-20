@@ -93,6 +93,11 @@ class DownloadsStrings extends AppStrings {
       ? 'Ничего не найдено по запросу "$query"'
       : 'No matches for "$query"';
   String get chapterCountShort => isRu ? 'гл.' : 'ch.';
+  String chapterLabel(String volume, String number) => isRu
+      ? 'Том $volume Глава $number'
+      : 'Vol. $volume Ch. $number';
+  String chapterMeta(String pages, String date) =>
+      isRu ? '$pages стр. · $date' : '$pages p. · $date';
   String get deleteAllChapters =>
       isRu ? 'Удалить все главы' : 'Delete all chapters';
   String get openDetails =>

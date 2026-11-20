@@ -2,6 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mangaloader/desktop/desktop_layout.dart';
+import 'package:mangaloader/desktop/desktop_platform.dart';
+import 'package:mangaloader/desktop/desktop_providers.dart';
 import 'package:mangaloader/l10n/strings/search_strings.dart';
 import 'package:mangaloader/providers/search_provider.dart';
 import 'package:mangaloader/providers/manga_provider.dart';
@@ -24,6 +27,7 @@ class SearchPage extends ConsumerStatefulWidget {
 
 class _SearchPageState extends ConsumerState<SearchPage> {
   final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
   int _selectedTab = 0; // 0: Catalog, 1: Collections
   final List<MangaCollectionItem> _collections = [];
   bool _isLoadingCollections = false;
@@ -33,6 +37,16 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   bool _localOnly = false;
   String _localQuery = '';
   Timer? _localDebounce;
+
+  @override
+  void initState() {
+    super.initState();
+    if (isDesktopPlatform) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _searchFocusNode.requestFocus();
+      });
+    }
+  }
 
   void _scheduleLocalSearch(String value) {
     _localDebounce?.cancel();
@@ -103,6 +117,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   @override
   void dispose() {
     _searchController.dispose();
+    _searchFocusNode.dispose();
     _localDebounce?.cancel();
     super.dispose();
   }
@@ -141,6 +156,23 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     final isRu = Localizations.localeOf(context).languageCode == 'ru';
     final s = SearchStrings.of(context);
     final activeCount = filter.activeFiltersCount;
+
+    if (isDesktopPlatform) {
+      ref.listen<int>(desktopSearchFocusProvider, (_, __) {
+        if (!mounted) return;
+        if (_selectedTab != 0) setState(() => _selectedTab = 0);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _searchFocusNode.requestFocus();
+        });
+      });
+      ref.listen<int>(desktopRefreshProvider, (_, __) {
+        if (_localOnly) {
+          setState(() => _localQuery = _searchController.text.trim());
+        } else {
+          ref.read(searchProvider.notifier).loadCatalog();
+        }
+      });
+    }
 
     // In offline mode the same grid renders local FTS hits instead of the remote
     // catalog, so pagination, empty and error states stay identical.
@@ -216,6 +248,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                   Expanded(
                     child: TextField(
                       controller: _searchController,
+                      focusNode: _searchFocusNode,
                       decoration: InputDecoration(
                         hintText: s.searchHint,
                         prefixIcon: const Icon(Icons.search_rounded),
@@ -543,51 +576,68 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                   builder: (context, constraints) {
                     final crossAxisCount = (constraints.maxWidth / 160).floor().clamp(2, 6);
                     final showLoader = catalog.hasMore;
-                    return RefreshIndicator(
-                      onRefresh: () => ref.read(searchProvider.notifier).loadCatalog(),
-                      child: GridView.builder(
-                        padding: const EdgeInsets.all(12),
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: crossAxisCount,
-                          childAspectRatio: 0.65,
-                          crossAxisSpacing: 10,
-                          mainAxisSpacing: 10,
-                        ),
-                        itemCount: items.length + (showLoader ? 1 : 0),
-                        itemBuilder: (context, index) {
-                          if (index >= items.length) {
-                            if (!catalog.isLoadingMore) {
-                              WidgetsBinding.instance.addPostFrameCallback((_) {
-                                ref.read(searchProvider.notifier).loadMore();
-                              });
-                            }
-                            return const Center(
-                              child: SizedBox(
-                                width: 26,
-                                height: 26,
-                                child: CircularProgressIndicator(strokeWidth: 2.5),
-                              ),
-                            );
-                          }
-                          // Prefetch the next page slightly before the grid bottom.
-                          if (!catalog.isLoadingMore &&
-                              catalog.hasMore &&
-                              index >= items.length - 4) {
+                    final grid = GridView.builder(
+                      padding: EdgeInsets.all(isDesktopPlatform ? 24 : 12),
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      gridDelegate: isDesktopPlatform
+                          ? DesktopLayout.tileDelegate(
+                              maxTileWidth: 196,
+                              gap: 16,
+                              aspectRatio: 0.65,
+                            )
+                          : SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: crossAxisCount,
+                              childAspectRatio: 0.65,
+                              crossAxisSpacing: 10,
+                              mainAxisSpacing: 10,
+                            ),
+                      itemCount: items.length + (showLoader ? 1 : 0),
+                      itemBuilder: (context, index) {
+                        if (index >= items.length) {
+                          if (!catalog.isLoadingMore) {
                             WidgetsBinding.instance.addPostFrameCallback((_) {
                               ref.read(searchProvider.notifier).loadMore();
                             });
                           }
-                          final manga = items[index];
-                          return MangaCard(
-                            manga: manga,
-                            // Local results come from the title/author index, so
-                            // showing the matched tokens explains the hit.
-                            highlightQuery: _localOnly ? _localQuery : null,
-                            onTap: () => context.push('/manga/${manga.slugUrl}'),
+                          return const Center(
+                            child: SizedBox(
+                              width: 26,
+                              height: 26,
+                              child: CircularProgressIndicator(strokeWidth: 2.5),
+                            ),
                           );
-                        },
-                      ),
+                        }
+                        // Prefetch the next page slightly before the grid bottom.
+                        if (!catalog.isLoadingMore &&
+                            catalog.hasMore &&
+                            index >= items.length - 4) {
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            ref.read(searchProvider.notifier).loadMore();
+                          });
+                        }
+                        final manga = items[index];
+                        return MangaCard(
+                          manga: manga,
+                          // Local results come from the title/author index, so
+                          // showing the matched tokens explains the hit.
+                          highlightQuery: _localOnly ? _localQuery : null,
+                          onTap: () => context.push('/manga/${manga.slugUrl}'),
+                        );
+                      },
+                    );
+                    return RefreshIndicator(
+                      onRefresh: () =>
+                          ref.read(searchProvider.notifier).loadCatalog(),
+                      child: isDesktopPlatform
+                          ? Center(
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  maxWidth: DesktopLayout.pageMaxWidth,
+                                ),
+                                child: grid,
+                              ),
+                            )
+                          : grid,
                     );
                   },
                 );

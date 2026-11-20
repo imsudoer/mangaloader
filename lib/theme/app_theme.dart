@@ -285,6 +285,39 @@ class AppTheme {
           side: const BorderSide(color: Color(0xFF383838)),
         ),
       ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: _darkSurfaceVariant,
+        surfaceTintColor: Colors.transparent,
+        elevation: 10,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+          side: const BorderSide(color: AppTokens.borderStrong, width: 1),
+        ),
+        textStyle: textTheme.bodyMedium,
+      ),
+      tooltipTheme: TooltipThemeData(
+        waitDuration: const Duration(milliseconds: 400),
+        decoration: BoxDecoration(
+          color: AppTokens.surfaceRaised,
+          borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+          border: Border.all(color: AppTokens.borderStrong, width: 1),
+        ),
+        textStyle: textTheme.bodySmall?.copyWith(color: AppTokens.textPrimary),
+      ),
+      scrollbarTheme: ScrollbarThemeData(
+        thickness: const WidgetStatePropertyAll(8),
+        radius: const Radius.circular(4),
+        crossAxisMargin: 2,
+        interactive: true,
+        thumbColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.hovered) ||
+              states.contains(WidgetState.dragged)) {
+            return const Color(0xFF737373);
+          }
+          return const Color(0xFF4A4A4A);
+        }),
+        trackColor: const WidgetStatePropertyAll(Colors.transparent),
+      ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: _darkPrimaryContainer,
@@ -392,6 +425,38 @@ class AppTheme {
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         hintStyle: textTheme.bodyMedium!.copyWith(color: _lightOnSurfaceVariant),
       ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: _lightSurface,
+        surfaceTintColor: Colors.transparent,
+        elevation: 10,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+          side: const BorderSide(color: Color(0xFFD9DDE3), width: 1),
+        ),
+        textStyle: textTheme.bodyMedium,
+      ),
+      tooltipTheme: TooltipThemeData(
+        waitDuration: const Duration(milliseconds: 400),
+        decoration: BoxDecoration(
+          color: const Color(0xFF2E3033),
+          borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+        ),
+        textStyle: textTheme.bodySmall?.copyWith(color: Colors.white),
+      ),
+      scrollbarTheme: ScrollbarThemeData(
+        thickness: const WidgetStatePropertyAll(8),
+        radius: const Radius.circular(4),
+        crossAxisMargin: 2,
+        interactive: true,
+        thumbColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.hovered) ||
+              states.contains(WidgetState.dragged)) {
+            return const Color(0xFF8C9198);
+          }
+          return const Color(0xFFB4B9C0);
+        }),
+        trackColor: const WidgetStatePropertyAll(Colors.transparent),
+      ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: _lightPrimary,
@@ -489,6 +554,39 @@ class AppTheme {
         ),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         hintStyle: textTheme.bodyMedium!.copyWith(color: const Color(0xFF8E8D85)),
+      ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: const Color(0xFF141414),
+        surfaceTintColor: Colors.transparent,
+        elevation: 10,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+          side: const BorderSide(color: Color(0xFF2A2A2A), width: 1),
+        ),
+        textStyle: textTheme.bodyMedium,
+      ),
+      tooltipTheme: TooltipThemeData(
+        waitDuration: const Duration(milliseconds: 400),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1C1C1C),
+          borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+          border: Border.all(color: const Color(0xFF2E2E2E), width: 1),
+        ),
+        textStyle: textTheme.bodySmall?.copyWith(color: AppTokens.textPrimary),
+      ),
+      scrollbarTheme: ScrollbarThemeData(
+        thickness: const WidgetStatePropertyAll(8),
+        radius: const Radius.circular(4),
+        crossAxisMargin: 2,
+        interactive: true,
+        thumbColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.hovered) ||
+              states.contains(WidgetState.dragged)) {
+            return const Color(0xFF5E5E5E);
+          }
+          return const Color(0xFF3A3A3A);
+        }),
+        trackColor: const WidgetStatePropertyAll(Colors.transparent),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(

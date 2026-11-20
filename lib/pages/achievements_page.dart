@@ -6,6 +6,9 @@ import 'package:mangaloader/models/achievement.dart';
 import 'package:mangaloader/providers/achievements_provider.dart';
 import 'package:mangaloader/providers/streak_provider.dart';
 import 'package:mangaloader/services/achievement_events.dart';
+import 'package:mangaloader/desktop/desktop_platform.dart';
+import 'package:mangaloader/desktop/desktop_providers.dart';
+import 'package:mangaloader/desktop/desktop_widgets.dart';
 import 'package:mangaloader/theme/app_tokens.dart';
 import 'package:mangaloader/widgets/achievement_card.dart';
 
@@ -63,6 +66,12 @@ class _AchievementsPageState extends ConsumerState<AchievementsPage> {
     final s = AchievementsStrings(isRu);
     final overviewAsync = ref.watch(achievementsProvider);
 
+    if (isDesktopPlatform) {
+      ref.listen<int>(desktopRefreshProvider, (_, __) {
+        ref.invalidate(achievementsProvider);
+      });
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: Text(s.title, style: const TextStyle(fontWeight: FontWeight.bold)),
@@ -76,8 +85,9 @@ class _AchievementsPageState extends ConsumerState<AchievementsPage> {
           final secretUnlocked = all.where((a) => a.isSecret && a.isUnlocked).length;
           final nearest = _nearest(all);
 
-          return CustomScrollView(
-            slivers: [
+          return DesktopWidthLimit(
+            child: CustomScrollView(
+                slivers: [
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
@@ -127,8 +137,8 @@ class _AchievementsPageState extends ConsumerState<AchievementsPage> {
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
                   sliver: SliverGrid.builder(
-                    gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                      maxCrossAxisExtent: 215,
+                    gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                      maxCrossAxisExtent: isDesktopPlatform ? 240 : 215,
                       mainAxisSpacing: 11,
                       crossAxisSpacing: 11,
                       childAspectRatio: 0.95,
@@ -145,6 +155,7 @@ class _AchievementsPageState extends ConsumerState<AchievementsPage> {
                   ),
                 ),
             ],
+              ),
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),

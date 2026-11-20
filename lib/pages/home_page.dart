@@ -17,6 +17,10 @@ import 'package:mangaloader/widgets/continue_reading_section.dart';
 import 'package:mangaloader/services/streak_notification_service.dart';
 import 'package:mangaloader/services/content_filter.dart';
 import 'package:mangaloader/services/achievement_events.dart';
+import 'package:mangaloader/desktop/desktop_layout.dart';
+import 'package:mangaloader/desktop/desktop_platform.dart';
+import 'package:mangaloader/desktop/desktop_providers.dart';
+import 'package:mangaloader/desktop/desktop_widgets.dart';
 import 'package:mangaloader/theme/app_tokens.dart';
 
 final homeDataProvider = FutureProvider.autoDispose<HomePageData>((ref) async {
@@ -92,6 +96,16 @@ class _HomePageState extends ConsumerState<HomePage> {
     final isRu = Localizations.localeOf(context).languageCode == 'ru';
     final s = HomeStrings.of(context);
 
+    if (isDesktopPlatform) {
+      ref.listen<int>(desktopRefreshProvider, (_, __) {
+        ref.invalidate(homeDataProvider);
+        ref.invalidate(topViewsCustomProvider);
+        ref.invalidate(recommendationsProvider);
+        ref.invalidate(continueReadingProvider);
+        ref.read(streakProvider.notifier).loadStreak();
+      });
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: Row(
@@ -139,10 +153,11 @@ class _HomePageState extends ConsumerState<HomePage> {
             ref.invalidate(continueReadingProvider);
             ref.read(streakProvider.notifier).loadStreak();
           },
-          child: GlassScrollbar(
-            child: ListView(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            children: [
+child: DesktopWidthLimit(
+            child: GlassScrollbar(
+              child: ListView(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                children: [
               // Available Update Banner
               if (availableUpdate != null && !_dismissedUpdate) ...[
                 _buildUpdateBanner(context, availableUpdate, isRu),
@@ -206,6 +221,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                 const SizedBox(height: 24),
               ],
             ],
+            ),
           ),
           ),
         ),
@@ -385,6 +401,43 @@ class _HomePageState extends ConsumerState<HomePage> {
   }
 
   Widget _buildHorizontalMangaList(List<MangaSearchResult> items) {
+    if (isDesktopPlatform) {
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final columns = DesktopLayout.gridColumns(
+            constraints.maxWidth - 32,
+            minTileWidth: 164,
+            max: 9,
+          );
+          // Long rails become a two-row grid on desktop instead of a horizontal
+          // strip that hides half the catalogue behind a scroll gesture.
+          final visible = items.take(columns * 2).toList();
+          return GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: columns,
+              childAspectRatio: 0.65,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+            ),
+            itemCount: visible.length,
+            itemBuilder: (context, index) {
+              final manga = visible[index];
+              return MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: MangaCard(
+                  manga: manga,
+                  onTap: () => context.push('/manga/${manga.slugUrl}'),
+                ),
+              );
+            },
+          );
+        },
+      );
+    }
+
     return SizedBox(
       height: 230,
       child: ListView.builder(
@@ -548,43 +601,29 @@ class _HomePageState extends ConsumerState<HomePage> {
               isRu: isRu,
             ),
             const SizedBox(height: 12),
-            SizedBox(
-              height: 230,
-              child: ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                scrollDirection: Axis.horizontal,
-                itemCount: items.length,
-                itemBuilder: (context, index) {
-                  final rec = items[index];
-                  final mangaSearch = MangaSearchResult(
-                    id: rec.mangaId,
-                    name: rec.name,
-                    rusName: rec.rusName,
-                    engName: '',
-                    slug: '',
-                    slugUrl: rec.slugUrl,
-                    coverUrl: rec.coverUrl,
-                    coverThumbUrl: rec.coverThumbUrl,
-                    mangaType: rec.mangaType,
-                    typeId: 0,
-                    status: '',
-                    statusId: 0,
-                    ageRestriction: '',
-                    ratingAverage: rec.ratingAverage,
-                    ratingVotes: '0',
-                    releaseDate: null,
-                  );
-
-                  return Container(
-                    width: 140,
-                    margin: const EdgeInsets.symmetric(horizontal: 4),
-                    child: MangaCard(
-                      manga: mangaSearch,
-                      onTap: () => context.push('/manga/${rec.slugUrl}'),
+            _buildHorizontalMangaList(
+              items
+                  .map(
+                    (rec) => MangaSearchResult(
+                      id: rec.mangaId,
+                      name: rec.name,
+                      rusName: rec.rusName,
+                      engName: '',
+                      slug: '',
+                      slugUrl: rec.slugUrl,
+                      coverUrl: rec.coverUrl,
+                      coverThumbUrl: rec.coverThumbUrl,
+                      mangaType: rec.mangaType,
+                      typeId: 0,
+                      status: '',
+                      statusId: 0,
+                      ageRestriction: '',
+                      ratingAverage: rec.ratingAverage,
+                      ratingVotes: '0',
+                      releaseDate: null,
                     ),
-                  );
-                },
-              ),
+                  )
+                  .toList(),
             ),
           ],
         );
