@@ -20,6 +20,9 @@ import 'package:mangaloader/utils/plural.dart';
 import 'package:mangaloader/widgets/update_bottom_sheet.dart';
 import 'package:mangaloader/widgets/manga_recap_modal.dart';
 import 'package:go_router/go_router.dart';
+import 'package:mangaloader/desktop/desktop_layout.dart';
+import 'package:mangaloader/desktop/desktop_platform.dart';
+import 'package:mangaloader/desktop/desktop_widgets.dart';
 import 'package:mangaloader/theme/app_tokens.dart';
 
 class SettingsPage extends ConsumerStatefulWidget {
@@ -323,9 +326,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
     return Scaffold(
       appBar: AppBar(title: Text(s.title)),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
+      body: DesktopWidthLimit(
+        maxWidth: DesktopLayout.formMaxWidth,
+        child: ListView(
+            padding: EdgeInsets.all(isDesktopPlatform ? 24 : 16),
+            children: [
           // 1. Theme & Appearance
           _buildSectionHeader(s.appearanceAndLanguage, Icons.palette_outlined),
           Card(
@@ -1181,9 +1186,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             ),
           ),
           const SizedBox(height: 32),
-        ],
-      ),
-    );
+          ],
+            ),
+          ),
+      );
   }
 
   Widget _buildNotificationTimingCard(bool isRu) {

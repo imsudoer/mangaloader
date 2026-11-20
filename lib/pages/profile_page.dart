@@ -14,6 +14,10 @@ import 'package:mangaloader/src/rust/api/models.dart';
 import 'package:mangaloader/widgets/manga_recap_modal.dart';
 import 'package:mangaloader/widgets/user_search_modal.dart';
 import 'package:mangaloader/utils/plural.dart';
+import 'package:mangaloader/desktop/desktop_layout.dart';
+import 'package:mangaloader/desktop/desktop_platform.dart';
+import 'package:mangaloader/desktop/desktop_providers.dart';
+import 'package:mangaloader/desktop/desktop_widgets.dart';
 import 'package:mangaloader/theme/app_tokens.dart';
 
 class ProfilePage extends ConsumerStatefulWidget {
@@ -340,6 +344,14 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     final streakAsync = ref.watch(streakProvider);
     final streakCount = streakAsync.value?.currentStreak ?? 0;
 
+    if (isDesktopPlatform) {
+      ref.listen<int>(desktopRefreshProvider, (_, __) {
+        _loadProfileDetails();
+        _checkNotifications();
+        ref.read(streakProvider.notifier).loadStreak();
+      });
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: Text(s.title),
@@ -392,9 +404,11 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           await _loadProfileDetails();
           await _checkNotifications();
         },
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
+        child: DesktopWidthLimit(
+          maxWidth: DesktopLayout.formMaxWidth,
+          child: ListView(
+              padding: EdgeInsets.all(isDesktopPlatform ? 24 : 16),
+              children: [
             // 1. User Profile Header Card
             _buildUserHeaderCard(context, isRu, basicProfile, streakCount),
             const SizedBox(height: 18),
@@ -477,8 +491,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               const SizedBox(height: 20),
             ],
           ],
+            ),
+          ),
         ),
-      ),
     );
   }
 

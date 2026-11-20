@@ -10,6 +10,8 @@ import 'package:dynamic_color/dynamic_color.dart' show DynamicColorBuilder;
 import 'package:mangaloader/src/rust/api/storage.dart' as rust_storage;
 import 'package:mangaloader/src/rust/frb_generated.dart';
 import 'theme/app_theme.dart';
+import 'desktop/desktop_platform.dart';
+import 'desktop/desktop_shell.dart';
 import 'pages/home_page.dart';
 import 'pages/search_page.dart';
 import 'pages/library_page.dart';
@@ -161,6 +163,33 @@ class _MangaLoaderAppState extends ConsumerState<MangaLoaderApp> {
   }
 }
 
+/// Desktop routes keep the navigation rail mounted around the routed page.
+/// Mobile keeps its original push transitions.
+Page<void> _adaptivePage(
+  GoRouterState state,
+  Widget child, {
+  Offset begin = const Offset(1, 0),
+}) {
+  if (isDesktopPlatform) {
+    return NoTransitionPage<void>(
+      key: state.pageKey,
+      child: DesktopShell(location: state.uri.path, child: child),
+    );
+  }
+  return CustomTransitionPage<void>(
+    key: state.pageKey,
+    child: child,
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      return SlideTransition(
+        position: Tween<Offset>(begin: begin, end: Offset.zero)
+            .chain(CurveTween(curve: Curves.easeOutCubic))
+            .animate(animation),
+        child: child,
+      );
+    },
+  );
+}
+
 final _router = GoRouter(
   restorationScopeId: 'manga-loader-router',
   routes: [
@@ -191,18 +220,8 @@ final _router = GoRouter(
     ),
     GoRoute(
       path: '/settings',
-      pageBuilder: (context, state) => CustomTransitionPage(
-        key: state.pageKey,
-        child: const SettingsPage(),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          return SlideTransition(
-            position: Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero)
-                .chain(CurveTween(curve: Curves.easeOutCubic))
-                .animate(animation),
-            child: child,
-          );
-        },
-      ),
+      pageBuilder: (context, state) =>
+          _adaptivePage(state, const SettingsPage()),
     ),
     GoRoute(
       path: '/login',
@@ -221,65 +240,24 @@ final _router = GoRouter(
     ),
     GoRoute(
       path: '/achievements',
-      pageBuilder: (context, state) => CustomTransitionPage(
-        key: state.pageKey,
-        child: const AchievementsPage(),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          return SlideTransition(
-            position: Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero)
-                .chain(CurveTween(curve: Curves.easeOutCubic))
-                .animate(animation),
-            child: child,
-          );
-        },
-      ),
+      pageBuilder: (context, state) =>
+          _adaptivePage(state, const AchievementsPage()),
     ),
     GoRoute(
       path: '/history',
-      pageBuilder: (context, state) => CustomTransitionPage(
-        key: state.pageKey,
-        child: const HistoryPage(),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          return SlideTransition(
-            position: Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero)
-                .chain(CurveTween(curve: Curves.easeOutCubic))
-                .animate(animation),
-            child: child,
-          );
-        },
-      ),
+      pageBuilder: (context, state) =>
+          _adaptivePage(state, const HistoryPage()),
     ),
     GoRoute(
       path: '/statistics',
-      pageBuilder: (context, state) => CustomTransitionPage(
-        key: state.pageKey,
-        child: const StatisticsPage(),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          return SlideTransition(
-            position: Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero)
-                .chain(CurveTween(curve: Curves.easeOutCubic))
-                .animate(animation),
-            child: child,
-          );
-        },
-      ),
+      pageBuilder: (context, state) =>
+          _adaptivePage(state, const StatisticsPage()),
     ),
     GoRoute(
       path: '/manga/:slugUrl',
       pageBuilder: (context, state) {
         final slugUrl = state.pathParameters['slugUrl']!;
-        return CustomTransitionPage(
-          key: state.pageKey,
-          child: MangaDetailsPage(slugUrl: slugUrl),
-          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            return SlideTransition(
-              position: Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero)
-                  .chain(CurveTween(curve: Curves.easeOutCubic))
-                  .animate(animation),
-              child: child,
-            );
-          },
-        );
+        return _adaptivePage(state, MangaDetailsPage(slugUrl: slugUrl));
       },
     ),
     GoRoute(
@@ -381,38 +359,19 @@ class _AppShellState extends State<AppShell> {
 
   @override
   Widget build(BuildContext context) {
-    final s = ShellStrings.of(context);
     final selectedIndex = _selectedIndex;
 
+    if (isDesktopPlatform) {
+      return DesktopShell(
+        location: widget.location,
+        child: _buildTabStack(selectedIndex),
+      );
+    }
+
+    final s = ShellStrings.of(context);
+
     return Scaffold(
-      body: Column(
-        children: [
-          const OfflineBanner(),
-          Expanded(
-            child: IndexedStack(
-              index: selectedIndex,
-              sizing: StackFit.expand,
-              children: [
-                for (var index = 0; index < _tabRoutes.length; index++)
-                  // Hidden tabs stay mounted so their state survives, but they
-                  // must not join the current Hero flight (duplicate cover tags
-                  // would throw) and must not tick animations offscreen.
-                  CoverHeroScope(
-                    child: HeroMode(
-                      enabled: index == selectedIndex,
-                      child: TickerMode(
-                        enabled: index == selectedIndex,
-                        child: (_tabs[index] != null || index == selectedIndex)
-                            ? _tabFor(index)
-                            : const SizedBox.shrink(),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ],
-      ),
+      body: _buildTabStack(selectedIndex),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           gradient: const LinearGradient(
@@ -521,6 +480,37 @@ class _AppShellState extends State<AppShell> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildTabStack(int selectedIndex) {
+    return Column(
+      children: [
+        const OfflineBanner(),
+        Expanded(
+          child: IndexedStack(
+            index: selectedIndex,
+            sizing: StackFit.expand,
+            children: [
+              for (var index = 0; index < _tabRoutes.length; index++)
+                // Hidden tabs stay mounted so their state survives, but they
+                // must not join the current Hero flight (duplicate cover tags
+                // would throw) and must not tick animations offscreen.
+                CoverHeroScope(
+                  child: HeroMode(
+                    enabled: index == selectedIndex,
+                    child: TickerMode(
+                      enabled: index == selectedIndex,
+                      child: (_tabs[index] != null || index == selectedIndex)
+                          ? _tabFor(index)
+                          : const SizedBox.shrink(),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 

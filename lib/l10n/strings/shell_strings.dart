@@ -1,7 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:mangaloader/l10n/app_strings.dart';
 
-/// Strings of the persistent shell: bottom navigation and the offline banner.
+/// Strings of the persistent shell: navigation and the offline banner.
 class ShellStrings extends AppStrings {
   const ShellStrings(super.isRu);
 
@@ -12,7 +12,16 @@ class ShellStrings extends AppStrings {
   String get catalog => isRu ? 'Каталог' : 'Catalog';
   String get library => isRu ? 'Библиотека' : 'Library';
   String get downloads => isRu ? 'Загрузки' : 'Downloads';
+  String get history => isRu ? 'История' : 'History';
+  String get achievements => isRu ? 'Достижения' : 'Achievements';
+  String get statistics => isRu ? 'Статистика' : 'Statistics';
   String get profile => isRu ? 'Профиль' : 'Profile';
+  String get settings => isRu ? 'Настройки' : 'Settings';
+
+  String get sectionBrowse => isRu ? 'Навигация' : 'Browse';
+  String get sectionInsights => isRu ? 'Прогресс' : 'Insights';
+  String get sectionAccount => isRu ? 'Аккаунт' : 'Account';
+
   String get offlineBanner => isRu
       ? 'Оффлайн-режим — доступны скачанные тайтлы и кэш'
       : 'Offline Mode — downloaded manga and cache available';

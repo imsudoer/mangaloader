@@ -108,6 +108,15 @@ class DetailsStrings extends AppStrings {
 
   String get authors => isRu ? 'Автор(ы):' : 'Author(s):';
   String get artists => isRu ? 'Художник(и):' : 'Artist(s):';
+  String get authorsLabel => isRu ? 'Автор' : 'Author';
+  String get artistsLabel => isRu ? 'Художник' : 'Artist';
+  String get typeLabel => isRu ? 'Тип' : 'Type';
+  String get statusLabel => isRu ? 'Статус' : 'Status';
+  String get releaseDateLabel => isRu ? 'Дата выхода' : 'Released';
+  String get publisherLabel => isRu ? 'Издатель' : 'Publisher';
+  String get viewsLabel => isRu ? 'Просмотры' : 'Views';
+  String get ratingLabel => isRu ? 'Рейтинг' : 'Rating';
+  String get information => isRu ? 'Информация' : 'Information';
   String get synopsis => isRu ? 'Описание' : 'Synopsis';
   String get noSynopsis =>
       isRu ? 'Описание отсутствует' : 'No synopsis available';

@@ -3,6 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mangaloader/l10n/strings/statistics_strings.dart';
 import 'package:mangaloader/providers/statistics_provider.dart';
 import 'package:mangaloader/src/rust/api/models.dart';
+import 'package:mangaloader/desktop/desktop_layout.dart';
+import 'package:mangaloader/desktop/desktop_platform.dart';
+import 'package:mangaloader/desktop/desktop_providers.dart';
+import 'package:mangaloader/desktop/desktop_widgets.dart';
 import 'package:mangaloader/theme/app_theme.dart';
 import 'package:mangaloader/theme/app_tokens.dart';
 
@@ -15,6 +19,13 @@ class StatisticsPage extends ConsumerWidget {
     final s = StatisticsStrings(isRu);
     final statsAsync = ref.watch(statisticsProvider);
 
+    if (isDesktopPlatform) {
+      ref.listen<int>(desktopRefreshProvider, (_, __) {
+        ref.invalidate(statisticsProvider);
+        ref.invalidate(readingSessionStatsProvider);
+      });
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: Text(s.title, style: const TextStyle(fontWeight: FontWeight.bold)),
@@ -25,29 +36,32 @@ class StatisticsPage extends ConsumerWidget {
             ref.invalidate(statisticsProvider);
             ref.invalidate(readingSessionStatsProvider);
           },
-          child: ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              // Summary 2x3 Grid
-              _buildSummarySection(stats, isRu),
-              const SizedBox(height: 20),
+          child: DesktopWidthLimit(
+            maxWidth: DesktopLayout.formMaxWidth,
+            child: ListView(
+                padding: EdgeInsets.all(isDesktopPlatform ? 24 : 16),
+                children: [
+                  // Summary 2x3 Grid
+                  _buildSummarySection(stats, isRu),
+                  const SizedBox(height: 20),
 
-              // Real Reading Time Section
-              _buildReadingTimeSection(ref, isRu),
-              const SizedBox(height: 20),
+                  // Real Reading Time Section
+                  _buildReadingTimeSection(ref, isRu),
+                  const SizedBox(height: 20),
 
-              // Genres Section
-              _buildGenresSection(stats.topGenres, isRu),
-              const SizedBox(height: 20),
+                  // Genres Section
+                  _buildGenresSection(stats.topGenres, isRu),
+                  const SizedBox(height: 20),
 
-              // Time of Day Section
-              _buildTimeOfDaySection(stats.timeOfDay, isRu),
-              const SizedBox(height: 20),
+                  // Time of Day Section
+                  _buildTimeOfDaySection(stats.timeOfDay, isRu),
+                  const SizedBox(height: 20),
 
-              // Streaks Section
-              _buildStreakSection(stats, isRu),
-            ],
-          ),
+                  // Streaks Section
+                  _buildStreakSection(stats, isRu),
+                ],
+              ),
+            ),
         ),
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text(s.error('$e'))),
@@ -57,6 +71,82 @@ class StatisticsPage extends ConsumerWidget {
 
   Widget _buildSummarySection(ReadingStatistics stats, bool isRu) {
     final s = StatisticsStrings(isRu);
+    final metrics = <({IconData icon, String value, String label, Color color})>[
+      (
+        icon: Icons.menu_book_rounded,
+        value: '${stats.totalChaptersRead}',
+        label: s.chaptersRead,
+        color: const Color(0xFF64B5F6),
+      ),
+      (
+        icon: Icons.auto_stories_rounded,
+        value: '${stats.totalPagesRead}',
+        label: s.pagesRead,
+        color: const Color(0xFF81C784),
+      ),
+      (
+        icon: Icons.task_alt_rounded,
+        value: '${stats.completedMangaCount}',
+        label: s.completedManga,
+        color: const Color(0xFFFFB74D),
+      ),
+      (
+        icon: Icons.bookmark_outline_rounded,
+        value: '${stats.inProgressMangaCount}',
+        label: s.inProgress,
+        color: const Color(0xFFBA68C8),
+      ),
+      (
+        icon: Icons.folder_outlined,
+        value: '${stats.totalLibraryCount}',
+        label: s.libraryTitles,
+        color: AppTokens.accent,
+      ),
+      (
+        icon: Icons.download_done_rounded,
+        value: '${stats.totalDownloadedChapters}',
+        label: s.downloadedChapters,
+        color: const Color(0xFF4FC3F7),
+      ),
+    ];
+
+    if (isDesktopPlatform) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            s.overview,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 10),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: metrics.length,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              mainAxisExtent: 108,
+              mainAxisSpacing: 10,
+              crossAxisSpacing: 10,
+            ),
+            itemBuilder: (context, index) {
+              final metric = metrics[index];
+              return _buildMetricCard(
+                metric.icon,
+                metric.value,
+                metric.label,
+                metric.color,
+              );
+            },
+          ),
+        ],
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
