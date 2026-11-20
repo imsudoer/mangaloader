@@ -4277,7 +4277,10 @@ class _VerticalReaderPageItemState extends State<_VerticalReaderPageItem> {
 
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.sizeOf(context).width;
+    final mediaWidth = MediaQuery.sizeOf(context).width;
+    final width = isDesktopPlatform && mediaWidth > DesktopLayout.readerVerticalMaxWidth
+        ? DesktopLayout.readerVerticalMaxWidth
+        : mediaWidth;
     final itemWidth = width * widget.zoomLevel;
     final boxHeight = (widget.extent - 1).clamp(1.0, double.infinity);
 
