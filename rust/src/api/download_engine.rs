@@ -282,7 +282,10 @@ pub async fn start_chapter_download(
             // The window may look further ahead than it writes, so at most a few
             // dozen decoded pages are held in memory.
             let mut batch = Vec::with_capacity(window);
-            while batch.len() < window && next_to_fetch < pages.len() {
+            let lookahead_limit = next_to_write.saturating_add(window * 2);
+            while batch.len() < window &&
+                next_to_fetch < pages.len() &&
+                next_to_fetch < lookahead_limit {
                 let idx = next_to_fetch;
                 next_to_fetch += 1;
                 if !pending.contains_key(&idx) {
@@ -326,6 +329,10 @@ pub async fn start_chapter_download(
             if !all_ok {
                 break;
             }
+
+            // JoinSet completes in arrival order, so the retry point must be the
+            // smallest missing index; otherwise a gap would never be fetched again.
+            failed.sort_unstable();
 
             if !failed.is_empty() {
                 let mut exhausted = false;
