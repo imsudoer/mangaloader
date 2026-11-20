@@ -94,8 +94,146 @@ pub async fn export_manga_as_cbz(
     Ok(exported_files)
 }
 
+/// Pixel size of a page image. Zeroes mean the header was not recognised, and
+/// the reader then falls back to a portrait estimate for that page.
+pub struct CbzPageSize {
+    pub width: i64,
+    pub height: i64,
+}
+
 pub fn get_cbz_page_count(cbz_path: String) -> Result<i64> {
     with_open_archive(&cbz_path, |_archive, names| Ok(names.len() as i64))
+}
+
+/// Reads only the image headers, which is what the reader needs to reserve the
+/// exact height of every page before any of them is decoded. Full pages can be
+/// multi-megabyte webtoon strips, so decoding them just to learn the aspect ratio
+/// would stall the first frame of a chapter.
+pub fn get_cbz_page_sizes(cbz_path: String) -> Result<Vec<CbzPageSize>> {
+    with_open_archive(&cbz_path, |archive, names| {
+        let mut sizes = Vec::with_capacity(names.len());
+        for name in names {
+            let mut entry = archive
+                .by_name(name)
+                .with_context(|| format!("Failed to find page {} in CBZ", name))?;
+            let mut header = Vec::with_capacity(8192);
+            let mut chunk = [0u8; 8192];
+            let mut found = None;
+            while header.len() < 256 * 1024 {
+                let read = entry.read(&mut chunk)?;
+                if read == 0 {
+                    break;
+                }
+                header.extend_from_slice(&chunk[..read]);
+                if let Some(size) = image_dimensions(&header) {
+                    found = Some(size);
+                    break;
+                }
+            }
+            let (width, height) = found.unwrap_or((0, 0));
+            sizes.push(CbzPageSize {
+                width: width as i64,
+                height: height as i64,
+            });
+        }
+        Ok(sizes)
+    })
+}
+
+fn image_dimensions(bytes: &[u8]) -> Option<(u32, u32)> {
+    if bytes.len() >= 24 && bytes.starts_with(&[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A]) {
+        let width = u32::from_be_bytes(bytes[16..20].try_into().ok()?);
+        let height = u32::from_be_bytes(bytes[20..24].try_into().ok()?);
+        return (width > 0 && height > 0).then_some((width, height));
+    }
+    if bytes.len() >= 10 && bytes.starts_with(b"GIF8") {
+        let width = u16::from_le_bytes(bytes[6..8].try_into().ok()?) as u32;
+        let height = u16::from_le_bytes(bytes[8..10].try_into().ok()?) as u32;
+        return (width > 0 && height > 0).then_some((width, height));
+    }
+    if bytes.starts_with(&[0xFF, 0xD8]) {
+        return jpeg_dimensions(bytes);
+    }
+    if bytes.len() >= 12 && &bytes[0..4] == b"RIFF" && &bytes[8..12] == b"WEBP" {
+        return webp_dimensions(bytes);
+    }
+    if bytes.len() >= 12 && (&bytes[4..12] == b"ftypavif" || &bytes[4..12] == b"ftypavis") {
+        return avif_dimensions(bytes);
+    }
+    None
+}
+
+fn jpeg_dimensions(bytes: &[u8]) -> Option<(u32, u32)> {
+    let mut index = 2;
+    while index + 9 <= bytes.len() {
+        if bytes[index] != 0xFF {
+            index += 1;
+            continue;
+        }
+        let marker = bytes[index + 1];
+        if marker == 0xD8 || marker == 0x01 || (0xD0..=0xD7).contains(&marker) {
+            index += 2;
+            continue;
+        }
+        if marker == 0xDA || marker == 0xD9 {
+            return None;
+        }
+        let length = u16::from_be_bytes([bytes[index + 2], bytes[index + 3]]) as usize;
+        let is_sof = matches!(
+            marker,
+            0xC0..=0xC3 | 0xC5..=0xC7 | 0xC9..=0xCB | 0xCD..=0xCF
+        );
+        if is_sof {
+            let height = u16::from_be_bytes([bytes[index + 5], bytes[index + 6]]) as u32;
+            let width = u16::from_be_bytes([bytes[index + 7], bytes[index + 8]]) as u32;
+            return (width > 0 && height > 0).then_some((width, height));
+        }
+        if length < 2 {
+            return None;
+        }
+        index += 2 + length;
+    }
+    None
+}
+
+fn webp_dimensions(bytes: &[u8]) -> Option<(u32, u32)> {
+    let mut index = 12;
+    while index + 8 <= bytes.len() {
+        let tag = &bytes[index..index + 4];
+        let size = u32::from_le_bytes(bytes[index + 4..index + 8].try_into().ok()?) as usize;
+        let data = bytes.get(index + 8..)?;
+        match tag {
+            b"VP8X" if data.len() >= 10 => {
+                let width = 1 + u32::from_le_bytes([data[4], data[5], data[6], 0]);
+                let height = 1 + u32::from_le_bytes([data[7], data[8], data[9], 0]);
+                return (width > 1 && height > 1).then_some((width, height));
+            }
+            b"VP8 " if data.len() >= 10 && data[3..6] == [0x9D, 0x01, 0x2A] => {
+                let width = (u16::from_le_bytes([data[6], data[7]]) & 0x3FFF) as u32;
+                let height = (u16::from_le_bytes([data[8], data[9]]) & 0x3FFF) as u32;
+                return (width > 0 && height > 0).then_some((width, height));
+            }
+            b"VP8L" if data.len() >= 5 && data[0] == 0x2F => {
+                let bits = u32::from_le_bytes([data[1], data[2], data[3], data[4]]);
+                let width = (bits & 0x3FFF) + 1;
+                let height = ((bits >> 14) & 0x3FFF) + 1;
+                return Some((width, height));
+            }
+            _ => {}
+        }
+        index += 8 + size + (size & 1);
+    }
+    None
+}
+
+fn avif_dimensions(bytes: &[u8]) -> Option<(u32, u32)> {
+    let offset = bytes.windows(4).position(|window| window == b"ispe")?;
+    if offset + 16 > bytes.len() {
+        return None;
+    }
+    let width = u32::from_be_bytes(bytes[offset + 8..offset + 12].try_into().ok()?);
+    let height = u32::from_be_bytes(bytes[offset + 12..offset + 16].try_into().ok()?);
+    (width > 0 && height > 0).then_some((width, height))
 }
 
 pub fn read_cbz_page(cbz_path: String, page_index: i64) -> Result<Vec<u8>> {
@@ -352,4 +490,46 @@ fn export_from_directory(
 
     zip.finish().context("Failed to finalize zip")?;
     Ok(())
+}
+#[cfg(test)]
+mod page_size_tests {
+    use super::image_dimensions;
+
+    #[test]
+    fn reads_png_header() {
+        let mut bytes = vec![0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A];
+        bytes.extend_from_slice(&13u32.to_be_bytes());
+        bytes.extend_from_slice(b"IHDR");
+        bytes.extend_from_slice(&760u32.to_be_bytes());
+        bytes.extend_from_slice(&11521u32.to_be_bytes());
+        assert_eq!(image_dimensions(&bytes), Some((760, 11521)));
+    }
+
+    #[test]
+    fn reads_jpeg_sof() {
+        let mut bytes = vec![0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x04, 0x00, 0x00];
+        bytes.extend_from_slice(&[0xFF, 0xC0, 0x00, 0x11, 0x08]);
+        bytes.extend_from_slice(&1200u16.to_be_bytes());
+        bytes.extend_from_slice(&800u16.to_be_bytes());
+        bytes.extend_from_slice(&[0x03, 0x01, 0x11, 0x00, 0x02, 0x11, 0x00, 0x03, 0x11, 0x00]);
+        assert_eq!(image_dimensions(&bytes), Some((800, 1200)));
+    }
+
+    #[test]
+    fn reads_lossless_webp_header() {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(b"RIFF");
+        bytes.extend_from_slice(&0u32.to_le_bytes());
+        bytes.extend_from_slice(b"WEBPVP8L");
+        bytes.extend_from_slice(&5u32.to_le_bytes());
+        bytes.push(0x2F);
+        let bits = (11520u32 << 14) | 759u32;
+        bytes.extend_from_slice(&bits.to_le_bytes());
+        assert_eq!(image_dimensions(&bytes), Some((760, 11521)));
+    }
+
+    #[test]
+    fn rejects_unknown_headers() {
+        assert_eq!(image_dimensions(b"not an image at all"), None);
+    }
 }

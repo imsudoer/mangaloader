@@ -71,54 +71,36 @@ fn normalize_page_path(page_url: &str) -> String {
 
 const MAX_PAGE_ATTEMPTS: i64 = 8;
 
-/// Downloads a single page with bounded retries. A permanently missing page must not
-/// keep the whole download queue hostage, so attempts are capped and the caller fails
-/// the chapter instead of looping forever.
-async fn fetch_page(
-    page_url: &str,
-    cdn_base: &mut String,
-    probe_url: &str,
-    progress: &mut DownloadProgress,
-    sink: &StreamSink<DownloadProgress>,
-) -> Option<Vec<u8>> {
+/// One HTTP attempt for a page. Retries, CDN switching and progress reporting are
+/// handled by the batch loop so several pages can be in flight at once.
+async fn fetch_page_bytes(page_url: &str, cdn_base: &str) -> Option<Vec<u8>> {
     let clean_path = normalize_page_path(page_url);
-    let mut full_url = format!("{}{}", cdn_base, clean_path);
-    let mut retry_delay: i64 = 1;
-
-    for attempt in 1..=MAX_PAGE_ATTEMPTS {
-        if DOWNLOAD_CANCELLED.load(Ordering::SeqCst) {
-            return None;
-        }
-        while !DOWNLOAD_ACTIVE.load(Ordering::SeqCst) && !DOWNLOAD_CANCELLED.load(Ordering::SeqCst) {
-            progress.state = DownloadState::Paused;
-            let _ = sink.add(progress.clone());
-            sleep(Duration::from_millis(500)).await;
-        }
-
-        match download_image(full_url.clone()).await {
-            Ok(bytes) if is_valid_image_data(&bytes) => return Some(bytes),
-            _ => {
-                if attempt == MAX_PAGE_ATTEMPTS {
-                    break;
-                }
-                if attempt % 3 == 0 {
-                    if let Ok(new_cdn) = find_working_cdn(probe_url.to_string()).await {
-                        *cdn_base = new_cdn;
-                        full_url = format!("{}{}", cdn_base, clean_path);
-                    }
-                }
-                progress.state = DownloadState::WaitingForNetwork;
-                progress.error_message = None;
-                let _ = sink.add(progress.clone());
-                sleep(Duration::from_secs(retry_delay as u64)).await;
-                retry_delay = (retry_delay * 2).min(20);
-                progress.state = DownloadState::Downloading;
-                let _ = sink.add(progress.clone());
-            }
-        }
+    let full_url = format!("{}{}", cdn_base, clean_path);
+    match download_image(full_url).await {
+        Ok(bytes) if is_valid_image_data(&bytes) => Some(bytes),
+        _ => None,
     }
+}
 
-    None
+fn write_page(
+    zip: &mut zip::ZipWriter<std::fs::File>,
+    options: SimpleFileOptions,
+    page_url: &str,
+    index: usize,
+    data: &[u8],
+    downloaded_bytes: &mut i64,
+) -> Result<()> {
+    let ext = Path::new(page_url)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("jpg");
+    let arcname = format!("{:04}.{}", index + 1, ext);
+    zip.start_file(&arcname, options)
+        .context("Failed to start file in CBZ")?;
+    zip.write_all(data)
+        .context("Failed to write image to CBZ")?;
+    *downloaded_bytes += data.len() as i64;
+    Ok(())
 }
 
 pub async fn start_chapter_download(
@@ -273,10 +255,13 @@ pub async fn start_chapter_download(
         let mut downloaded_bytes: i64 = 0;
         let mut all_ok = true;
 
-        let mut page_idx = 0usize;
-        let mut in_flight: std::collections::VecDeque<(usize, Option<Vec<u8>>)> = std::collections::VecDeque::new();
+        // Do not buffer the whole chapter: completed pages are flushed in order,
+        // while a bounded window of pages above the write cursor is in flight.
         let mut pending: std::collections::HashMap<usize, Vec<u8>> = std::collections::HashMap::new();
         let mut next_to_write = 0usize;
+        let mut next_to_fetch = 0usize;
+        let mut attempts: std::collections::HashMap<usize, i64> = std::collections::HashMap::new();
+        let mut retry_delay: i64 = 1;
 
         while next_to_write < pages.len() {
             if DOWNLOAD_CANCELLED.load(Ordering::SeqCst) {
@@ -294,41 +279,46 @@ pub async fn start_chapter_download(
                 break;
             }
 
-            // Fill the in-flight window.
-            while in_flight.len() < window && page_idx < pages.len() {
-                in_flight.push_back((page_idx, None));
-                page_idx += 1;
+            // The window may look further ahead than it writes, so at most a few
+            // dozen decoded pages are held in memory.
+            let mut batch = Vec::with_capacity(window);
+            while batch.len() < window && next_to_fetch < pages.len() {
+                let idx = next_to_fetch;
+                next_to_fetch += 1;
+                if !pending.contains_key(&idx) {
+                    batch.push(idx);
+                }
             }
 
-            // Resolve every slot of the current window.
-            let mut slots: Vec<(usize, Option<Vec<u8>>)> = Vec::with_capacity(in_flight.len());
-            while let Some((idx, _)) = in_flight.pop_front() {
-                let bytes = fetch_page(
-                    &pages[idx].url,
-                    &mut cdn_base,
-                    &pages[0].url,
-                    &mut progress,
-                    &sink,
-                )
-                .await;
-                slots.push((idx, bytes));
+            if batch.is_empty() {
+                // Nothing left to fetch; flush whatever is still waiting in order.
+                while let Some(data) = pending.remove(&next_to_write) {
+                    write_page(&mut zip, options, &pages[next_to_write].url, next_to_write, &data, &mut downloaded_bytes)?;
+                    next_to_write += 1;
+                    progress.current_page = next_to_write as i64;
+                    progress.bytes_downloaded = downloaded_bytes;
+                    progress.state = DownloadState::Downloading;
+                    let _ = sink.add(progress.clone());
+                }
+                continue;
             }
 
-            for (idx, bytes) in slots {
-                match bytes {
-                    Some(data) => {
+            let mut set = tokio::task::JoinSet::new();
+            for idx in batch {
+                let url = pages[idx].url.clone();
+                let base = cdn_base.clone();
+                set.spawn(async move { (idx, fetch_page_bytes(&url, &base).await) });
+            }
+
+            let mut failed = Vec::new();
+            while let Some(joined) = set.join_next().await {
+                match joined {
+                    Ok((idx, Some(data))) => {
                         pending.insert(idx, data);
                     }
-                    None => {
-                        if DOWNLOAD_CANCELLED.load(Ordering::SeqCst) {
-                            all_ok = false;
-                        } else {
-                            progress.state = DownloadState::Failed;
-                            progress.error_message = Some(format!("Failed to download page {}", idx + 1));
-                            let _ = sink.add(progress.clone());
-                            all_ok = false;
-                        }
-                        break;
+                    Ok((idx, None)) => failed.push(idx),
+                    Err(_) => {
+                        all_ok = false;
                     }
                 }
             }
@@ -337,18 +327,47 @@ pub async fn start_chapter_download(
                 break;
             }
 
+            if !failed.is_empty() {
+                let mut exhausted = false;
+                for idx in &failed {
+                    let count = attempts.entry(*idx).or_insert(0);
+                    *count += 1;
+                    if *count >= MAX_PAGE_ATTEMPTS {
+                        exhausted = true;
+                    }
+                }
+                if exhausted {
+                    progress.state = DownloadState::Failed;
+                    progress.error_message =
+                        Some(format!("Failed to download page {}", failed[0] + 1));
+                    let _ = sink.add(progress.clone());
+                    all_ok = false;
+                    break;
+                }
+
+                progress.state = DownloadState::WaitingForNetwork;
+                progress.error_message = None;
+                let _ = sink.add(progress.clone());
+
+                if let Ok(new_cdn) = find_working_cdn(pages[failed[0]].url.clone()).await {
+                    cdn_base = new_cdn;
+                }
+                sleep(Duration::from_secs(retry_delay as u64)).await;
+                retry_delay = (retry_delay * 2).min(20);
+                progress.state = DownloadState::Downloading;
+                let _ = sink.add(progress.clone());
+
+                // Rewind to the first missing page; already pending ones are skipped.
+                next_to_fetch = failed[0];
+                continue;
+            }
+
+            retry_delay = 1;
+
             // Flush the contiguous prefix to the archive.
             while let Some(data) = pending.remove(&next_to_write) {
-                let ext = Path::new(&pages[next_to_write].url)
-                    .extension()
-                    .and_then(|e| e.to_str())
-                    .unwrap_or("jpg");
-                let arcname = format!("{:04}.{}", next_to_write + 1, ext);
-                zip.start_file(&arcname, options).context("Failed to start file in CBZ")?;
-                zip.write_all(&data).context("Failed to write image to CBZ")?;
-                downloaded_bytes += data.len() as i64;
+                write_page(&mut zip, options, &pages[next_to_write].url, next_to_write, &data, &mut downloaded_bytes)?;
                 next_to_write += 1;
-
                 progress.current_page = next_to_write as i64;
                 progress.bytes_downloaded = downloaded_bytes;
                 progress.state = DownloadState::Downloading;

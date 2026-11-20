@@ -6,7 +6,7 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `comic_info_xml`, `escape_xml_text`, `export_from_archive`, `export_from_directory`, `invalidate_archive_cache`, `is_image_entry`, `lock_cache`, `open_archive`, `paths_refer_to_same_file`, `stored_options`, `with_open_archive`
+// These functions are ignored because they are not marked as `pub`: `avif_dimensions`, `comic_info_xml`, `escape_xml_text`, `export_from_archive`, `export_from_directory`, `image_dimensions`, `invalidate_archive_cache`, `is_image_entry`, `jpeg_dimensions`, `lock_cache`, `open_archive`, `paths_refer_to_same_file`, `stored_options`, `webp_dimensions`, `with_open_archive`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ArchiveCache`, `CachedArchive`
 
 Future<String> exportChapterAsCbz(
@@ -36,7 +36,37 @@ Future<List<String>> exportMangaAsCbz(
 Future<PlatformInt64> getCbzPageCount({required String cbzPath}) =>
     RustLib.instance.api.crateApiCbzExportGetCbzPageCount(cbzPath: cbzPath);
 
+/// Reads only the image headers, which is what the reader needs to reserve the
+/// exact height of every page before any of them is decoded. Full pages can be
+/// multi-megabyte webtoon strips, so decoding them just to learn the aspect ratio
+/// would stall the first frame of a chapter.
+Future<List<CbzPageSize>> getCbzPageSizes({required String cbzPath}) =>
+    RustLib.instance.api.crateApiCbzExportGetCbzPageSizes(cbzPath: cbzPath);
+
 Future<Uint8List> readCbzPage(
         {required String cbzPath, required PlatformInt64 pageIndex}) =>
     RustLib.instance.api
         .crateApiCbzExportReadCbzPage(cbzPath: cbzPath, pageIndex: pageIndex);
+
+/// Pixel size of a page image. Zeroes mean the header was not recognised, and
+/// the reader then falls back to a portrait estimate for that page.
+class CbzPageSize {
+  final PlatformInt64 width;
+  final PlatformInt64 height;
+
+  const CbzPageSize({
+    required this.width,
+    required this.height,
+  });
+
+  @override
+  int get hashCode => width.hashCode ^ height.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CbzPageSize &&
+          runtimeType == other.runtimeType &&
+          width == other.width &&
+          height == other.height;
+}

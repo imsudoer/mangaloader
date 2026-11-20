@@ -136,8 +136,19 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   
   // Memory cache for CBZ page bytes
   final Map<int, Uint8List> _pageCache = {};
-  List<GlobalKey> _pageKeys = [];
-  
+
+  // Exact page geometry: the reader reserves every page height from the image
+  // aspect ratio before the first decode, so scrolling and jumping never depend
+  // on estimates that change while images load.
+  List<double> _pageAspects = [];
+  List<double> _pageExtents = [];
+  List<double> _pageStarts = [];
+  int _aspectVersion = 0;
+  int _metricsAspectVersion = -1;
+  int _metricsPageCount = -1;
+  double _metricsWidth = -1;
+  double _metricsZoom = -1;
+
   int _currentPageIndex = 0;
   PageController? _pageController;
   // Paged slides lock horizontal paging while one of them is zoomed; otherwise
@@ -147,7 +158,6 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   final ScrollController _scrollController = ScrollController();
   final FocusNode _focusNode = FocusNode();
   
-  bool _isJumping = false;
   bool _isScrubbing = false;
   double _titleDragDx = 0;
 
@@ -160,9 +170,6 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   bool _prefetchNeighbours = true;
   int _neighbourJob = 0;
 
-  // Measured page heights drive offset estimation so that jumping in the webtoon
-  // list stays accurate without keeping every page mounted.
-  final Map<int, double> _pageHeights = {};
   bool? _appliedDualLayout;
   
   Timer? _saveTimer;
@@ -500,54 +507,79 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     _navigateToNextChapter();
   }
 
-  int _findVisiblePageIndex() {
-    if (_totalPages <= 1 || !_scrollController.hasClients) return 0;
-    final focusY = MediaQuery.of(context).size.height * 0.35;
+  /// Aspect ratio used when a page has no usable image header. A portrait page is
+  /// the safest estimate: a wrong short box is more visible than a slightly long one.
+  static const double _fallbackAspect = 0.72;
+  static const double _pageGap = 1.0;
 
-    // Mounted pages report their real box, which stays correct while the images
-    // decode; the estimated list below is only needed for off-screen targets.
-    for (int i = 0; i < _pageKeys.length; i++) {
-      final box = _pageKeys[i].currentContext?.findRenderObject() as RenderBox?;
-      if (box == null || !box.hasSize) continue;
-      final top = box.localToGlobal(Offset.zero).dy;
-      if (top <= focusY && top + box.size.height > focusY) return i;
+  double _aspectFor(int index) {
+    if (index < _pageAspects.length) {
+      final aspect = _pageAspects[index];
+      if (aspect.isFinite && aspect > 0.02 && aspect < 50) return aspect;
     }
-
-    final target = _scrollController.offset + focusY;
-    final fallback = _fallbackPageHeight();
-    double accumulated = 0;
-    for (int i = 0; i < _totalPages; i++) {
-      accumulated += _pageHeights[i] ?? fallback;
-      if (accumulated > target) return i;
-    }
-    return _totalPages - 1;
+    return _fallbackAspect;
   }
 
-  void _onPageMeasured(int index, double height) {
-    // A page that is still decoding lays out at its padding height, which must
-    // not overwrite the real measurement of the previous frame.
-    if (height < 16) return;
-    final previous = _pageHeights[index];
-    if (previous == null || (previous - height).abs() > 0.5) {
-      _pageHeights[index] = height;
+  /// Recomputes page extents when the viewport width, zoom or page list changes.
+  /// The result is what the vertical sliver uses for layout, so page offsets and
+  /// the current page index are always exact instead of being guessed from the
+  /// items that happen to be mounted.
+  void _ensureVerticalMetrics(double width) {
+    if (_metricsWidth == width &&
+        _metricsZoom == _zoomLevel &&
+        _metricsPageCount == _totalPages &&
+        _metricsAspectVersion == _aspectVersion) {
+      return;
+    }
+    _metricsWidth = width;
+    _metricsZoom = _zoomLevel;
+    _metricsPageCount = _totalPages;
+    _metricsAspectVersion = _aspectVersion;
+
+    _pageExtents = List<double>.generate(_totalPages, (index) {
+      return width * _zoomLevel / _aspectFor(index) + _pageGap;
+    });
+    _pageStarts = List<double>.filled(_totalPages, 0);
+    var offset = 0.0;
+    for (var i = 0; i < _totalPages; i++) {
+      _pageStarts[i] = offset;
+      offset += _pageExtents[i];
     }
   }
 
-  double _fallbackPageHeight() {
-    if (_pageHeights.isNotEmpty) {
-      final total = _pageHeights.values.fold<double>(0, (sum, h) => sum + h);
-      return total / _pageHeights.length;
+  int _pageIndexAtOffset(double offset) {
+    if (_pageStarts.isEmpty) return 0;
+    final focus = offset + MediaQuery.sizeOf(context).height * 0.35;
+    var low = 0;
+    var high = _pageStarts.length - 1;
+    while (low < high) {
+      final mid = (low + high + 1) >> 1;
+      if (_pageStarts[mid] <= focus) {
+        low = mid;
+      } else {
+        high = mid - 1;
+      }
     }
-    return MediaQuery.of(context).size.width * _zoomLevel * 1.45;
+    return low;
   }
 
-  double _pageTopOffset(int index) {
-    final fallback = _fallbackPageHeight();
-    double offset = 0;
-    for (int i = 0; i < index; i++) {
-      offset += _pageHeights[i] ?? fallback;
+  /// Online pages occasionally come without dimensions. The first decoded frame
+  /// then reports the real aspect ratio, and the reserved extent is corrected once.
+  void _onMeasuredAspect(int index, double aspect) {
+    if (index < 0 || index >= _totalPages) return;
+    if (aspect <= 0.02 || aspect >= 50) return;
+    while (_pageAspects.length <= index) {
+      _pageAspects.add(0);
     }
-    return offset;
+    if ((_pageAspects[index] - aspect).abs() < 0.001) return;
+    _pageAspects[index] = aspect;
+    _aspectVersion++;
+    if (mounted) setState(() {});
+  }
+
+  double _pageOffsetFor(int index) {
+    if (_pageStarts.isEmpty) return 0;
+    return _pageStarts[index.clamp(0, _pageStarts.length - 1)];
   }
 
   int _slideForPageIndex(int pageIndex, bool isDual) =>
@@ -575,10 +607,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
   void _onVerticalScroll() {
     if (_readMode != ReadMode.vertical || !_scrollController.hasClients || _totalPages <= 1) return;
-    if (_isJumping || _isScrubbing) return;
-    
-    final currentVisible = _findVisiblePageIndex();
-    
+    if (_isScrubbing) return;
+
+    final currentVisible = _pageIndexAtOffset(_scrollController.offset);
+
     if (currentVisible != _currentPageIndex) {
       _currentPageIndex = currentVisible;
       _pageIndexNotifier.value = currentVisible;
@@ -660,8 +692,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
     setState(() { _isLoading = true; _errorMessage = null; });
     _pageCache.clear();
-    _pageHeights.clear();
     _onlinePages = [];
+    _pageAspects = [];
+    _aspectVersion++;
 
     final isRu = Localizations.localeOf(context).languageCode == 'ru';
 
@@ -673,6 +706,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         if (_totalPages == 0) {
           throw Exception(ReaderStrings(isRu).cbzReadFailed);
         }
+        await _loadCbzAspects(_cbzPath);
       } else {
         if (widget.slugUrl.isNotEmpty) {
           var cached = await rust_storage.getCachedManga(slugUrl: widget.slugUrl);
@@ -724,6 +758,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         } else {
           _isDownloaded = false;
         }
+
+        if (_isDownloaded) {
+          await _loadCbzAspects(_cbzPath);
+        }
         
         if (!_isDownloaded) {
           _onlinePages = await rust_api.getChapterPages(
@@ -733,6 +771,13 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
             branchId: widget.branchId,
           );
           _totalPages = _onlinePages.length;
+          _pageAspects = [
+            for (final page in _onlinePages)
+              (page.width != null && page.height != null && page.width! > 0 && page.height! > 0)
+                  ? page.width!.toDouble() / page.height!.toDouble()
+                  : 0.0,
+          ];
+          _aspectVersion++;
           if (_totalPages > 0) {
             _preloadImages(_currentPageIndex);
           }
@@ -756,7 +801,6 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       _currentPageIndex = 0;
     }
 
-    _pageKeys = List.generate(_totalPages, (i) => GlobalKey(debugLabel: 'page_$i'));
     _zoomedPageIndex = null;
 
     // The paged controller is created on the first layout pass, once the viewport
@@ -796,46 +840,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         controller.jumpToPage(slide.clamp(0, _slideCount(_appliedDualLayout ?? false) - 1));
       }
     } else if (_scrollController.hasClients) {
-      _isJumping = true;
+      _ensureVerticalMetrics(MediaQuery.sizeOf(context).width);
       final maxExtent = _scrollController.position.maxScrollExtent;
-      _scrollController.jumpTo(_pageTopOffset(targetIndex).clamp(0.0, maxExtent));
-      WidgetsBinding.instance.addPostFrameCallback((_) => _refineVerticalJump(targetIndex, 0));
+      _scrollController.jumpTo(_pageOffsetFor(targetIndex).clamp(0.0, maxExtent));
     }
     _scheduleSaveProgress();
-  }
-
-  /// After landing near the estimated offset, align the target page to the top of the
-  /// viewport using its real measured box. Retries a couple of frames while lazy
-  /// building catches up with the requested position.
-  void _refineVerticalJump(int target, int attempt, {double fraction = 0}) {
-    if (!mounted || !_scrollController.hasClients) {
-      _isJumping = false;
-      return;
-    }
-
-    final ctx = target < _pageKeys.length ? _pageKeys[target].currentContext : null;
-    final box = ctx?.findRenderObject() as RenderBox?;
-    if (box != null && box.hasSize) {
-      final deltaOnScreen = box.localToGlobal(Offset.zero).dy;
-      final desired = _scrollController.offset +
-          deltaOnScreen +
-          (fraction > 0 ? fraction * box.size.height : 0);
-      final maxExtent = _scrollController.position.maxScrollExtent;
-      final clamped = desired.clamp(0.0, maxExtent);
-      if ((clamped - _scrollController.offset).abs() > 1.0) {
-        _scrollController.jumpTo(clamped);
-      }
-      _isJumping = false;
-      return;
-    }
-
-    if (attempt >= 3) {
-      _isJumping = false;
-      return;
-    }
-    WidgetsBinding.instance.addPostFrameCallback(
-      (_) => _refineVerticalJump(target, attempt + 1, fraction: fraction),
-    );
   }
 
   Future<void> _findNextChapter() async {
@@ -1078,14 +1087,33 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
   void _preloadImages(int startIndex) {
     if (_isDownloaded || _onlinePages.isEmpty) return;
-    final end = startIndex + _preloadRadius;
-    for (int i = startIndex; i < end && i < _onlinePages.length; i++) {
+    final start = (startIndex - 1).clamp(0, _onlinePages.length - 1);
+    final end = (startIndex + _preloadRadius).clamp(0, _onlinePages.length);
+    for (int i = start; i < end; i++) {
       final url = _resolveImageUrl(_onlinePages[i].url);
       precacheImage(
         CachedNetworkImageProvider(url, headers: const {'Referer': 'https://mangalib.org/'}), 
         context
       );
     }
+  }
+
+  /// Reads page headers once, so the vertical reader knows every extent up front.
+  /// A chapter whose headers cannot be read still opens with the portrait fallback.
+  Future<void> _loadCbzAspects(String path) async {
+    try {
+      final sizes = await rust_cbz.getCbzPageSizes(cbzPath: path);
+      _pageAspects = [
+        for (final size in sizes)
+          (size.width > 0 && size.height > 0)
+              ? size.width.toDouble() / size.height.toDouble()
+              : 0.0,
+      ];
+    } catch (e) {
+      debugPrint("Error reading CBZ page sizes: $e");
+      _pageAspects = [];
+    }
+    _aspectVersion++;
   }
 
   Future<Uint8List?> _getCbzPage(int index) async {
@@ -1333,35 +1361,32 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     newZoom = newZoom.clamp(0.5, 4.0);
     if (newZoom == _zoomLevel) return;
 
-    if (_readMode != ReadMode.vertical || !_scrollController.hasClients) {
+    if (_readMode != ReadMode.vertical ||
+        !_scrollController.hasClients ||
+        _pageStarts.isEmpty) {
       setState(() => _zoomLevel = newZoom);
       return;
     }
 
-    final visiblePage = _findVisiblePageIndex();
-    double fractionInPage = 0.0;
-    if (visiblePage < _pageKeys.length) {
-      final box = _pageKeys[visiblePage].currentContext?.findRenderObject() as RenderBox?;
-      if (box != null && box.hasSize && box.size.height > 0) {
-        fractionInPage = (-box.localToGlobal(Offset.zero).dy / box.size.height).clamp(0.0, 1.0);
-      }
-    }
+    final visiblePage = _currentPageIndex.clamp(0, _totalPages - 1);
+    final focusY = MediaQuery.sizeOf(context).height * 0.35;
+    final pagePoint =
+        (_scrollController.offset + focusY - _pageStarts[visiblePage])
+            .clamp(0.0, _pageExtents[visiblePage]);
+    final fraction = _pageExtents[visiblePage] > 0
+        ? pagePoint / _pageExtents[visiblePage]
+        : 0.0;
 
-    // Heights are expressed in pixels of the previous scale, so they must be re-measured.
-    _isJumping = true;
-    _pageHeights.clear();
     setState(() => _zoomLevel = newZoom);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_scrollController.hasClients) {
-        _isJumping = false;
-        return;
-      }
+      if (!mounted || !_scrollController.hasClients) return;
+      _ensureVerticalMetrics(MediaQuery.sizeOf(context).width);
+      final target = _pageStarts[visiblePage] +
+          fraction * _pageExtents[visiblePage] -
+          focusY;
       final maxExtent = _scrollController.position.maxScrollExtent;
-      final estimate = _pageTopOffset(visiblePage) +
-          fractionInPage * _fallbackPageHeight();
-      _scrollController.jumpTo(estimate.clamp(0.0, maxExtent));
-      _refineVerticalJump(visiblePage, 0, fraction: fractionInPage);
+      _scrollController.jumpTo(target.clamp(0.0, maxExtent));
     });
   }
 
@@ -2203,6 +2228,20 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         ),
       );
     } else if (_readMode == ReadMode.vertical) {
+      final previousWidth = _metricsWidth;
+      final width = MediaQuery.sizeOf(context).width;
+      _ensureVerticalMetrics(width);
+      if (previousWidth > 0 && previousWidth != width) {
+        // Rotation changes every extent, so keep the page that was being read at
+        // the top instead of leaving the old pixel offset in place.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted || !_scrollController.hasClients) return;
+          final maxExtent = _scrollController.position.maxScrollExtent;
+          _scrollController.jumpTo(
+            _pageOffsetFor(_currentPageIndex).clamp(0.0, maxExtent),
+          );
+        });
+      }
       return NotificationListener<ScrollNotification>(
         onNotification: (notification) {
           // Any manual drag takes control away from auto-scroll.
@@ -2220,31 +2259,36 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         child: Scrollbar(
           controller: _scrollController,
           thumbVisibility: true,
-          child: ListView.builder(
+          child: CustomScrollView(
             controller: _scrollController,
             physics: const ClampingScrollPhysics(),
-            itemCount: _totalPages + 1,
-            itemBuilder: (context, i) {
-              if (i == _totalPages) {
-                return _buildNextChapterSwipeCard(isRu);
-              }
-              return _VerticalReaderPageItem(
-                key: i < _pageKeys.length ? _pageKeys[i] : ValueKey('page_$i'),
-                index: i,
-                totalPages: _totalPages,
-                isDownloaded: _isDownloaded,
-                cbzPath: _cbzPath,
-                onlinePages: _onlinePages,
-                resolveImageUrl: _resolveImageUrl,
-                getCbzPage: _getCbzPage,
-                reloadImage: _reloadImage,
-                zoomLevel: _zoomLevel,
-                cropBorders: _cropBorders,
-                cropPercent: _cropPercent,
-                applyColorFilter: _applyColorFilter,
-                onMeasuredHeight: (height) => _onPageMeasured(i, height),
-              );
-            },
+            slivers: [
+              SliverVariedExtentList.builder(
+                itemCount: _totalPages,
+                itemExtentBuilder: (index, dimensions) =>
+                    index < _pageExtents.length ? _pageExtents[index] : null,
+                itemBuilder: (context, i) {
+                  return _VerticalReaderPageItem(
+                    key: ValueKey('v_page_$i'),
+                    index: i,
+                    extent: _pageExtents[i],
+                    aspect: i < _pageAspects.length ? _pageAspects[i] : 0.0,
+                    cachedBytes: _pageCache[i],
+                    isDownloaded: _isDownloaded,
+                    onlinePages: _onlinePages,
+                    resolveImageUrl: _resolveImageUrl,
+                    getCbzPage: _getCbzPage,
+                    reloadImage: _reloadImage,
+                    zoomLevel: _zoomLevel,
+                    cropBorders: _cropBorders,
+                    cropPercent: _cropPercent,
+                    applyColorFilter: _applyColorFilter,
+                    onMeasuredAspect: _onMeasuredAspect,
+                  );
+                },
+              ),
+              SliverToBoxAdapter(child: _buildNextChapterSwipeCard(isRu)),
+            ],
           ),
         ),
       );
@@ -3617,12 +3661,14 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   }
 }
 
-/// Dedicated vertical page item with AutomaticKeepAliveClientMixin to prevent rebuilding/flashing on scroll
+/// Vertical page with a fixed extent. The height comes from the image header, so
+/// the list never re-estimates offsets while decoding and scrolling stays stable.
 class _VerticalReaderPageItem extends StatefulWidget {
   final int index;
-  final int totalPages;
+  final double extent;
+  final double aspect;
+  final Uint8List? cachedBytes;
   final bool isDownloaded;
-  final String cbzPath;
   final List<ChapterPage> onlinePages;
   final String Function(String) resolveImageUrl;
   final Future<Uint8List?> Function(int) getCbzPage;
@@ -3631,14 +3677,15 @@ class _VerticalReaderPageItem extends StatefulWidget {
   final bool cropBorders;
   final double cropPercent;
   final Widget Function(Widget) applyColorFilter;
-  final void Function(double) onMeasuredHeight;
+  final void Function(int, double) onMeasuredAspect;
 
   const _VerticalReaderPageItem({
     super.key,
     required this.index,
-    required this.totalPages,
+    required this.extent,
+    required this.aspect,
+    required this.cachedBytes,
     required this.isDownloaded,
-    required this.cbzPath,
     required this.onlinePages,
     required this.resolveImageUrl,
     required this.getCbzPage,
@@ -3647,7 +3694,7 @@ class _VerticalReaderPageItem extends StatefulWidget {
     required this.cropBorders,
     required this.cropPercent,
     required this.applyColorFilter,
-    required this.onMeasuredHeight,
+    required this.onMeasuredAspect,
   });
 
   @override
@@ -3658,13 +3705,31 @@ class _VerticalReaderPageItemState extends State<_VerticalReaderPageItem> {
   Uint8List? _cbzBytes;
   bool _isLoadingCbz = false;
   bool _cbzError = false;
-  double _reportedHeight = 0;
-  bool _probesScheduled = false;
+  bool _aspectReported = false;
+
+  void _reportAspect(ImageProvider provider, BuildContext context) {
+    if (_aspectReported || widget.aspect > 0.02) return;
+    _aspectReported = true;
+    final stream = provider.resolve(createLocalImageConfiguration(context));
+    late final ImageStreamListener listener;
+    listener = ImageStreamListener(
+      (info, _) {
+        final aspect = info.image.width / info.image.height;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) widget.onMeasuredAspect(widget.index, aspect);
+        });
+        stream.removeListener(listener);
+      },
+      onError: (_, __) => stream.removeListener(listener),
+    );
+    stream.addListener(listener);
+  }
 
   @override
   void initState() {
     super.initState();
-    if (widget.isDownloaded) {
+    _cbzBytes = widget.cachedBytes;
+    if (widget.isDownloaded && _cbzBytes == null) {
       _loadCbzBytes();
     }
   }
@@ -3674,30 +3739,11 @@ class _VerticalReaderPageItemState extends State<_VerticalReaderPageItem> {
     super.didUpdateWidget(oldWidget);
     // The chapter can be downloaded (or auto-deleted) while it is open.
     if (widget.isDownloaded && !oldWidget.isDownloaded) {
-      _loadCbzBytes();
-    }
-  }
-
-  void _reportHeight() {
-    if (!mounted) return;
-    final box = context.findRenderObject() as RenderBox?;
-    if (box == null || !box.hasSize) return;
-    // Padding-only frames while the bitmap decodes are not page heights.
-    if (box.size.height < 16) return;
-    if ((box.size.height - _reportedHeight).abs() < 1.0) return;
-    _reportedHeight = box.size.height;
-    widget.onMeasuredHeight(box.size.height);
-  }
-
-  /// The decoded bitmap can replace the placeholder several frames after the last
-  /// build, so keep probing while it settles instead of trusting the first size.
-  void _scheduleHeightProbes() {
-    if (_probesScheduled) return;
-    _probesScheduled = true;
-    for (final delay in const [0, 120, 400, 900]) {
-      Future<void>.delayed(Duration(milliseconds: delay), () {
-        if (mounted) _reportHeight();
-      });
+      _cbzBytes = widget.cachedBytes;
+      _cbzError = false;
+      if (_cbzBytes == null) _loadCbzBytes();
+    } else if (_cbzBytes == null && widget.cachedBytes != null) {
+      _cbzBytes = widget.cachedBytes;
     }
   }
 
@@ -3712,7 +3758,6 @@ class _VerticalReaderPageItemState extends State<_VerticalReaderPageItem> {
           _cbzError = bytes == null;
           _isLoadingCbz = false;
         });
-        _scheduleHeightProbes();
       }
     } catch (_) {
       if (mounted) {
@@ -3720,73 +3765,59 @@ class _VerticalReaderPageItemState extends State<_VerticalReaderPageItem> {
           _cbzError = true;
           _isLoadingCbz = false;
         });
-        _scheduleHeightProbes();
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Height is reported after layout so the parent can keep jump targets accurate
-    // without mounting every page of the chapter.
-    WidgetsBinding.instance.addPostFrameCallback((_) => _reportHeight());
-
-    final screenWidth = MediaQuery.of(context).size.width;
-    final itemWidth = screenWidth * widget.zoomLevel;
-
-    double? knownAspectRatio;
-    if (widget.index < widget.onlinePages.length) {
-      final p = widget.onlinePages[widget.index];
-      if (p.width != null && p.height != null && p.width! > 0 && p.height! > 0) {
-        knownAspectRatio = p.width! / p.height!;
-      }
-    }
+    final width = MediaQuery.sizeOf(context).width;
+    final itemWidth = width * widget.zoomLevel;
+    final boxHeight = (widget.extent - 1).clamp(1.0, double.infinity);
 
     // Decoding a 2000px wide manga page at its source resolution would pin megabytes
     // of RAM per page; decode at the on-screen pixel width instead.
     final cacheWidth =
         (itemWidth * MediaQuery.devicePixelRatioOf(context)).round().clamp(128, 4096);
-    final cacheHeight = knownAspectRatio != null
-        ? (cacheWidth / knownAspectRatio).round().clamp(128, 8192)
-        : null;
-
-    // Use known aspect ratio for accurate placeholder; fallback to generous 1.4x for unknown
-    final placeholderHeight = (knownAspectRatio != null && knownAspectRatio > 0)
-        ? itemWidth / knownAspectRatio
-        : itemWidth * 1.4;
+    final knownAspect = widget.aspect > 0.02 && widget.aspect < 50;
+    final fit = knownAspect ? BoxFit.fitWidth : BoxFit.contain;
 
     Widget content;
     if (widget.isDownloaded) {
       if (_cbzBytes != null) {
-        // Let the image determine its own height from intrinsic aspect ratio.
-        // ConstrainedBox(maxWidth) will limit width; fitWidth scales height proportionally.
-        content = Image.memory(
-          _cbzBytes!,
-          fit: BoxFit.fitWidth,
+        final provider = MemoryImage(_cbzBytes!);
+        _reportAspect(provider, context);
+        content = Image(
+          image: ResizeImage.resizeIfNeeded(cacheWidth, null, provider),
           width: itemWidth,
+          height: boxHeight,
+          fit: fit,
+          alignment: Alignment.topCenter,
           filterQuality: FilterQuality.high,
           gaplessPlayback: true,
-          cacheWidth: cacheWidth,
         );
       } else if (_cbzError) {
         content = Container(
-          width: itemWidth,
-          height: placeholderHeight,
           color: AppTokens.surfaceDeep,
-          child: const Center(child: Icon(Icons.broken_image, color: Colors.white54)),
+          alignment: Alignment.center,
+          child: const Icon(Icons.broken_image, color: Colors.white54),
         );
       } else {
         content = Container(
-          width: itemWidth,
-          height: placeholderHeight,
           color: AppTokens.surfaceDeep,
-          child: const Center(
-            child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2)),
+          alignment: Alignment.center,
+          child: const SizedBox(
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(strokeWidth: 2),
           ),
         );
       }
     } else if (widget.index < widget.onlinePages.length) {
       final pageUrl = widget.resolveImageUrl(widget.onlinePages[widget.index].url);
+      final cacheHeight = knownAspect
+          ? (cacheWidth / widget.aspect).round().clamp(128, 16384)
+          : null;
 
       content = CachedNetworkImage(
         imageUrl: pageUrl,
@@ -3794,52 +3825,50 @@ class _VerticalReaderPageItemState extends State<_VerticalReaderPageItem> {
         filterQuality: FilterQuality.high,
         memCacheWidth: cacheWidth,
         memCacheHeight: cacheHeight,
-        // Width/height on CachedNetworkImage break sizing; imageBuilder sizes the image itself.
         imageBuilder: (ctx, imageProvider) {
-          _scheduleHeightProbes();
+          _reportAspect(imageProvider, ctx);
           return Image(
             image: imageProvider,
             width: itemWidth,
-            fit: BoxFit.fitWidth,
+            height: boxHeight,
+            fit: fit,
+            alignment: Alignment.topCenter,
             filterQuality: FilterQuality.high,
           );
         },
         placeholder: (ctx, url) => Container(
-          width: itemWidth,
-          height: placeholderHeight,
           color: AppTokens.surfaceDeep,
-          child: const Center(
-            child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2)),
+          alignment: Alignment.center,
+          child: const SizedBox(
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(strokeWidth: 2),
           ),
         ),
         errorWidget: (ctx, url, err) => InkWell(
           onTap: () => widget.reloadImage(pageUrl),
           child: Container(
-            width: itemWidth,
-            height: placeholderHeight,
             color: AppTokens.surfaceDeep,
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.refresh_rounded, color: Colors.white70, size: 32),
-                  const SizedBox(height: 8),
-                  Text(
-                    ReaderStrings.of(context).tapToRetry,
-                    style: const TextStyle(color: Colors.white70, fontSize: 12),
-                  ),
-                ],
-              ),
+            alignment: Alignment.center,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.refresh_rounded, color: Colors.white70, size: 32),
+                const SizedBox(height: 8),
+                Text(
+                  ReaderStrings.of(context).tapToRetry,
+                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+              ],
             ),
           ),
         ),
       );
     } else {
       content = Container(
-        width: itemWidth,
-        height: placeholderHeight,
         color: AppTokens.surfaceDeep,
-        child: const Center(child: Icon(Icons.broken_image, color: Colors.white54)),
+        alignment: Alignment.center,
+        child: const Icon(Icons.broken_image, color: Colors.white54),
       );
     }
 
@@ -3850,27 +3879,16 @@ class _VerticalReaderPageItemState extends State<_VerticalReaderPageItem> {
       );
     }
 
-    // Use Align + ConstrainedBox: width is bounded to itemWidth, height is unconstrained.
-    // This prevents tall images from being vertically compressed.
-    return SizeChangedLayoutNotifier(
-      child: NotificationListener<SizeChangedLayoutNotification>(
-        onNotification: (_) {
-          // The bitmap arrives after the first layout, so the real height has to
-          // be reported again instead of keeping the placeholder estimate.
-          WidgetsBinding.instance.addPostFrameCallback((_) => _reportHeight());
-          return true;
-        },
-        child: Padding(
-          padding: const EdgeInsets.only(bottom: 1),
-          child: Align(
-            alignment: Alignment.center,
-            child: widget.applyColorFilter(content),
-          ),
-        ),
+    return SizedBox(
+      width: width,
+      height: boxHeight,
+      child: ClipRect(
+        child: widget.applyColorFilter(content),
       ),
     );
   }
 }
+
 
 /// Dedicated horizontal page item with its own zoom transform. The viewer stays
 /// mounted so pinch and double tap work at fit scale; while the page is zoomed the

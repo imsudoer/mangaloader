@@ -2,7 +2,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+import 'package:cached_network_image/cached_network_image.dart' hide DownloadProgress;
 import 'package:mangaloader/l10n/strings/downloads_strings.dart';
 import 'package:mangaloader/providers/download_provider.dart';
 import 'package:mangaloader/providers/settings_provider.dart';
@@ -337,7 +337,7 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
     );
   }
 
-  List<Widget> _buildQueueSection(bool isRu) {
+  List<Widget> _buildQueueSection(bool isRu, List<DownloadProgress> downloads) {
     if (_queueItems.isEmpty) return const [];
     final s = DownloadsStrings(isRu);
 
@@ -399,7 +399,7 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
           color: Colors.amberAccent,
         ),
       if (_queuePaused || resumeAt != null) const SizedBox(height: 8),
-      for (final item in _queueItems) _buildQueueTile(item, isRu),
+      for (final item in _queueItems) _buildQueueTile(item, isRu, downloads),
       const Divider(height: 32),
     ];
   }
@@ -450,8 +450,21 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
     );
   }
 
-  Widget _buildQueueTile(DownloadQueueItem item, bool isRu) {
+  Widget _buildQueueTile(DownloadQueueItem item, bool isRu, List<DownloadProgress> downloads) {
     final s = DownloadsStrings(isRu);
+    DownloadProgress? active;
+    for (final progress in downloads) {
+      if (progress.state == DownloadState.downloading &&
+          progress.mangaSlug == item.slugUrl &&
+          progress.chapterVolume == item.volume &&
+          progress.chapterNumber == item.number) {
+        active = progress;
+        break;
+      }
+    }
+    final fraction = active != null && active.totalPages > 0
+        ? active.currentPage / active.totalPages
+        : null;
     final IconData icon;
     final Color color;
     switch (item.status) {
@@ -493,15 +506,36 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
         ),
-        subtitle: Text(
-          _queueStatusLabel(item, isRu),
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            fontSize: 11,
-            color: isFailed ? Colors.redAccent.shade100 : AppTokens.textSecondary,
-          ),
-        ),
+        subtitle: fraction != null
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 4),
+                  Text(
+                    '${(fraction * 100).toInt()}% · ${active!.currentPage} / ${active.totalPages} ${s.pageShort}',
+                    style: const TextStyle(fontSize: 11, color: AppTokens.textSecondary),
+                  ),
+                  const SizedBox(height: 4),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: fraction,
+                      minHeight: 4,
+                      backgroundColor: AppTokens.border,
+                      color: AppTokens.accent,
+                    ),
+                  ),
+                ],
+              )
+            : Text(
+                _queueStatusLabel(item, isRu),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: isFailed ? Colors.redAccent.shade100 : AppTokens.textSecondary,
+                ),
+              ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -628,7 +662,7 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
             _buildStorageCard(isRu, storageLimitMb),
 
             // Persistent queue: queued, waiting for Wi-Fi, failed and finished rows
-            ..._buildQueueSection(isRu),
+            ..._buildQueueSection(isRu, downloads),
 
             // Active downloads section
             if (downloads.isNotEmpty) ...[
@@ -637,7 +671,9 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
-              ...downloads.map((d) => Card(
+              ...downloads.map((d) {
+                final fraction = d.totalPages > 0 ? d.currentPage / d.totalPages : null;
+                return Card(
                 margin: const EdgeInsets.only(bottom: 8),
                 child: ListTile(
                   title: Text('${d.mangaSlug} · ${s.volumeShort} ${d.chapterVolume} ${s.chapterShort} ${d.chapterNumber}'),
@@ -645,16 +681,19 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const SizedBox(height: 6),
-                      LinearProgressIndicator(value: d.totalPages > 0 ? d.currentPage / d.totalPages : null),
+                      LinearProgressIndicator(value: fraction),
                       const SizedBox(height: 6),
                       Text(
-                        '${d.currentPage} / ${d.totalPages} ${s.pageShort} (${_downloadStateLabel(d.state, isRu)})',
+                        fraction != null
+                            ? '${(fraction * 100).toInt()}% · ${d.currentPage} / ${d.totalPages} ${s.pageShort} (${_downloadStateLabel(d.state, isRu)})'
+                            : '${d.currentPage} / ${d.totalPages} ${s.pageShort} (${_downloadStateLabel(d.state, isRu)})',
                         style: const TextStyle(fontSize: 12),
                       ),
                     ],
                   ),
                 ),
-              )),
+              );
+              }),
               const Divider(height: 32),
             ],
 

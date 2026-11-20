@@ -59,6 +59,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ReadingPosition dco_decode_box_autoadd_reading_position(dynamic raw);
 
   @protected
+  CbzPageSize dco_decode_cbz_page_size(dynamic raw);
+
+  @protected
   Chapter dco_decode_chapter(dynamic raw);
 
   @protected
@@ -130,6 +133,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<AppSettingItem> dco_decode_list_app_setting_item(dynamic raw);
+
+  @protected
+  List<CbzPageSize> dco_decode_list_cbz_page_size(dynamic raw);
 
   @protected
   List<Chapter> dco_decode_list_chapter(dynamic raw);
@@ -341,6 +347,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       SseDeserializer deserializer);
 
   @protected
+  CbzPageSize sse_decode_cbz_page_size(SseDeserializer deserializer);
+
+  @protected
   Chapter sse_decode_chapter(SseDeserializer deserializer);
 
   @protected
@@ -418,6 +427,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   List<AppSettingItem> sse_decode_list_app_setting_item(
       SseDeserializer deserializer);
+
+  @protected
+  List<CbzPageSize> sse_decode_list_cbz_page_size(SseDeserializer deserializer);
 
   @protected
   List<Chapter> sse_decode_list_chapter(SseDeserializer deserializer);
@@ -658,6 +670,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       ReadingPosition self, SseSerializer serializer);
 
   @protected
+  void sse_encode_cbz_page_size(CbzPageSize self, SseSerializer serializer);
+
+  @protected
   void sse_encode_chapter(Chapter self, SseSerializer serializer);
 
   @protected
@@ -738,6 +753,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_app_setting_item(
       List<AppSettingItem> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_cbz_page_size(
+      List<CbzPageSize> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_chapter(List<Chapter> self, SseSerializer serializer);
