@@ -379,7 +379,8 @@ abstract class RustLibApi extends BaseApi {
       required PlatformInt64 mangaId,
       required List<ChapterDownloadRequest> chapters,
       required String appDir,
-      required PlatformInt64 concurrentImages});
+      required PlatformInt64 concurrentImages,
+      required PlatformInt64 compression});
 
   Future<ReadingStreakInfo> crateApiStorageSyncReadingStreak(
       {required PlatformInt64 days});
@@ -2931,7 +2932,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       required PlatformInt64 mangaId,
       required List<ChapterDownloadRequest> chapters,
       required String appDir,
-      required PlatformInt64 concurrentImages}) {
+      required PlatformInt64 concurrentImages,
+      required PlatformInt64 compression}) {
     final sink = RustStreamSink<DownloadProgress>();
     unawaited(handler.executeNormal(NormalTask(
       callFfi: (port_) {
@@ -2941,6 +2943,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_list_chapter_download_request(chapters, serializer);
         sse_encode_String(appDir, serializer);
         sse_encode_i_64(concurrentImages, serializer);
+        sse_encode_i_64(compression, serializer);
         sse_encode_StreamSink_download_progress_Sse(sink, serializer);
         pdeCallFfi(generalizedFrbRustBinding, serializer,
             funcId: 95, port: port_);
@@ -2950,7 +2953,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         decodeErrorData: sse_decode_AnyhowException,
       ),
       constMeta: kCrateApiDownloadEngineStartChapterDownloadConstMeta,
-      argValues: [slugUrl, mangaId, chapters, appDir, concurrentImages, sink],
+      argValues: [
+        slugUrl,
+        mangaId,
+        chapters,
+        appDir,
+        concurrentImages,
+        compression,
+        sink
+      ],
       apiImpl: this,
     )));
     return sink.stream;
@@ -2965,6 +2976,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           "chapters",
           "appDir",
           "concurrentImages",
+          "compression",
           "sink"
         ],
       );

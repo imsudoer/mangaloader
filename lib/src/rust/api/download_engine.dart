@@ -7,7 +7,7 @@ import '../frb_generated.dart';
 import 'models.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `fetch_page_bytes`, `is_valid_image_data`, `normalize_page_path`, `write_page`
+// These functions are ignored because they are not marked as `pub`: `compress_page`, `fetch_page_bytes`, `is_valid_image_data`, `normalize_page_path`, `write_page`
 
 void pauseDownloads() =>
     RustLib.instance.api.crateApiDownloadEnginePauseDownloads();
@@ -23,10 +23,12 @@ Stream<DownloadProgress> startChapterDownload(
         required PlatformInt64 mangaId,
         required List<ChapterDownloadRequest> chapters,
         required String appDir,
-        required PlatformInt64 concurrentImages}) =>
+        required PlatformInt64 concurrentImages,
+        required PlatformInt64 compression}) =>
     RustLib.instance.api.crateApiDownloadEngineStartChapterDownload(
         slugUrl: slugUrl,
         mangaId: mangaId,
         chapters: chapters,
         appDir: appDir,
-        concurrentImages: concurrentImages);
+        concurrentImages: concurrentImages,
+        compression: compression);

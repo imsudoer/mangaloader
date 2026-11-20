@@ -100,6 +100,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   ReadBoxFit _boxFit = ReadBoxFit.contain;
   ReadColorFilter _filterMode = ReadColorFilter.none;
   ReadSharpenMode _sharpenMode = ReadSharpenMode.off;
+  bool _upscaleEnabled = false;
   DualPageMode _dualPageMode = DualPageMode.auto;
   TapZoneLayout _tapZoneLayout = TapZoneLayout.standard;
   
@@ -293,6 +294,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       'high' => ReadSharpenMode.high,
       _ => ReadSharpenMode.off,
     };
+    _upscaleEnabled = prefs.upscale;
     _cropBorders = prefs.cropBorders;
     _cropPercent = prefs.cropPercent.clamp(1.0, 10.0);
     _brightness = prefs.brightness.clamp(0.2, 1.0);
@@ -315,6 +317,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         tapZones: _tapZoneLayout.name,
         colorFilter: _filterMode.name,
         sharpen: _sharpenMode.name,
+        upscale: _upscaleEnabled,
         cropBorders: _cropBorders,
         cropPercent: _cropPercent,
         brightness: _brightness,
@@ -992,6 +995,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
           chapters: requests,
           appDir: appDir.path,
           concurrentImages: ref.read(downloadConcurrencyImagesProvider),
+          compression: ref.read(downloadCompressionProvider),
         );
         stream.listen((p) {
           ref.read(downloadProvider.notifier).addProgress(p);
@@ -1399,6 +1403,20 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     _resetPageZoom();
   }
 
+  /// Per-title display enhancement. It raises the decoded resolution and applies
+  /// edge sharpening, so soft or over-compressed pages stay readable when zoomed.
+  void _toggleUpscale() {
+    final next = !_upscaleEnabled;
+    _updatePrefs(_currentPrefs.copyWith(upscale: next));
+    final s = ReaderStrings.of(context);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(next ? s.upscaleOn : s.upscaleOff),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
   void _toggleFullscreen() async {
     setState(() => _isFullscreen = !_isFullscreen);
     if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
@@ -1556,8 +1574,19 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   Widget _applyColorFilter(Widget child) {
     Widget result = child;
 
-    // Sharpening / Contrast Enhancement
-    if (_sharpenMode == ReadSharpenMode.subtle) {
+    // Upscale mode sharpens edges more aggressively and is decoded at a higher
+    // resolution; the plain sharpen presets stay available for normal reading.
+    if (_upscaleEnabled) {
+      result = ColorFiltered(
+        colorFilter: const ColorFilter.matrix([
+          1.4, 0, 0, 0, -40,
+          0, 1.4, 0, 0, -40,
+          0, 0, 1.4, 0, -40,
+          0, 0, 0, 1, 0,
+        ]),
+        child: result,
+      );
+    } else if (_sharpenMode == ReadSharpenMode.subtle) {
       result = ColorFiltered(
         colorFilter: const ColorFilter.matrix([
           1.15, 0, 0, 0, -15,
@@ -1985,6 +2014,14 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           IconButton(
+                            icon: Icon(
+                              Icons.auto_fix_high_rounded,
+                              color: _upscaleEnabled ? AppTokens.accent : Colors.white,
+                            ),
+                            tooltip: s.upscale,
+                            onPressed: _toggleUpscale,
+                          ),
+                          IconButton(
                             icon: const Icon(Icons.zoom_in_rounded, color: Colors.white),
                             tooltip: s.zoomIn,
                             onPressed: _zoomIn,
@@ -2280,6 +2317,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                     getCbzPage: _getCbzPage,
                     reloadImage: _reloadImage,
                     zoomLevel: _zoomLevel,
+                    upscale: _upscaleEnabled,
                     cropBorders: _cropBorders,
                     cropPercent: _cropPercent,
                     applyColorFilter: _applyColorFilter,
@@ -2334,6 +2372,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
               getCbzPage: _getCbzPage,
               reloadImage: _reloadImage,
               zoomLevel: _zoomLevel,
+              upscale: _upscaleEnabled,
               zoomResetToken: _pageZoomResetToken,
               cropBorders: _cropBorders,
               cropPercent: _cropPercent,
@@ -2356,6 +2395,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
             getCbzPage: _getCbzPage,
             reloadImage: _reloadImage,
             zoomLevel: _zoomLevel,
+            upscale: _upscaleEnabled,
             zoomResetToken: _pageZoomResetToken,
             cropBorders: _cropBorders,
             cropPercent: _cropPercent,
@@ -2374,6 +2414,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                   getCbzPage: _getCbzPage,
                   reloadImage: _reloadImage,
                   zoomLevel: _zoomLevel,
+                  upscale: _upscaleEnabled,
                   zoomResetToken: _pageZoomResetToken,
                   cropBorders: _cropBorders,
                   cropPercent: _cropPercent,
@@ -3674,6 +3715,7 @@ class _VerticalReaderPageItem extends StatefulWidget {
   final Future<Uint8List?> Function(int) getCbzPage;
   final Future<void> Function(String) reloadImage;
   final double zoomLevel;
+  final bool upscale;
   final bool cropBorders;
   final double cropPercent;
   final Widget Function(Widget) applyColorFilter;
@@ -3691,6 +3733,7 @@ class _VerticalReaderPageItem extends StatefulWidget {
     required this.getCbzPage,
     required this.reloadImage,
     required this.zoomLevel,
+    required this.upscale,
     required this.cropBorders,
     required this.cropPercent,
     required this.applyColorFilter,
@@ -3776,9 +3819,13 @@ class _VerticalReaderPageItemState extends State<_VerticalReaderPageItem> {
     final boxHeight = (widget.extent - 1).clamp(1.0, double.infinity);
 
     // Decoding a 2000px wide manga page at its source resolution would pin megabytes
-    // of RAM per page; decode at the on-screen pixel width instead.
-    final cacheWidth =
+    // of RAM per page; decode at the on-screen pixel width instead. Upscale mode
+    // keeps a larger texture so zoomed pages are interpolated from more pixels.
+    final baseCacheWidth =
         (itemWidth * MediaQuery.devicePixelRatioOf(context)).round().clamp(128, 4096);
+    final cacheWidth = widget.upscale
+        ? (baseCacheWidth * 2).clamp(128, 4096)
+        : baseCacheWidth;
     final knownAspect = widget.aspect > 0.02 && widget.aspect < 50;
     final fit = knownAspect ? BoxFit.fitWidth : BoxFit.contain;
 
@@ -3902,6 +3949,7 @@ class _HorizontalReaderPageItem extends StatefulWidget {
   final Future<Uint8List?> Function(int) getCbzPage;
   final Future<void> Function(String) reloadImage;
   final double zoomLevel;
+  final bool upscale;
   final int zoomResetToken;
   final bool cropBorders;
   final double cropPercent;
@@ -3918,6 +3966,7 @@ class _HorizontalReaderPageItem extends StatefulWidget {
     required this.getCbzPage,
     required this.reloadImage,
     required this.zoomLevel,
+    required this.upscale,
     required this.zoomResetToken,
     required this.cropBorders,
     required this.cropPercent,
@@ -4088,7 +4137,8 @@ class _HorizontalReaderPageItemState extends State<_HorizontalReaderPageItem>
   /// makes CachedNetworkImage drop the bitmap and fade its spinner back in mid-gesture.
   int _decodeWidth(double logicalWidth, double devicePixelRatio) {
     final zoom = widget.zoomLevel.clamp(1.0, 4.0);
-    return (logicalWidth * devicePixelRatio * zoom).round().clamp(128, 4096);
+    final upscale = widget.upscale ? 2.0 : 1.0;
+    return (logicalWidth * devicePixelRatio * zoom * upscale).round().clamp(128, 4096);
   }
 
   void _handleDoubleTapDown(TapDownDetails details) {

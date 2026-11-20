@@ -625,6 +625,33 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   const Divider(height: 1),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.compress_rounded, color: AppTokens.accent),
+                    title: Text(s.compression),
+                    subtitle: Text(
+                      s.compressionSubtitle,
+                      style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
+                    ),
+                    trailing: DropdownButton<int>(
+                      value: ref.watch(downloadCompressionProvider),
+                      dropdownColor: AppTokens.surfaceRaised,
+                      style: const TextStyle(color: Colors.white, fontSize: 13),
+                      underline: const SizedBox(),
+                      items: [
+                        DropdownMenuItem(value: 0, child: Text(s.compressionOff)),
+                        DropdownMenuItem(value: 1, child: Text(s.compressionBalanced)),
+                        DropdownMenuItem(value: 2, child: Text(s.compressionStrong)),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) {
+                          ref.read(downloadCompressionProvider.notifier).setLevel(val);
+                        }
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  const Divider(height: 1),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.offline_pin_outlined, color: AppTokens.accent),
                     title: Text(s.smartOffline),
                     subtitle: Text(

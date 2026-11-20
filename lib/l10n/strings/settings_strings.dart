@@ -102,6 +102,13 @@ class SettingsStrings extends AppStrings {
       isRu ? 'Параллельные потоки изображений:' : 'Concurrent images:';
   String get concurrentChapters =>
       isRu ? 'Параллельные главы:' : 'Concurrent chapters:';
+  String get compression => isRu ? 'Сжатие страниц' : 'Page compression';
+  String get compressionSubtitle => isRu
+      ? 'Уменьшает размер скачанных глав за счёт качества'
+      : 'Reduces downloaded chapter size at the cost of quality';
+  String get compressionOff => isRu ? 'Выкл' : 'Off';
+  String get compressionBalanced => isRu ? 'Среднее' : 'Balanced';
+  String get compressionStrong => isRu ? 'Сильное' : 'Strong';
   String get smartOffline => isRu ? 'Умный оффлайн' : 'Smart Offline';
   String get smartOfflineSubtitle => isRu
       ? 'Автоскачивание следующих глав во время чтения'

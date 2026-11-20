@@ -101,6 +101,7 @@ Future<void> loadPersistentSettings(WidgetRef ref) async {
     // 5. Download Concurrency
     restoreInt('download_concurrency_images', 10, downloadConcurrencyImagesProvider);
     restoreInt('download_concurrency_chapters', 3, downloadConcurrencyChaptersProvider);
+    restoreInt('download_compression', 0, downloadCompressionProvider);
 
     // 6. Auto clear cache days
     restoreInt('auto_clear_cache_days', 7, autoClearCacheDaysProvider);
@@ -326,6 +327,20 @@ class ConcurrencyChaptersNotifier extends PersistedSetting<int> {
   void setConcurrency(int val, {bool persist = true}) => set(val, persist: persist);
 }
 
+/// 0 keeps source pages, 1 re-encodes with a 1600 px width cap, 2 with 1080 px.
+final downloadCompressionProvider =
+    StateNotifierProvider<DownloadCompressionNotifier, int>(
+  (ref) => DownloadCompressionNotifier(),
+);
+
+class DownloadCompressionNotifier extends PersistedSetting<int> {
+  DownloadCompressionNotifier()
+      : super(defaultValue: 0, storageKey: 'download_compression', encode: _intText);
+
+  void setLevel(int val, {bool persist = true}) =>
+      set(val.clamp(0, 2), persist: persist);
+}
+
 // 6. Auto clear cache duration in days with persistence
 final autoClearCacheDaysProvider = StateNotifierProvider<AutoClearCacheNotifier, int>(
   (ref) => AutoClearCacheNotifier(),
@@ -427,6 +442,7 @@ class ReaderPrefs {
   final String tapZones;
   final String colorFilter;
   final String sharpen;
+  final bool upscale;
   final bool cropBorders;
   final double cropPercent;
   final double brightness;
@@ -450,6 +466,7 @@ class ReaderPrefs {
     this.tapZones = 'standard',
     this.colorFilter = 'none',
     this.sharpen = 'off',
+    this.upscale = false,
     this.cropBorders = false,
     this.cropPercent = 3.0,
     this.brightness = 1.0,
@@ -467,6 +484,7 @@ class ReaderPrefs {
     String? tapZones,
     String? colorFilter,
     String? sharpen,
+    bool? upscale,
     bool? cropBorders,
     double? cropPercent,
     double? brightness,
@@ -483,6 +501,7 @@ class ReaderPrefs {
       tapZones: tapZones ?? this.tapZones,
       colorFilter: colorFilter ?? this.colorFilter,
       sharpen: sharpen ?? this.sharpen,
+      upscale: upscale ?? this.upscale,
       cropBorders: cropBorders ?? this.cropBorders,
       cropPercent: cropPercent ?? this.cropPercent,
       brightness: brightness ?? this.brightness,
@@ -501,6 +520,7 @@ class ReaderPrefs {
         'tapZones': tapZones,
         'colorFilter': colorFilter,
         'sharpen': sharpen,
+        'upscale': upscale,
         'cropBorders': cropBorders,
         'cropPercent': cropPercent,
         'brightness': brightness,
@@ -531,6 +551,7 @@ class ReaderPrefs {
       tapZones: readString('tapZones', 'standard'),
       colorFilter: readString('colorFilter', 'none'),
       sharpen: readString('sharpen', 'off'),
+      upscale: json['upscale'] == true,
       cropBorders: json['cropBorders'] == true,
       cropPercent: readDouble('cropPercent', 3.0),
       brightness: readDouble('brightness', 1.0),

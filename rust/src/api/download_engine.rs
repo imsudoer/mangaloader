@@ -87,20 +87,76 @@ fn write_page(
     options: SimpleFileOptions,
     page_url: &str,
     index: usize,
-    data: &[u8],
+    data: Vec<u8>,
     downloaded_bytes: &mut i64,
+    compression: i64,
 ) -> Result<()> {
-    let ext = Path::new(page_url)
-        .extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or("jpg");
+    let (data, compressed_ext) = compress_page(data, compression);
+    let ext = compressed_ext.unwrap_or_else(|| {
+        Path::new(page_url)
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("jpg")
+    });
     let arcname = format!("{:04}.{}", index + 1, ext);
     zip.start_file(&arcname, options)
         .context("Failed to start file in CBZ")?;
-    zip.write_all(data)
+    zip.write_all(&data)
         .context("Failed to write image to CBZ")?;
     *downloaded_bytes += data.len() as i64;
     Ok(())
+}
+
+/// Re-encodes a page when download compression is enabled. The original bytes are
+/// returned when the level is off, the image cannot be decoded, or encoding fails,
+/// so a broken re-encode can never replace a valid page.
+fn compress_page(bytes: Vec<u8>, level: i64) -> (Vec<u8>, Option<&'static str>) {
+    if level <= 0 {
+        return (bytes, None);
+    }
+    let Ok(mut image) = image::load_from_memory(&bytes) else {
+        return (bytes, None);
+    };
+
+    let (max_width, quality) = if level >= 2 { (800, 72) } else { (1280, 84) };
+    if image.width() > max_width {
+        let height =
+            (image.height() as u64 * max_width as u64 / image.width() as u64).max(1) as u32;
+        image = image.resize_exact(max_width, height, image::imageops::FilterType::Lanczos3);
+    }
+
+    let mut out = Vec::new();
+    if image.color().has_alpha() {
+        let mut cursor = std::io::Cursor::new(&mut out);
+        if image
+            .write_to(&mut cursor, image::ImageFormat::Png)
+            .is_err()
+        {
+            return (bytes, None);
+        }
+        if out.len() < bytes.len() {
+            (out, Some("png"))
+        } else {
+            (bytes, None)
+        }
+    } else {
+        let rgb = image.to_rgb8();
+        let mut encoder =
+            image::codecs::jpeg::JpegEncoder::new_with_quality(&mut out, quality);
+        if encoder
+            .encode(&rgb, rgb.width(), rgb.height(), image::ExtendedColorType::Rgb8)
+            .is_err()
+        {
+            return (bytes, None);
+        }
+        // Line art sometimes grows when re-encoded as JPEG; keep the source in
+        // that case instead of making the download larger.
+        if out.len() < bytes.len() {
+            (out, Some("jpg"))
+        } else {
+            (bytes, None)
+        }
+    }
 }
 
 pub async fn start_chapter_download(
@@ -109,6 +165,7 @@ pub async fn start_chapter_download(
     chapters: Vec<ChapterDownloadRequest>,
     app_dir: String,
     concurrent_images: i64,
+    compression: i64,
     sink: StreamSink<DownloadProgress>,
 ) -> Result<()> {
     DOWNLOAD_CANCELLED.store(false, Ordering::SeqCst);
@@ -296,7 +353,7 @@ pub async fn start_chapter_download(
             if batch.is_empty() {
                 // Nothing left to fetch; flush whatever is still waiting in order.
                 while let Some(data) = pending.remove(&next_to_write) {
-                    write_page(&mut zip, options, &pages[next_to_write].url, next_to_write, &data, &mut downloaded_bytes)?;
+                    write_page(&mut zip, options, &pages[next_to_write].url, next_to_write, data, &mut downloaded_bytes, compression)?;
                     next_to_write += 1;
                     progress.current_page = next_to_write as i64;
                     progress.bytes_downloaded = downloaded_bytes;
@@ -373,7 +430,7 @@ pub async fn start_chapter_download(
 
             // Flush the contiguous prefix to the archive.
             while let Some(data) = pending.remove(&next_to_write) {
-                write_page(&mut zip, options, &pages[next_to_write].url, next_to_write, &data, &mut downloaded_bytes)?;
+                write_page(&mut zip, options, &pages[next_to_write].url, next_to_write, data, &mut downloaded_bytes, compression)?;
                 next_to_write += 1;
                 progress.current_page = next_to_write as i64;
                 progress.bytes_downloaded = downloaded_bytes;
@@ -405,4 +462,75 @@ pub async fn start_chapter_download(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod compression_tests {
+    use super::compress_page;
+
+    fn sample_png(width: u32, height: u32) -> Vec<u8> {
+        let mut image = image::RgbImage::new(width, height);
+        for (x, y, pixel) in image.enumerate_pixels_mut() {
+            *pixel = image::Rgb([
+                (x % 251) as u8,
+                (y % 241) as u8,
+                ((x + y) % 239) as u8,
+            ]);
+        }
+        let mut out = Vec::new();
+        image::DynamicImage::ImageRgb8(image)
+            .write_to(&mut std::io::Cursor::new(&mut out), image::ImageFormat::Png)
+            .expect("encode sample png");
+        out
+    }
+
+    #[test]
+    fn keeps_source_bytes_when_compression_is_off() {
+        let source = sample_png(64, 64);
+        let (out, ext) = compress_page(source.clone(), 0);
+        assert_eq!(ext, None);
+        assert_eq!(out, source);
+    }
+
+    #[test]
+    fn strong_compression_caps_width_and_encodes_jpeg() {
+        let (out, ext) = compress_page(sample_png(2000, 1000), 2);
+        assert_eq!(ext, Some("jpg"));
+        let decoded = image::load_from_memory(&out).expect("decode compressed page");
+        assert_eq!(decoded.width(), 800);
+        assert_eq!(decoded.height(), 400);
+    }
+
+    #[test]
+    fn balanced_compression_keeps_more_pixels() {
+        let (out, ext) = compress_page(sample_png(2000, 1000), 1);
+        assert_eq!(ext, Some("jpg"));
+        let decoded = image::load_from_memory(&out).expect("decode compressed page");
+        assert_eq!(decoded.width(), 1280);
+    }
+
+    #[test]
+    fn invalid_data_is_returned_untouched() {
+        let source = b"not an image".to_vec();
+        let (out, ext) = compress_page(source.clone(), 2);
+        assert_eq!(ext, None);
+        assert_eq!(out, source);
+    }
+
+    #[test]
+    fn never_returns_a_larger_file() {
+        let mut source = Vec::new();
+        image::DynamicImage::ImageRgb8(image::RgbImage::from_pixel(
+            32,
+            32,
+            image::Rgb([255, 255, 255]),
+        ))
+        .write_to(&mut std::io::Cursor::new(&mut source), image::ImageFormat::Png)
+        .expect("encode tiny png");
+
+        let original_len = source.len();
+        let (out, ext) = compress_page(source, 2);
+        assert_eq!(ext, None);
+        assert_eq!(out.len(), original_len);
+    }
 }

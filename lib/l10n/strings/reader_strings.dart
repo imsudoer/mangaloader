@@ -106,6 +106,10 @@ class ReaderStrings extends AppStrings {
   String get sharpeningOff => isRu ? 'Выкл' : 'Off';
   String get sharpeningSubtle => isRu ? 'Мягкий' : 'Subtle';
   String get sharpeningHigh => isRu ? 'Четкий' : 'High';
+  String get upscale =>
+      isRu ? 'Апскейл (резкость и детализация)' : 'Upscale (sharpness and detail)';
+  String get upscaleOn => isRu ? 'Апскейл включён' : 'Upscale on';
+  String get upscaleOff => isRu ? 'Апскейл выключен' : 'Upscale off';
   String get cropBorders =>
       isRu ? 'Обрезка белых полей' : 'Crop White Borders';
   String get cropBordersSubtitle => isRu

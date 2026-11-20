@@ -3609,6 +3609,7 @@ fn wire__crate__api__download_engine__start_chapter_download_impl(
                 <Vec<crate::api::models::ChapterDownloadRequest>>::sse_decode(&mut deserializer);
             let api_app_dir = <String>::sse_decode(&mut deserializer);
             let api_concurrent_images = <i64>::sse_decode(&mut deserializer);
+            let api_compression = <i64>::sse_decode(&mut deserializer);
             let api_sink = <StreamSink<
                 crate::api::models::DownloadProgress,
                 flutter_rust_bridge::for_generated::SseCodec,
@@ -3623,6 +3624,7 @@ fn wire__crate__api__download_engine__start_chapter_download_impl(
                             api_chapters,
                             api_app_dir,
                             api_concurrent_images,
+                            api_compression,
                             api_sink,
                         )
                         .await?;

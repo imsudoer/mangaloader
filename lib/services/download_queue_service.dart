@@ -516,6 +516,7 @@ class DownloadQueueService {
       ],
       appDir: appDir,
       concurrentImages: _read<int>(downloadConcurrencyImagesProvider, 10),
+      compression: _read<int>(downloadCompressionProvider, 0),
     ).listen(
       (progress) {
         last = progress;
