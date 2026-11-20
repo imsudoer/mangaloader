@@ -121,8 +121,14 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   final ValueNotifier<int> _pageIndexNotifier = ValueNotifier<int>(0);
 
   double _zoomLevel = 1.0;
-  final TransformationController _verticalZoomController = TransformationController();
-  bool _verticalZoomed = false;
+  final ValueNotifier<Matrix4> _verticalZoomTransform =
+      ValueNotifier<Matrix4>(Matrix4.identity());
+  final Map<int, Offset> _pinchPointers = {};
+  double _pinchStartDistance = 0.0;
+  double _pinchStartScale = 1.0;
+  Offset _pinchStartFocal = Offset.zero;
+  Offset _pinchStartTranslation = Offset.zero;
+  bool _pinching = false;
   double _brightness = 1.0;
   bool _isFullscreen = false;
   bool _isAutoScrolling = false;
@@ -237,7 +243,6 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     });
 
     _scrollController.addListener(_onVerticalScroll);
-    _verticalZoomController.addListener(_syncVerticalZoom);
     _chapterTitle = widget.localCbzPath != null
         ? widget.localCbzPath!
             .split(Platform.pathSeparator)
@@ -363,8 +368,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         _pageController = null;
         _appliedDualLayout = null;
         _zoomedPageIndex = null;
-        _verticalZoomController.value = Matrix4.identity();
-        _verticalZoomed = false;
+        _verticalZoomTransform.value = Matrix4.identity();
       }
       if (modeChanged || !_autoNextChapter) _resetNextChapterTransition();
       if (!_prefetchNeighbours) _neighbourJob++;
@@ -662,8 +666,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     _nextChapterJob++;
     _neighbourJob++;
     _scrollController.removeListener(_onVerticalScroll);
-    _verticalZoomController.removeListener(_syncVerticalZoom);
-    _verticalZoomController.dispose();
+    _verticalZoomTransform.dispose();
     _stopAutoScroll();
     _saveTimer?.cancel();
     _showControlsNotifier.dispose();
@@ -707,6 +710,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     }
 
     setState(() { _isLoading = true; _errorMessage = null; });
+    _verticalZoomTransform.value = Matrix4.identity();
+    _pinchPointers.clear();
+    _pinching = false;
     _pageCache.clear();
     _onlinePages = [];
     _pageAspects = [];
@@ -1545,21 +1551,61 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     }
   }
 
-  /// Tracks whether the vertical viewport itself is magnified. While it is, the
-  /// list stops scrolling so one-finger drags pan the zoomed reading view.
-  void _syncVerticalZoom() {
-    final zoomed = _verticalZoomController.value.getMaxScaleOnAxis() > 1.001;
-    if (zoomed == _verticalZoomed) return;
-    if (mounted) {
-      setState(() => _verticalZoomed = zoomed);
-    } else {
-      _verticalZoomed = zoomed;
+  /// Zoom is applied to the whole reader surface with a matrix transform, while
+  /// one-finger drags stay with the scroll view, so reading continues at any scale.
+  void _resetVerticalZoom() {
+    if (_verticalZoomTransform.value.getMaxScaleOnAxis() <= 1.001) return;
+    _verticalZoomTransform.value = Matrix4.identity();
+    if (_pinchPointers.isNotEmpty) {
+      _pinchPointers.clear();
+      if (mounted) setState(() => _pinching = false);
     }
   }
 
-  void _resetVerticalZoom() {
-    if (_verticalZoomController.value == Matrix4.identity()) return;
-    _verticalZoomController.value = Matrix4.identity();
+  void _onPinchPointerDown(PointerDownEvent event) {
+    _pinchPointers[event.pointer] = event.localPosition;
+    if (_pinchPointers.length != 2) return;
+    final points = _pinchPointers.values.toList();
+    final distance = (points[0] - points[1]).distance;
+    if (distance < 1) return;
+    _pinchStartDistance = distance;
+    _pinchStartFocal = (points[0] + points[1]) / 2;
+    _pinchStartScale = _verticalZoomTransform.value.getMaxScaleOnAxis();
+    final translation = _verticalZoomTransform.value.getTranslation();
+    _pinchStartTranslation = Offset(translation.x, translation.y);
+    setState(() => _pinching = true);
+  }
+
+  void _onPinchPointerMove(PointerMoveEvent event) {
+    if (!_pinchPointers.containsKey(event.pointer)) return;
+    _pinchPointers[event.pointer] = event.localPosition;
+    if (!_pinching || _pinchPointers.length != 2 || _pinchStartDistance < 1) return;
+
+    final points = _pinchPointers.values.toList();
+    final distance = (points[0] - points[1]).distance;
+    if (distance < 1) return;
+    final focal = (points[0] + points[1]) / 2;
+    final scale = (_pinchStartScale * distance / _pinchStartDistance).clamp(1.0, 4.0);
+    final ratio = scale / _pinchStartScale;
+
+    var tx = focal.dx - ratio * (_pinchStartFocal.dx - _pinchStartTranslation.dx);
+    var ty = focal.dy - ratio * (_pinchStartFocal.dy - _pinchStartTranslation.dy);
+    final size = MediaQuery.sizeOf(context);
+    tx = tx.clamp(size.width - size.width * scale, 0.0);
+    ty = ty.clamp(size.height - size.height * scale, 0.0);
+
+    _verticalZoomTransform.value = Matrix4.identity()
+      ..translateByDouble(tx, ty, 0.0, 1.0)
+      ..scaleByDouble(scale, scale, 1.0, 1.0);
+  }
+
+  void _onPinchPointerUp(PointerEvent event) {
+    _pinchPointers.remove(event.pointer);
+    if (_pinchPointers.length >= 2 || !_pinching) return;
+    if (_verticalZoomTransform.value.getMaxScaleOnAxis() <= 1.02) {
+      _verticalZoomTransform.value = Matrix4.identity();
+    }
+    setState(() => _pinching = false);
   }
 
   /// The zoom toolbar only changes the fitted page width; a page that was pinched
@@ -1733,8 +1779,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     _resetVerticalZoom();
   }
 
-  /// Per-title display enhancement. It raises the decoded resolution and applies
-  /// edge sharpening, so soft or over-compressed pages stay readable when zoomed.
+  /// Per-title display enhancement. It raises the decoded resolution so soft or
+  /// over-compressed pages keep detail when the reader is magnified.
   void _toggleUpscale() {
     final next = !_upscaleEnabled;
     _updatePrefs(_currentPrefs.copyWith(upscale: next));
@@ -1904,19 +1950,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   Widget _applyColorFilter(Widget child) {
     Widget result = child;
 
-    // Upscale mode sharpens edges more aggressively and is decoded at a higher
-    // resolution; the plain sharpen presets stay available for normal reading.
-    if (_upscaleEnabled) {
-      result = ColorFiltered(
-        colorFilter: const ColorFilter.matrix([
-          1.4, 0, 0, 0, -40,
-          0, 1.4, 0, 0, -40,
-          0, 0, 1.4, 0, -40,
-          0, 0, 0, 1, 0,
-        ]),
-        child: result,
-      );
-    } else if (_sharpenMode == ReadSharpenMode.subtle) {
+    // Upscale mode raises the decode resolution instead of pushing contrast:
+  // a hard matrix clips light grays and erases pencil shading in B/W pages.
+  if (_sharpenMode == ReadSharpenMode.subtle) {
       result = ColorFiltered(
         colorFilter: const ColorFilter.matrix([
           1.15, 0, 0, 0, -15,
@@ -2349,7 +2385,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                   // Floating Zoom Toolbar
                   Positioned(
                     right: 16,
-                    bottom: isDesktopPlatform ? 74 : 100,
+                    bottom: (isDesktopPlatform ? 108 : 168) +
+                        MediaQuery.paddingOf(context).bottom,
                     child: _ChromeReveal(
                       visible: showControls,
                       slide: const Offset(0.4, 0),
@@ -2656,45 +2693,54 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         child: Scrollbar(
           controller: _scrollController,
           thumbVisibility: true,
-          child: InteractiveViewer(
-            transformationController: _verticalZoomController,
-            minScale: 1.0,
-            maxScale: 4.0,
-            panEnabled: _verticalZoomed,
-            clipBehavior: Clip.hardEdge,
-            child: CustomScrollView(
-              controller: _scrollController,
-              physics: _verticalZoomed
-                  ? const NeverScrollableScrollPhysics()
-                  : const ClampingScrollPhysics(),
-              slivers: [
-              SliverVariedExtentList.builder(
-                itemCount: _totalPages,
-                itemExtentBuilder: (index, dimensions) =>
-                    index < _pageExtents.length ? _pageExtents[index] : null,
-                itemBuilder: (context, i) {
-                  return _VerticalReaderPageItem(
-                    key: ValueKey('v_page_$i'),
-                    index: i,
-                    extent: _pageExtents[i],
-                    aspect: i < _pageAspects.length ? _pageAspects[i] : 0.0,
-                    cachedBytes: _pageCache[i],
-                    isDownloaded: _isDownloaded,
-                    onlinePages: _onlinePages,
-                    resolveImageUrl: _resolveImageUrl,
-                    getCbzPage: _getCbzPage,
-                    reloadImage: _reloadImage,
-                    zoomLevel: _zoomLevel,
-                    upscale: _upscaleEnabled,
-                    cropBorders: _cropBorders,
-                    cropPercent: _cropPercent,
-                    applyColorFilter: _applyColorFilter,
-                    onMeasuredAspect: _onMeasuredAspect,
-                  );
-                },
+          child: Listener(
+            onPointerDown: _onPinchPointerDown,
+            onPointerMove: _onPinchPointerMove,
+            onPointerUp: _onPinchPointerUp,
+            onPointerCancel: _onPinchPointerUp,
+            child: ValueListenableBuilder<Matrix4>(
+              valueListenable: _verticalZoomTransform,
+              child: CustomScrollView(
+                controller: _scrollController,
+                physics: _pinching
+                    ? const NeverScrollableScrollPhysics()
+                    : const ClampingScrollPhysics(),
+                slivers: [
+                SliverVariedExtentList.builder(
+                  itemCount: _totalPages,
+                  itemExtentBuilder: (index, dimensions) =>
+                      index < _pageExtents.length ? _pageExtents[index] : null,
+                  itemBuilder: (context, i) {
+                    return _VerticalReaderPageItem(
+                      key: ValueKey('v_page_$i'),
+                      index: i,
+                      extent: _pageExtents[i],
+                      aspect: i < _pageAspects.length ? _pageAspects[i] : 0.0,
+                      cachedBytes: _pageCache[i],
+                      isDownloaded: _isDownloaded,
+                      onlinePages: _onlinePages,
+                      resolveImageUrl: _resolveImageUrl,
+                      getCbzPage: _getCbzPage,
+                      reloadImage: _reloadImage,
+                      zoomLevel: _zoomLevel,
+                      upscale: _upscaleEnabled,
+                      cropBorders: _cropBorders,
+                      cropPercent: _cropPercent,
+                      applyColorFilter: _applyColorFilter,
+                      onMeasuredAspect: _onMeasuredAspect,
+                    );
+                  },
+                ),
+                SliverToBoxAdapter(child: _buildNextChapterSwipeCard(isRu)),
+                ],
               ),
-              SliverToBoxAdapter(child: _buildNextChapterSwipeCard(isRu)),
-              ],
+              builder: (context, matrix, child) => ClipRect(
+                child: Transform(
+                  transform: matrix,
+                  alignment: Alignment.topLeft,
+                  child: child,
+                ),
+              ),
             ),
           ),
         ),
