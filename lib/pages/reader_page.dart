@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/gestures.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:path_provider/path_provider.dart';
@@ -27,6 +28,8 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:mangaloader/theme/app_tokens.dart';
 import 'package:mangaloader/theme/app_theme.dart';
+import 'package:mangaloader/desktop/desktop_layout.dart';
+import 'package:mangaloader/desktop/desktop_platform.dart';
 
 enum ReadMode { ltr, rtl, vertical }
 enum ReadBgColor { black, darkGrey, white }
@@ -163,6 +166,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   
   bool _isScrubbing = false;
   double _titleDragDx = 0;
+  DateTime _lastPageWheel = DateTime.fromMillisecondsSinceEpoch(0);
 
   bool _autoNextChapter = false;
   bool _isNextChapterPreparing = false;
@@ -192,6 +196,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   void initState() {
     super.initState();
     _restorePreferences();
+    if (isDesktopPlatform) _showControlsNotifier.value = true;
     _sessionStartTime = DateTime.now();
     _sessionTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
       _continuousReadingMinutes++;
@@ -851,7 +856,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         controller.jumpToPage(slide.clamp(0, _slideCount(_appliedDualLayout ?? false) - 1));
       }
     } else if (_scrollController.hasClients) {
-      _ensureVerticalMetrics(MediaQuery.sizeOf(context).width);
+      _ensureVerticalMetrics(_verticalContentWidth(context));
       final maxExtent = _scrollController.position.maxScrollExtent;
       _scrollController.jumpTo(_pageOffsetFor(targetIndex).clamp(0.0, maxExtent));
     }
@@ -1236,6 +1241,301 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     return size.width >= 850 && size.width > size.height;
   }
 
+  /// Webtoon pages stay a readable column on wide windows instead of scaling
+  /// every bitmap to the full desktop width.
+  double _verticalContentWidth(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    if (!isDesktopPlatform) return width;
+    return width > DesktopLayout.readerVerticalMaxWidth
+        ? DesktopLayout.readerVerticalMaxWidth
+        : width;
+  }
+
+  void _setDesktopPageLayout({required bool dual}) {
+    final direction = _readMode == ReadMode.ltr ? ReadMode.ltr : ReadMode.rtl;
+    _updatePrefs(
+      _currentPrefs.copyWith(
+        mode: direction.name,
+        dualPage: (dual ? DualPageMode.dual : DualPageMode.single).name,
+      ),
+    );
+  }
+
+  void _toggleDesktopDirection() {
+    final next = _readMode == ReadMode.rtl ? ReadMode.ltr : ReadMode.rtl;
+    _updatePrefs(_currentPrefs.copyWith(mode: next.name));
+  }
+
+  void _enableContinuousMode() {
+    _updatePrefs(_currentPrefs.copyWith(mode: ReadMode.vertical.name));
+  }
+
+  Widget _buildDesktopLayoutToggle(ReaderStrings s) {
+    final isVertical = _readMode == ReadMode.vertical;
+    final isDual = !isVertical && _isDualPageActive(context);
+    final showLabels = MediaQuery.sizeOf(context).width >= 900;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: SegmentedButton<bool>(
+        style: SegmentedButton.styleFrom(
+          visualDensity: VisualDensity.compact,
+          selectedBackgroundColor: AppTokens.accent,
+          selectedForegroundColor: Colors.white,
+          foregroundColor: Colors.white70,
+          side: const BorderSide(color: Colors.white24),
+          textStyle: const TextStyle(
+            fontSize: 11.5,
+            fontWeight: FontWeight.w600,
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+        ),
+        showSelectedIcon: false,
+        emptySelectionAllowed: true,
+        segments: [
+          ButtonSegment<bool>(
+            value: false,
+            icon: const Icon(Icons.crop_portrait_rounded, size: 16),
+            label: showLabels ? Text(s.layoutSingle) : null,
+            tooltip: s.layoutSingle,
+          ),
+          ButtonSegment<bool>(
+            value: true,
+            icon: const Icon(Icons.auto_stories_rounded, size: 16),
+            label: showLabels ? Text(s.layoutDual) : null,
+            tooltip: s.layoutDual,
+          ),
+        ],
+        selected: {if (!isVertical) isDual},
+        onSelectionChanged: (selection) {
+          if (selection.isEmpty) return;
+          _setDesktopPageLayout(dual: selection.first);
+        },
+      ),
+    );
+  }
+
+  Widget _buildDesktopDirectionButton(ReaderStrings s) {
+    final isVertical = _readMode == ReadMode.vertical;
+    final isRtl = _readMode == ReadMode.rtl;
+    final color = isVertical ? Colors.white38 : Colors.white;
+    return Tooltip(
+      message:
+          '${s.readingDirection}: ${isRtl ? s.modeRtl : s.modeLtr}',
+      child: TextButton.icon(
+        style: TextButton.styleFrom(
+          foregroundColor: color,
+          visualDensity: VisualDensity.compact,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+        ),
+        onPressed: isVertical ? null : _toggleDesktopDirection,
+        icon: Icon(Icons.swap_horiz_rounded, size: 17, color: color),
+        label: Text(
+          isRtl ? s.directionShortRtl : s.directionShortLtr,
+          style: TextStyle(
+            fontSize: 11.5,
+            fontWeight: FontWeight.w700,
+            color: color,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _compactReaderIcon({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback? onPressed,
+    Color color = Colors.white70,
+  }) {
+    return IconButton(
+      icon: Icon(icon, size: 18, color: color),
+      tooltip: tooltip,
+      visualDensity: VisualDensity.compact,
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+      onPressed: onPressed,
+    );
+  }
+
+  Widget _buildDesktopReaderBar(
+    ReaderStrings s, {
+    required bool hasPrev,
+    required bool hasNext,
+  }) {
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(
+              maxWidth: DesktopLayout.readerChromeMaxWidth,
+            ),
+            child: Container(
+              height: 50,
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.88),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.12),
+                ),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Colors.black45,
+                    blurRadius: 18,
+                    offset: Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: ValueListenableBuilder<int>(
+                valueListenable: _pageIndexNotifier,
+                builder: (context, pageIndex, _) {
+                  return Row(
+                    children: [
+                      if (hasPrev)
+                        _compactReaderIcon(
+                          icon: Icons.skip_previous_rounded,
+                          tooltip: s.previousChapter,
+                          onPressed: _navigateToPrevChapter,
+                        ),
+                      _compactReaderIcon(
+                        icon: Icons.chevron_left_rounded,
+                        tooltip: s.previousPage,
+                        onPressed: _prevPageAction,
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: _totalPages > 1
+                            ? SliderTheme(
+                          data: SliderTheme.of(context).copyWith(
+                            trackHeight: 2,
+                            activeTrackColor: AppTokens.accent,
+                            inactiveTrackColor: Colors.white24,
+                            thumbColor: Colors.white,
+                            overlayColor:
+                                AppTokens.accent.withValues(alpha: 0.12),
+                            thumbShape: const RoundSliderThumbShape(
+                              enabledThumbRadius: 6,
+                            ),
+                            overlayShape: const RoundSliderOverlayShape(
+                              overlayRadius: 12,
+                            ),
+                          ),
+                          child: Slider(
+                            value: pageIndex.toDouble().clamp(
+                              0.0,
+                              (_totalPages - 1).toDouble(),
+                            ),
+                            min: 0,
+                            max: (_totalPages - 1).toDouble(),
+                            onChangeStart: (_) => _isScrubbing = true,
+                            onChanged: (val) {
+                              _pageIndexNotifier.value = val.round();
+                            },
+                            onChangeEnd: (val) {
+                              _isScrubbing = false;
+                              final target = val.round();
+                              if (target != _currentPageIndex) {
+                                _jumpToPageIndex(target);
+                              }
+                            },
+                          ),
+                        )
+                            : const SizedBox.shrink(),
+                      ),
+                      const SizedBox(width: 4),
+                      TextButton(
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          visualDensity: VisualDensity.compact,
+                          minimumSize: Size.zero,
+                          padding: const EdgeInsets.symmetric(horizontal: 6),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        onPressed: _showPageJumperDialog,
+                        child: Text(
+                          s.pageIndicator(
+                            '${pageIndex + 1}',
+                            '$_totalPages',
+                          ),
+                          style: const TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      _compactReaderIcon(
+                        icon: Icons.chevron_right_rounded,
+                        tooltip: s.nextPage,
+                        onPressed: _nextPageAction,
+                      ),
+                      if (hasNext)
+                        _compactReaderIcon(
+                          icon: Icons.skip_next_rounded,
+                          tooltip: s.nextChapter,
+                          onPressed: _navigateToNextChapter,
+                        ),
+                      Container(
+                        width: 1,
+                        height: 22,
+                        margin: const EdgeInsets.symmetric(horizontal: 6),
+                        color: Colors.white24,
+                      ),
+                      _compactReaderIcon(
+                        icon: Icons.format_list_bulleted_rounded,
+                        tooltip: s.selectChapter,
+                        onPressed: _showChapterListDialog,
+                      ),
+                      Tooltip(
+                        message: _isDownloaded
+                            ? s.downloadedChapter
+                            : s.onlineChapter,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 6),
+                          child: Icon(
+                            _isDownloaded
+                                ? Icons.offline_pin_rounded
+                                : Icons.cloud_rounded,
+                            size: 18,
+                            color: _isDownloaded
+                                ? Colors.green
+                                : AppTokens.textSecondary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Mouse wheel flips one page per gesture burst. Horizontal trackpad deltas are
+  /// left to the PageView's own horizontal scrollable so the gesture is not
+  /// applied twice.
+  void _handleDesktopPagePointerSignal(PointerSignalEvent event) {
+    if (!isDesktopPlatform || event is! PointerScrollEvent) return;
+    if (_zoomedPageIndex != null) return;
+    if (event.scrollDelta.dx.abs() >= event.scrollDelta.dy.abs()) return;
+    final delta = event.scrollDelta.dy;
+    if (delta.abs() < 1) return;
+    final now = DateTime.now();
+    if (now.difference(_lastPageWheel) < const Duration(milliseconds: 180)) {
+      return;
+    }
+    _lastPageWheel = now;
+    if (delta > 0) {
+      _nextPageAction();
+    } else {
+      _prevPageAction();
+    }
+  }
+
   void _handlePageZoomChanged(int index, bool zoomed) {
     if (zoomed) {
       if (_zoomedPageIndex == index) return;
@@ -1323,6 +1623,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   /// chrome is visible so the overlay buttons keep their own long-press meaning.
   void _handleLongPress(LongPressStartDetails details) {
     if (_showControlsNotifier.value || _totalPages <= 0) return;
+    if (isDesktopPlatform) {
+      _showPageJumperDialog();
+      return;
+    }
     _showPageJumpSheet();
   }
 
@@ -1410,7 +1714,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_scrollController.hasClients) return;
-      _ensureVerticalMetrics(MediaQuery.sizeOf(context).width);
+      _ensureVerticalMetrics(_verticalContentWidth(context));
       final target = _pageStarts[visiblePage] +
           fraction * _pageExtents[visiblePage] -
           focusY;
@@ -1683,11 +1987,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
           backgroundColor: const Color(0xFF222222),
           title: Text(s.jumpToPage, style: const TextStyle(color: Colors.white)),
           content: SizedBox(
-            width: double.maxFinite,
-            height: 350,
+            width: isDesktopPlatform ? 720 : double.maxFinite,
+            height: isDesktopPlatform ? 520 : 350,
             child: GridView.builder(
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 5,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: isDesktopPlatform ? 8 : 5,
                 mainAxisSpacing: 8,
                 crossAxisSpacing: 8,
                 childAspectRatio: 1.0,
@@ -1877,7 +2181,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
             children: [
               _buildReaderContent(isRu),
 
-              if (_showHud && _totalPages > 0)
+              if (_showHud && _totalPages > 0 && !isDesktopPlatform)
             Positioned(
               bottom: 12,
               right: 14,
@@ -1919,6 +2223,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                       backgroundColor: Colors.black.withValues(alpha: 0.85),
                       foregroundColor: Colors.white,
                       elevation: 0,
+                      toolbarHeight: isDesktopPlatform ? 52 : null,
                       leading: const BackButton(),
                       title: GestureDetector(
                         behavior: HitTestBehavior.opaque,
@@ -1944,6 +2249,25 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                         ),
                       ),
                       actions: [
+                        if (isDesktopPlatform) ...[
+                          IconButton(
+                            tooltip: s.modeWebtoon,
+                            visualDensity: VisualDensity.compact,
+                            isSelected: _readMode == ReadMode.vertical,
+                            icon: const Icon(
+                              Icons.view_day_outlined,
+                              color: Colors.white70,
+                            ),
+                            selectedIcon: const Icon(
+                              Icons.view_day_rounded,
+                              color: AppTokens.accent,
+                            ),
+                            onPressed: _enableContinuousMode,
+                          ),
+                          _buildDesktopLayoutToggle(s),
+                          _buildDesktopDirectionButton(s),
+                          const SizedBox(width: 4),
+                        ],
                         IconButton(
                           icon: const Icon(Icons.tune_rounded),
                           tooltip: s.settings,
@@ -2025,7 +2349,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                   // Floating Zoom Toolbar
                   Positioned(
                     right: 16,
-                    bottom: 100,
+                    bottom: isDesktopPlatform ? 74 : 100,
                     child: _ChromeReveal(
                       visible: showControls,
                       slide: const Offset(0.4, 0),
@@ -2082,7 +2406,13 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                       child: _ChromeReveal(
                         visible: showControls,
                         slide: const Offset(0, 1),
-                        child: Container(
+                        child: isDesktopPlatform
+                            ? _buildDesktopReaderBar(
+                                s,
+                                hasPrev: hasPrev,
+                                hasNext: hasNext,
+                              )
+                            : Container(
                         color: Colors.black.withValues(alpha: 0.85),
                         padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom + 8, left: 16, right: 16, top: 12),
                         child: SafeArea(
@@ -2188,7 +2518,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                     right: 16,
                     // The control bar applies the bottom inset twice, so the banner
                     // has to clear it twice to stay above the bar.
-                    bottom: showControls ? bottomInset * 2 + 128 : bottomInset + 44,
+                    bottom: isDesktopPlatform
+                        ? (showControls ? 82 : 24)
+                        : (showControls
+                            ? bottomInset * 2 + 128
+                            : bottomInset + 44),
                     child: _buildNextChapterBanner(s),
                   );
                 },
@@ -2292,7 +2626,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       );
     } else if (_readMode == ReadMode.vertical) {
       final previousWidth = _metricsWidth;
-      final width = MediaQuery.sizeOf(context).width;
+      final width = _verticalContentWidth(context);
       _ensureVerticalMetrics(width);
       if (previousWidth > 0 && previousWidth != width) {
         // Rotation changes every extent, so keep the page that was being read at
@@ -2305,7 +2639,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
           );
         });
       }
-      return NotificationListener<ScrollNotification>(
+      final scrollView = NotificationListener<ScrollNotification>(
         onNotification: (notification) {
           // Any manual drag takes control away from auto-scroll.
           if (_isAutoScrolling &&
@@ -2365,6 +2699,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
           ),
         ),
       );
+      if (!isDesktopPlatform) return scrollView;
+      return Align(
+        alignment: Alignment.topCenter,
+        child: SizedBox(width: width, child: scrollView),
+      );
     } else {
       final isDual = _isDualPageActive(context);
       _syncDualLayout(isDual);
@@ -2374,7 +2713,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         initialPage: _slideForPageIndex(_currentPageIndex, isDual),
       );
 
-      return PageView.builder(
+      final pageView = PageView.builder(
         controller: controller,
         itemCount: totalItemsCount,
         reverse: _readMode == ReadMode.rtl,
@@ -2467,6 +2806,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
             ],
           );
         },
+      );
+      if (!isDesktopPlatform) return pageView;
+      return Listener(
+        onPointerSignal: _handleDesktopPagePointerSignal,
+        child: pageView,
       );
     }
   }
@@ -2955,14 +3299,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         ? 0.0
         : (currentIndex - 2) * _chapterTileExtent;
 
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppTokens.surfaceBase,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(AppTokens.radiusXl)),
-      ),
-      builder: (ctx) => _ChapterListScrollHost(
+    Widget content(BuildContext ctx) => _ChapterListScrollHost(
         initialOffset: initialOffset,
         builder: (scrollController) => StatefulBuilder(
           builder: (ctx, setModalState) {
@@ -2975,10 +3312,13 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
             return SafeArea(
               top: false,
               child: SizedBox(
-                height: MediaQuery.sizeOf(ctx).height * 0.7,
+                height: isDesktopPlatform
+                    ? null
+                    : MediaQuery.sizeOf(ctx).height * 0.7,
                 child: Column(
                   children: [
-                    Container(
+                    if (!isDesktopPlatform)
+                      Container(
                       width: 40,
                       height: 4,
                       margin: const EdgeInsets.symmetric(vertical: 10),
@@ -3099,19 +3439,92 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
             );
           },
         ),
+    );
+
+    if (isDesktopPlatform) {
+      showDialog<void>(
+        context: context,
+        builder: (ctx) => Dialog(
+          backgroundColor: AppTokens.surfaceBase,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppTokens.radiusXl),
+          ),
+          child: SizedBox(
+            width: 560,
+            height: 680,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(AppTokens.radiusXl),
+              child: content(ctx),
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppTokens.surfaceBase,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppTokens.radiusXl)),
       ),
+      builder: content,
     );
   }
 
   void _showSettingsSheet() {
+    if (isDesktopPlatform) {
+      showDialog<void>(
+        context: context,
+        barrierColor: Colors.black54,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (sheetContext, setModalState) => Dialog(
+            backgroundColor: Colors.transparent,
+            insetPadding: const EdgeInsets.all(24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(
+                maxWidth: 640,
+                maxHeight: 780,
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(AppTokens.radiusXl),
+                child: _buildReaderSettingsContent(
+                  sheetContext,
+                  setModalState,
+                  isDialog: true,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) {
         return StatefulBuilder(
-          builder: (sheetContext, setModalState) {
-            final s = ReaderStrings.of(sheetContext);
+          builder: (sheetContext, setModalState) =>
+              _buildReaderSettingsContent(
+            sheetContext,
+            setModalState,
+            isDialog: false,
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildReaderSettingsContent(
+    BuildContext sheetContext,
+    StateSetter setModalState, {
+    required bool isDialog,
+  }) {
+    final s = ReaderStrings.of(sheetContext);
             final isVertical = _readMode == ReadMode.vertical;
 
             void refresh() => setModalState(() {});
@@ -3165,26 +3578,32 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
             return Container(
               constraints: BoxConstraints(
-                maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.92,
+                maxHeight: MediaQuery.sizeOf(sheetContext).height *
+                    (isDialog ? 0.9 : 0.92),
               ),
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 color: AppTokens.surfaceBase,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(AppTokens.radiusXl)),
+                borderRadius: isDialog
+                    ? BorderRadius.circular(AppTokens.radiusXl)
+                    : const BorderRadius.vertical(
+                        top: Radius.circular(AppTokens.radiusXl),
+                      ),
               ),
               child: SafeArea(
                 top: false,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Container(
-                      width: 36,
-                      height: 4,
-                      margin: const EdgeInsets.only(top: 10, bottom: 6),
-                      decoration: BoxDecoration(
-                        color: AppTokens.borderStrong,
-                        borderRadius: BorderRadius.circular(2),
+                    if (!isDialog)
+                      Container(
+                        width: 36,
+                        height: 4,
+                        margin: const EdgeInsets.only(top: 10, bottom: 6),
+                        decoration: BoxDecoration(
+                          color: AppTokens.borderStrong,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
                       ),
-                    ),
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 0, 8, 4),
                       child: Row(
@@ -3212,6 +3631,19 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                               style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
                             ),
                           ),
+                          if (isDialog)
+                            IconButton(
+                              tooltip: MaterialLocalizations.of(sheetContext)
+                                  .closeButtonTooltip,
+                              visualDensity: VisualDensity.compact,
+                              icon: const Icon(
+                                Icons.close_rounded,
+                                size: 18,
+                                color: AppTokens.textSecondary,
+                              ),
+                              onPressed: () =>
+                                  Navigator.of(sheetContext).pop(),
+                            ),
                         ],
                       ),
                     ),
@@ -3501,10 +3933,6 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                 ),
               ),
             );
-          },
-        );
-      },
-    );
   }
 
   Widget _buildNextChapterBanner(ReaderStrings s) {
@@ -4227,6 +4655,14 @@ class _HorizontalReaderPageItemState extends State<_HorizontalReaderPageItem>
             : fallbackWidth;
         final page = _buildPage(isRu, _decodeWidth(logicalWidth, devicePixelRatio));
 
+        final Widget pageSurface = isDesktopPlatform
+            ? SizedBox.expand(
+                child: Transform.scale(scale: baseScale, child: page),
+              )
+            : Center(
+                child: Transform.scale(scale: baseScale, child: page),
+              );
+
         final Widget body = InteractiveViewer(
           transformationController: _transformController,
           minScale: 1.0,
@@ -4237,9 +4673,7 @@ class _HorizontalReaderPageItemState extends State<_HorizontalReaderPageItem>
           clipBehavior: Clip.none,
           onInteractionStart: _handleInteractionStart,
           onInteractionEnd: _handleInteractionEnd,
-          child: Center(
-            child: Transform.scale(scale: baseScale, child: page),
-          ),
+          child: pageSurface,
         );
 
         return GestureDetector(

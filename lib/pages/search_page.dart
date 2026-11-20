@@ -749,25 +749,47 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     );
   }
 
-  void _showFilterBottomSheet(BuildContext context, bool isRu) {
+  Future<void> _showFilterBottomSheet(BuildContext context, bool isRu) async {
     final currentFilter = ref.read(catalogFilterProvider);
     final constantsAsync = ref.read(mangaConstantsProvider);
 
-    showModalBottomSheet(
+    final content = _FilterBottomSheetContent(
+      initialFilter: currentFilter,
+      constantsAsync: constantsAsync,
+      isRu: isRu,
+      isDialog: isDesktopPlatform,
+      onApply: (newFilter) {
+        ref.read(searchProvider.notifier).updateFilter(newFilter);
+      },
+    );
+
+    if (isDesktopPlatform) {
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => Dialog(
+          backgroundColor: AppTokens.surfaceBase,
+          insetPadding: const EdgeInsets.all(24),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppTokens.radiusXl),
+            side: const BorderSide(color: AppTokens.borderStrong),
+          ),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 760, maxHeight: 780),
+            child: content,
+          ),
+        ),
+      );
+      return;
+    }
+
+    await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: AppTokens.surfaceBase,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (ctx) {
-        return _FilterBottomSheetContent(
-          initialFilter: currentFilter,
-          constantsAsync: constantsAsync,
-          isRu: isRu,
-          onApply: (newFilter) {
-            ref.read(searchProvider.notifier).updateFilter(newFilter);
-          },
-        );
-      },
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => content,
     );
   }
 }
@@ -776,12 +798,14 @@ class _FilterBottomSheetContent extends StatefulWidget {
   final CatalogFilter initialFilter;
   final AsyncValue<MangaConstants> constantsAsync;
   final bool isRu;
+  final bool isDialog;
   final ValueChanged<CatalogFilter> onApply;
 
   const _FilterBottomSheetContent({
     required this.initialFilter,
     required this.constantsAsync,
     required this.isRu,
+    required this.isDialog,
     required this.onApply,
   });
 
@@ -849,23 +873,24 @@ class _FilterBottomSheetContentState extends State<_FilterBottomSheetContent> {
     final s = SearchStrings(widget.isRu);
 
     return DraggableScrollableSheet(
-      initialChildSize: 0.85,
-      minChildSize: 0.5,
-      maxChildSize: 0.95,
+      initialChildSize: widget.isDialog ? 1.0 : 0.85,
+      minChildSize: widget.isDialog ? 0.9 : 0.5,
+      maxChildSize: widget.isDialog ? 1.0 : 0.95,
       expand: false,
       builder: (context, scrollController) {
         return Column(
           children: [
             // Handle bar
-            Container(
-              margin: const EdgeInsets.symmetric(vertical: 8),
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppTokens.accent,
-                borderRadius: BorderRadius.circular(2),
+            if (!widget.isDialog)
+              Container(
+                margin: const EdgeInsets.symmetric(vertical: 8),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppTokens.accent,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
-            ),
             // Header
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -876,10 +901,27 @@ class _FilterBottomSheetContentState extends State<_FilterBottomSheetContent> {
                     s.advancedFiltersTitle,
                     style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
                   ),
-                  TextButton.icon(
-                    onPressed: _resetAll,
-                    icon: const Icon(Icons.refresh_rounded, size: 16),
-                    label: Text(s.reset),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextButton.icon(
+                        onPressed: _resetAll,
+                        icon: const Icon(Icons.refresh_rounded, size: 16),
+                        label: Text(s.reset),
+                      ),
+                      if (widget.isDialog)
+                        IconButton(
+                          tooltip: MaterialLocalizations.of(context)
+                              .closeButtonTooltip,
+                          visualDensity: VisualDensity.compact,
+                          icon: const Icon(
+                            Icons.close_rounded,
+                            size: 18,
+                            color: AppTokens.textSecondary,
+                          ),
+                          onPressed: () => Navigator.of(context).pop(),
+                        ),
+                    ],
                   ),
                 ],
               ),

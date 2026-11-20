@@ -361,23 +361,8 @@ class _DesktopRail extends StatelessWidget {
               ),
             ),
           ),
-          if (expanded) ...[
-            const SizedBox(width: 10),
-            const Expanded(
-              child: Text(
-                'Manga Loader',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 14.5,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.3,
-                  color: AppTokens.textPrimary,
-                ),
-              ),
-            ),
-          ] else
-            const Spacer(),
+          const SizedBox(width: 10),
+          const Spacer(),
           if (expanded)
             IconButton(
               tooltip: s.collapseRail,

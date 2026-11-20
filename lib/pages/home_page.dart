@@ -7,6 +7,7 @@ import 'package:mangaloader/src/rust/api/models.dart';
 import 'package:mangaloader/widgets/manga_card.dart';
 import 'package:mangaloader/services/update_checker.dart';
 import 'package:mangaloader/l10n/strings/home_strings.dart';
+import 'package:mangaloader/l10n/strings/shell_strings.dart';
 import 'package:mangaloader/providers/settings_provider.dart';
 import 'package:mangaloader/providers/streak_provider.dart';
 import 'package:mangaloader/providers/continue_reading_provider.dart';
@@ -108,23 +109,25 @@ class _HomePageState extends ConsumerState<HomePage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Row(
-          children: [
-            GestureDetector(
-              onTap: () => AchievementEvents.instance.increment('logo_taps'),
-              child: Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: AppTokens.accent,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(Icons.menu_book_rounded, color: Colors.white, size: 20),
+        title: isDesktopPlatform
+            ? Text(ShellStrings.of(context).home)
+            : Row(
+                children: [
+                  GestureDetector(
+                    onTap: () => AchievementEvents.instance.increment('logo_taps'),
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: AppTokens.accent,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(Icons.menu_book_rounded, color: Colors.white, size: 20),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  const Text('Manga Loader', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 19)),
+                ],
               ),
-            ),
-            const SizedBox(width: 10),
-            const Text('Manga Loader', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 19)),
-          ],
-        ),
         actions: [
           const ReadingStreakButton(),
           const SizedBox(width: 4),

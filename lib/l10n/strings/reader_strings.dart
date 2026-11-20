@@ -48,6 +48,13 @@ class ReaderStrings extends AppStrings {
   String chapterListTitle(String count) =>
       isRu ? 'Список глав ($count)' : 'Chapters ($count)';
   String get pageGrid => isRu ? 'Сетка страниц' : 'Page Grid';
+  String get previousPage =>
+      isRu ? 'Предыдущая страница' : 'Previous page';
+  String get nextPage => isRu ? 'Следующая страница' : 'Next page';
+  String get downloadedChapter =>
+      isRu ? 'Глава скачана' : 'Chapter is downloaded';
+  String get onlineChapter =>
+      isRu ? 'Глава читается онлайн' : 'Chapter is streamed online';
   String get stopAutoScroll =>
       isRu ? 'Остановить автопрокрутку (A)' : 'Stop autoscroll (A)';
   String get autoScroll => isRu ? 'Автопрокрутка (A)' : 'Autoscroll (A)';
@@ -77,9 +84,13 @@ class ReaderStrings extends AppStrings {
   String get readerSettings =>
       isRu ? 'Настройки читалки' : 'Reader Settings';
   String get readingMode => isRu ? 'Режим чтения' : 'Reading Mode';
+  String get readingDirection =>
+      isRu ? 'Направление чтения' : 'Reading direction';
   String get modeWebtoon => isRu ? 'Лента' : 'Webtoon';
   String get modeLtr => isRu ? 'Слева' : 'LTR';
   String get modeRtl => isRu ? 'Справа (Манга)' : 'RTL (Manga)';
+  String get directionShortLtr => 'LTR';
+  String get directionShortRtl => 'RTL';
   String get pageLayout => isRu ? 'Отображение страниц' : 'Page Layout';
   String get layoutAuto => isRu ? 'Авто' : 'Auto';
   String get layoutSingle => isRu ? '1 страница' : '1 Page';

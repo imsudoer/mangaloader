@@ -17,6 +17,8 @@ class DesktopLayout {
   static const double gridTileMinWidth = 176;
 
   static const double detailsSidebarWidth = 404;
+  static const double readerVerticalMaxWidth = 900;
+  static const double readerChromeMaxWidth = 960;
 
   static int gridColumns(
     double width, {

@@ -383,14 +383,38 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
           children: [
             SizedBox(
               width: DesktopLayout.detailsSidebarWidth,
-              child: _buildDesktopInfoColumn(
-                context,
-                manga,
-                isRu,
-                chaptersAsync,
-                historyAsync,
-                isInLibrary,
-                dynamicAccent,
+              child: ClipRect(
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    // Same blurred cover treatment as the mobile header, now
+                    // anchoring the desktop metadata column.
+                    _buildHeaderBackdrop(manga.coverUrl),
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          stops: const [0.0, 0.5, 1.0],
+                          colors: [
+                            Colors.black.withValues(alpha: 0.13),
+                            AppTokens.surfaceDeep.withValues(alpha: 0.67),
+                            AppTokens.surfaceDeep.withValues(alpha: 0.95),
+                          ],
+                        ),
+                      ),
+                    ),
+                    _buildDesktopInfoColumn(
+                      context,
+                      manga,
+                      isRu,
+                      chaptersAsync,
+                      historyAsync,
+                      isInLibrary,
+                      dynamicAccent,
+                    ),
+                  ],
+                ),
               ),
             ),
             const VerticalDivider(
@@ -3126,6 +3150,107 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
       (key: 'dropped', icon: Icons.cancel_outlined),
     ];
 
+    Future<void> applyCategory(String key) async {
+      await rust_storage.saveManga(manga: manga);
+      await ref.read(libraryProvider.notifier).addToList(manga.id, key);
+      ref.invalidate(libraryProvider);
+      setState(() {});
+      if (context.mounted) {
+        final name = _libraryCategoryLabel(key, s);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(s.movedTo(name))),
+        );
+      }
+    }
+
+    Future<void> removeFromLibrary() async {
+      await ref.read(libraryProvider.notifier).removeFromList(manga.id, 'all');
+      ref.invalidate(libraryProvider);
+      setState(() {});
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(s.removedFromLibrary)),
+        );
+      }
+    }
+
+    if (isDesktopPlatform) {
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: AppTokens.surfaceRaised,
+          title: Row(
+            children: [
+              const Icon(Icons.collections_bookmark_outlined,
+                  size: 19, color: AppTokens.accent),
+              const SizedBox(width: 8),
+              Expanded(child: Text(s.libraryCategory)),
+            ],
+          ),
+          content: SizedBox(
+            width: 320,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ...categories.map((cat) {
+                  final isSelected = currentListType == cat.key;
+                  return ListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(
+                      cat.icon,
+                      size: 19,
+                      color: isSelected
+                          ? AppTokens.accent
+                          : AppTokens.textSecondary,
+                    ),
+                    title: Text(
+                      _libraryCategoryLabel(cat.key, s),
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: isSelected
+                            ? Colors.white
+                            : AppTokens.textPrimary,
+                        fontWeight:
+                            isSelected ? FontWeight.w700 : FontWeight.w400,
+                      ),
+                    ),
+                    trailing: isSelected
+                        ? const Icon(Icons.check_rounded,
+                            size: 18, color: AppTokens.accent)
+                        : null,
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      applyCategory(cat.key);
+                    },
+                  );
+                }),
+                const Divider(),
+                ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.delete_outline_rounded,
+                      size: 19, color: Colors.redAccent),
+                  title: Text(
+                    s.removeFromLibrary,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: Colors.redAccent,
+                    ),
+                  ),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    removeFromLibrary();
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
     showModalBottomSheet(
       context: context,
       backgroundColor: AppTokens.surfaceRaised,
@@ -3156,18 +3281,9 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                     ),
                   ),
                   trailing: isSelected ? const Icon(Icons.check_rounded, color: AppTokens.accent) : null,
-                  onTap: () async {
+                  onTap: () {
                     Navigator.pop(ctx);
-                    await rust_storage.saveManga(manga: manga);
-                    await ref.read(libraryProvider.notifier).addToList(manga.id, cat.key);
-                    ref.invalidate(libraryProvider);
-                    setState(() {});
-                    if (context.mounted) {
-                      final name = _libraryCategoryLabel(cat.key, s);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(s.movedTo(name))),
-                      );
-                    }
+                    applyCategory(cat.key);
                   },
                 );
               }),
@@ -3175,16 +3291,9 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
               ListTile(
                 leading: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
                 title: Text(s.removeFromLibrary, style: const TextStyle(color: Colors.redAccent)),
-                onTap: () async {
+                onTap: () {
                   Navigator.pop(ctx);
-                  await ref.read(libraryProvider.notifier).removeFromList(manga.id, 'all');
-                  ref.invalidate(libraryProvider);
-                  setState(() {});
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(s.removedFromLibrary)),
-                    );
-                  }
+                  removeFromLibrary();
                 },
               ),
             ],

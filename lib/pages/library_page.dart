@@ -825,17 +825,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
                       Positioned(
                         top: 4,
                         right: 4,
-                        child: IconButton(
-                          icon: Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha: 0.6),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(Icons.more_vert_rounded, size: 16, color: Colors.white),
-                          ),
-                          onPressed: () => _showMangaActionSheet(context, entry, isRu),
-                        ),
+                        child: _buildEntryMenuButton(entry, isRu),
                       ),
                     // Quick Play Button (Center-Bottom)
                     if (!_selectionMode)
@@ -1017,10 +1007,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
                       icon: const Icon(Icons.play_arrow_rounded, size: 20),
                       onPressed: () => _startReadingEntry(entry),
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.more_vert_rounded, size: 20),
-                      onPressed: () => _showMangaActionSheet(context, entry, isRu),
-                    ),
+                    _buildEntryMenuButton(entry, isRu),
                   ],
                 ),
             onTap: _selectionMode
@@ -1220,6 +1207,43 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
 
   Future<String?> _showListTypeSheet(bool isRu) {
     final s = LibraryStrings(isRu);
+    if (isDesktopPlatform) {
+      return showDialog<String>(
+        context: context,
+        builder: (ctx) => SimpleDialog(
+          backgroundColor: AppTokens.surfaceCard,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppTokens.radiusLg),
+            side: const BorderSide(color: AppTokens.borderStrong),
+          ),
+          title: Text(s.moveToList),
+          children: _listTypeOptions
+              .map(
+                (option) => SimpleDialogOption(
+                  onPressed: () => Navigator.pop(ctx, option.key),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppTokens.spaceLg,
+                    vertical: AppTokens.spaceMd,
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(option.icon, color: option.color, size: 19),
+                      const SizedBox(width: AppTokens.spaceMd),
+                      Text(
+                        _listTypeLabel(option.key, s),
+                        style: const TextStyle(
+                          fontSize: 13.5,
+                          color: AppTokens.textPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+              .toList(),
+        ),
+      );
+    }
     return showModalBottomSheet<String>(
       context: context,
       backgroundColor: const Color(0xFF222222),
@@ -1435,42 +1459,86 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
       ],
     );
     if (!mounted || action == null) return;
+    await _handleDesktopEntryAction(entry, action, isRu);
+  }
 
+  Future<void> _handleDesktopEntryAction(
+    LibraryEntry entry,
+    String action,
+    bool isRu,
+  ) async {
     if (action == 'open') {
       await context.push('/manga/${entry.slugUrl}');
     } else if (action == 'read') {
       await _startReadingEntry(entry);
     } else if (action == 'move') {
-      await _moveEntryToList(entry, position, isRu);
+      await _moveEntryToList(entry, isRu);
     } else if (action == 'remove') {
       await _removeEntryFromLibrary(entry, isRu);
     }
   }
 
-  Future<String?> _pickListTypeDesktop(Offset position, bool isRu) {
+  Widget _buildEntryMenuButton(LibraryEntry entry, bool isRu) {
     final s = LibraryStrings(isRu);
-    return showDesktopMenu<String>(
-      context: context,
-      globalPosition: position,
-      items: _listTypeOptions
-          .map(
-            (option) => desktopMenuItem(
-              value: option.key,
-              icon: option.icon,
-              label: _listTypeLabel(option.key, s),
-            ),
-          )
-          .toList(),
+    final icon = Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.6),
+        shape: BoxShape.circle,
+      ),
+      child: const Icon(
+        Icons.more_vert_rounded,
+        size: 16,
+        color: Colors.white,
+      ),
+    );
+    if (!isDesktopPlatform) {
+      return IconButton(
+        icon: icon,
+        tooltip: s.actions,
+        onPressed: () => _showMangaActionSheet(context, entry, isRu),
+      );
+    }
+    final d = DesktopStrings(isRu);
+    return PopupMenuButton<String>(
+      tooltip: s.actions,
+      icon: icon,
+      color: AppTokens.surfaceRaised,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+        side: const BorderSide(color: AppTokens.borderStrong),
+      ),
+      onSelected: (action) => _handleDesktopEntryAction(entry, action, isRu),
+      itemBuilder: (context) => [
+        desktopMenuItem(
+          value: 'open',
+          icon: Icons.open_in_new_rounded,
+          label: s.viewDetails,
+        ),
+        desktopMenuItem(
+          value: 'read',
+          icon: Icons.play_arrow_rounded,
+          label: d.startReading,
+        ),
+        const PopupMenuDivider(),
+        desktopMenuItem(
+          value: 'move',
+          icon: Icons.drive_file_move_outline,
+          label: s.moveToList,
+        ),
+        desktopMenuItem(
+          value: 'remove',
+          icon: Icons.playlist_remove_rounded,
+          label: s.removeFromLibrary,
+          destructive: true,
+        ),
+      ],
     );
   }
 
-  Future<void> _moveEntryToList(
-    LibraryEntry entry,
-    Offset position,
-    bool isRu,
-  ) async {
+  Future<void> _moveEntryToList(LibraryEntry entry, bool isRu) async {
     final s = LibraryStrings(isRu);
-    final target = await _pickListTypeDesktop(position, isRu);
+    final target = await _showListTypeSheet(isRu);
     if (target == null || !mounted) return;
     try {
       await rust_storage.removeFromList(
