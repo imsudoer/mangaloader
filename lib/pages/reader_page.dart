@@ -118,6 +118,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   final ValueNotifier<int> _pageIndexNotifier = ValueNotifier<int>(0);
 
   double _zoomLevel = 1.0;
+  final TransformationController _verticalZoomController = TransformationController();
+  bool _verticalZoomed = false;
   double _brightness = 1.0;
   bool _isFullscreen = false;
   bool _isAutoScrolling = false;
@@ -230,6 +232,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     });
 
     _scrollController.addListener(_onVerticalScroll);
+    _verticalZoomController.addListener(_syncVerticalZoom);
     _chapterTitle = widget.localCbzPath != null
         ? widget.localCbzPath!
             .split(Platform.pathSeparator)
@@ -355,6 +358,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         _pageController = null;
         _appliedDualLayout = null;
         _zoomedPageIndex = null;
+        _verticalZoomController.value = Matrix4.identity();
+        _verticalZoomed = false;
       }
       if (modeChanged || !_autoNextChapter) _resetNextChapterTransition();
       if (!_prefetchNeighbours) _neighbourJob++;
@@ -652,6 +657,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     _nextChapterJob++;
     _neighbourJob++;
     _scrollController.removeListener(_onVerticalScroll);
+    _verticalZoomController.removeListener(_syncVerticalZoom);
+    _verticalZoomController.dispose();
     _stopAutoScroll();
     _saveTimer?.cancel();
     _showControlsNotifier.dispose();
@@ -1238,6 +1245,23 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     }
   }
 
+  /// Tracks whether the vertical viewport itself is magnified. While it is, the
+  /// list stops scrolling so one-finger drags pan the zoomed reading view.
+  void _syncVerticalZoom() {
+    final zoomed = _verticalZoomController.value.getMaxScaleOnAxis() > 1.001;
+    if (zoomed == _verticalZoomed) return;
+    if (mounted) {
+      setState(() => _verticalZoomed = zoomed);
+    } else {
+      _verticalZoomed = zoomed;
+    }
+  }
+
+  void _resetVerticalZoom() {
+    if (_verticalZoomController.value == Matrix4.identity()) return;
+    _verticalZoomController.value = Matrix4.identity();
+  }
+
   /// The zoom toolbar only changes the fitted page width; a page that was pinched
   /// or double tapped keeps its own transform, so both have to reset together.
   void _resetPageZoom() {
@@ -1402,6 +1426,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   void _resetZoom() {
     _changeZoom(1.0);
     _resetPageZoom();
+    _resetVerticalZoom();
   }
 
   /// Per-title display enhancement. It raises the decoded resolution and applies
@@ -2297,12 +2322,18 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         child: Scrollbar(
           controller: _scrollController,
           thumbVisibility: true,
-          child: CustomScrollView(
-            controller: _scrollController,
-            physics: _zoomedPageIndex != null
-                ? const NeverScrollableScrollPhysics()
-                : const ClampingScrollPhysics(),
-            slivers: [
+          child: InteractiveViewer(
+            transformationController: _verticalZoomController,
+            minScale: 1.0,
+            maxScale: 4.0,
+            panEnabled: _verticalZoomed,
+            clipBehavior: Clip.hardEdge,
+            child: CustomScrollView(
+              controller: _scrollController,
+              physics: _verticalZoomed
+                  ? const NeverScrollableScrollPhysics()
+                  : const ClampingScrollPhysics(),
+              slivers: [
               SliverVariedExtentList.builder(
                 itemCount: _totalPages,
                 itemExtentBuilder: (index, dimensions) =>
@@ -2321,17 +2352,16 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                     reloadImage: _reloadImage,
                     zoomLevel: _zoomLevel,
                     upscale: _upscaleEnabled,
-                    zoomResetToken: _pageZoomResetToken,
                     cropBorders: _cropBorders,
                     cropPercent: _cropPercent,
                     applyColorFilter: _applyColorFilter,
                     onMeasuredAspect: _onMeasuredAspect,
-                    onZoomChanged: (zoomed) => _handlePageZoomChanged(i, zoomed),
                   );
                 },
               ),
               SliverToBoxAdapter(child: _buildNextChapterSwipeCard(isRu)),
-            ],
+              ],
+            ),
           ),
         ),
       );
@@ -3721,12 +3751,10 @@ class _VerticalReaderPageItem extends StatefulWidget {
   final Future<void> Function(String) reloadImage;
   final double zoomLevel;
   final bool upscale;
-  final int zoomResetToken;
   final bool cropBorders;
   final double cropPercent;
   final Widget Function(Widget) applyColorFilter;
   final void Function(int, double) onMeasuredAspect;
-  final void Function(bool) onZoomChanged;
 
   const _VerticalReaderPageItem({
     super.key,
@@ -3741,12 +3769,10 @@ class _VerticalReaderPageItem extends StatefulWidget {
     required this.reloadImage,
     required this.zoomLevel,
     required this.upscale,
-    required this.zoomResetToken,
     required this.cropBorders,
     required this.cropPercent,
     required this.applyColorFilter,
     required this.onMeasuredAspect,
-    required this.onZoomChanged,
   });
 
   @override
@@ -3758,19 +3784,6 @@ class _VerticalReaderPageItemState extends State<_VerticalReaderPageItem> {
   bool _isLoadingCbz = false;
   bool _cbzError = false;
   bool _aspectReported = false;
-  final TransformationController _transformController = TransformationController();
-  bool _isZoomed = false;
-
-  void _syncZoomFlag() {
-    final zoomed = _transformController.value.getMaxScaleOnAxis() > 1.001;
-    if (zoomed == _isZoomed) return;
-    if (!mounted) {
-      _isZoomed = zoomed;
-      return;
-    }
-    setState(() => _isZoomed = zoomed);
-    widget.onZoomChanged(zoomed);
-  }
 
   void _reportAspect(ImageProvider provider, BuildContext context) {
     if (_aspectReported || widget.aspect > 0.02) return;
@@ -3793,7 +3806,6 @@ class _VerticalReaderPageItemState extends State<_VerticalReaderPageItem> {
   @override
   void initState() {
     super.initState();
-    _transformController.addListener(_syncZoomFlag);
     _cbzBytes = widget.cachedBytes;
     if (widget.isDownloaded && _cbzBytes == null) {
       _loadCbzBytes();
@@ -3801,18 +3813,8 @@ class _VerticalReaderPageItemState extends State<_VerticalReaderPageItem> {
   }
 
   @override
-  void dispose() {
-    _transformController.removeListener(_syncZoomFlag);
-    _transformController.dispose();
-    super.dispose();
-  }
-
-  @override
   void didUpdateWidget(covariant _VerticalReaderPageItem oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.zoomResetToken != oldWidget.zoomResetToken) {
-      _transformController.value = Matrix4.identity();
-    }
     // The chapter can be downloaded (or auto-deleted) while it is open.
     if (widget.isDownloaded && !oldWidget.isDownloaded) {
       _cbzBytes = widget.cachedBytes;
@@ -3959,18 +3961,11 @@ class _VerticalReaderPageItemState extends State<_VerticalReaderPageItem> {
       );
     }
 
-    return InteractiveViewer(
-      transformationController: _transformController,
-      minScale: 1.0,
-      maxScale: 4.0,
-      panEnabled: _isZoomed,
-      clipBehavior: Clip.hardEdge,
-      child: SizedBox(
-        width: width,
-        height: boxHeight,
-        child: ClipRect(
-          child: widget.applyColorFilter(content),
-        ),
+    return SizedBox(
+      width: width,
+      height: boxHeight,
+      child: ClipRect(
+        child: widget.applyColorFilter(content),
       ),
     );
   }
