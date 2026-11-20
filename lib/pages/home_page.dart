@@ -12,6 +12,7 @@ import 'package:mangaloader/providers/streak_provider.dart';
 import 'package:mangaloader/providers/continue_reading_provider.dart';
 import 'package:mangaloader/widgets/update_bottom_sheet.dart';
 import 'package:mangaloader/widgets/reading_streak_button.dart';
+import 'package:mangaloader/widgets/glass_scrollbar.dart';
 import 'package:mangaloader/widgets/continue_reading_section.dart';
 import 'package:mangaloader/services/streak_notification_service.dart';
 import 'package:mangaloader/services/content_filter.dart';
@@ -138,7 +139,8 @@ class _HomePageState extends ConsumerState<HomePage> {
             ref.invalidate(continueReadingProvider);
             ref.read(streakProvider.notifier).loadStreak();
           },
-          child: ListView(
+          child: GlassScrollbar(
+            child: ListView(
             padding: const EdgeInsets.symmetric(vertical: 12),
             children: [
               // Available Update Banner
@@ -204,6 +206,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                 const SizedBox(height: 24),
               ],
             ],
+          ),
           ),
         ),
         loading: () => const Center(child: CircularProgressIndicator()),

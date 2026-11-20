@@ -12,6 +12,7 @@ import 'package:mangaloader/services/content_filter.dart';
 import 'package:mangaloader/services/download_queue_service.dart';
 import 'package:mangaloader/services/update_checker.dart';
 import 'package:mangaloader/theme/app_tokens.dart';
+import 'package:mangaloader/widgets/glass_scrollbar.dart';
 import 'package:mangaloader/utils/fuzzy_search.dart';
 
 class DownloadsPage extends ConsumerStatefulWidget {
@@ -656,7 +657,8 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
       ),
       body: RefreshIndicator(
         onRefresh: _loadDownloaded,
-        child: ListView(
+        child: GlassScrollbar(
+          child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
             _buildStorageCard(isRu, storageLimitMb),
@@ -992,6 +994,7 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage> {
               }),
           ],
         ),
+      ),
       ),
     );
   }

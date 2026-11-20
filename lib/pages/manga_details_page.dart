@@ -16,6 +16,7 @@ import 'package:mangaloader/providers/anime_provider.dart';
 import 'package:mangaloader/services/anime_search.dart';
 import 'package:mangaloader/services/download_queue_service.dart';
 import 'package:mangaloader/widgets/download_button.dart';
+import 'package:mangaloader/widgets/glass_scrollbar.dart';
 import 'package:mangaloader/widgets/skeleton.dart';
 import 'package:mangaloader/widgets/error_placeholder.dart';
 import 'package:mangaloader/widgets/cover_tilt.dart';
@@ -1024,7 +1025,8 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
 
           // Chapter tiles are built lazily: long-running titles easily exceed a
           // thousand chapters, and mounting them all froze the tab.
-          return ListView.builder(
+          return GlassScrollbar(
+            child: ListView.builder(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             itemCount: headerChildren.length + list.length,
             itemBuilder: (context, index) {
@@ -1292,7 +1294,8 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
                 ),
               );
             },
-          );
+          ),
+        );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => Center(
@@ -1324,7 +1327,8 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
 
   Widget _buildAboutTab(MangaDetails manga, bool isRu) {
     final s = DetailsStrings(isRu);
-    return ListView(
+    return GlassScrollbar(
+        child: ListView(
       padding: const EdgeInsets.all(16),
       children: [
         // The whole franchise, ordered, for readers who opened a middle entry.
@@ -1474,6 +1478,7 @@ class _MangaDetailsPageState extends ConsumerState<MangaDetailsPage> with Single
         // Similar manga section
         _buildSimilarSection(manga.slugUrl, isRu),
       ],
+      ),
     );
   }
 

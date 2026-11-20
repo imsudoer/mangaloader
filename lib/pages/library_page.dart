@@ -19,6 +19,7 @@ import 'package:mangaloader/utils/plural.dart';
 import 'package:mangaloader/utils/fuzzy_search.dart';
 import 'package:mangaloader/theme/app_tokens.dart';
 import 'package:mangaloader/widgets/skeleton.dart';
+import 'package:mangaloader/widgets/glass_scrollbar.dart';
 
 enum LibrarySortMode { recent, title, rating, progress, chapters }
 
@@ -644,11 +645,13 @@ class _LibraryPageState extends ConsumerState<LibraryPage> with SingleTickerProv
                 );
               }
 
-              return RefreshIndicator(
+              return GlassScrollbar(
+                child: RefreshIndicator(
                 onRefresh: () => ref.read(libraryProvider.notifier).loadAll(),
                 child: _isGridView
                   ? _buildGridView(filtered, isRu)
                   : _buildListView(filtered, isRu),
+              ),
               );
             }).toList(),
           );

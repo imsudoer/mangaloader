@@ -10,6 +10,7 @@ import 'package:shimmer/shimmer.dart';
 
 import 'package:mangaloader/services/content_filter.dart';
 import 'package:mangaloader/services/update_checker.dart';
+import 'package:mangaloader/widgets/glass_scrollbar.dart';
 
 final historyProvider = FutureProvider.autoDispose<List<ReadingHistoryItem>>((ref) async {
   final items = await rust_storage.getReadingHistory(limit: 200, offset: 0);
@@ -169,6 +170,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
 
           return RefreshIndicator(
             onRefresh: () async => ref.invalidate(historyProvider),
+            child: GlassScrollbar(
             child: ListView.builder(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               itemCount: groups.length,
@@ -333,7 +335,8 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
                 );
               },
             ),
-          );
+          ),
+        );
         },
         loading: () => ListView.builder(
           padding: const EdgeInsets.all(16),
