@@ -26,7 +26,7 @@ AntiFeatures:
 Builds:
   - versionName: 1.9.8
     versionCode: 72
-    commit: 02872342e098ac2c0e64e59878a06ad62e8b447c
+    commit: a61f22f94ebbbd899636a1fb03d49c9f1e5d37e3
     srclibs:
       - flutter@6655482ec06e547f90abf8ae7590466f4415978d
     sudo:
@@ -79,3 +79,4 @@ UpdateCheckMode: 'Tags ^v[0-9]+\.[0-9]+\.[0-9]+$'
 UpdateCheckData: pubspec.yaml|version:\s.+\+(\d+)|.|version:\s(.+)\+
 CurrentVersion: 1.9.8
 CurrentVersionCode: 72
+
