@@ -1,0 +1,1 @@
+Offline manga reader with CBZ downloads and a native Rust engine.

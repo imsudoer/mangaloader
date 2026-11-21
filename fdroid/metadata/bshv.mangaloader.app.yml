@@ -1,0 +1,14 @@
+Categories:
+- Reading
+License: GPL-3.0-only
+AuthorName: imsudoer
+SourceCode: https://github.com/imsudoer/mangaloader
+IssueTracker: https://github.com/imsudoer/mangaloader/issues
+Changelog: https://github.com/imsudoer/mangaloader/blob/HEAD/CHANGELOG.md
+AutoName: Manga Loader
+RepoType: git
+Repo: https://github.com/imsudoer/mangaloader.git
+AntiFeatures:
+  NonFreeNet:
+    en-US: Reads and downloads content from MangaLib, a proprietary service
+    ru-RU: Читает и скачивает контент с MangaLib — проприетарного сервиса
