@@ -123,6 +123,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   double _zoomLevel = 1.0;
   final ValueNotifier<Matrix4> _verticalZoomTransform =
       ValueNotifier<Matrix4>(Matrix4.identity());
+  final GlobalKey _verticalViewportKey = GlobalKey();
   final Map<int, Offset> _pinchPointers = {};
   double _pinchStartDistance = 0.0;
   double _pinchStartScale = 1.0;
@@ -1576,10 +1577,37 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     setState(() => _pinching = true);
   }
 
+  Size _verticalViewportSize() {
+    final box = _verticalViewportKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box != null && box.hasSize) return box.size;
+    return MediaQuery.sizeOf(context);
+  }
+
+  /// One finger keeps scrolling the list vertically; when the reader is magnified,
+  /// horizontal movement of that same finger pans the zoomed surface sideways.
+  void _panZoomedHorizontal(double dx) {
+    if (dx == 0) return;
+    final matrix = _verticalZoomTransform.value;
+    final scale = matrix.getMaxScaleOnAxis();
+    if (scale <= 1.01) return;
+    final translation = matrix.getTranslation();
+    final size = _verticalViewportSize();
+    final minX = size.width - size.width * scale;
+    final tx = (translation.x + dx).clamp(minX, 0.0);
+    if ((tx - translation.x).abs() < 0.01) return;
+    _verticalZoomTransform.value = Matrix4.identity()
+      ..translateByDouble(tx, translation.y, 0.0, 1.0)
+      ..scaleByDouble(scale, scale, 1.0, 1.0);
+  }
+
   void _onPinchPointerMove(PointerMoveEvent event) {
     if (!_pinchPointers.containsKey(event.pointer)) return;
     _pinchPointers[event.pointer] = event.localPosition;
-    if (!_pinching || _pinchPointers.length != 2 || _pinchStartDistance < 1) return;
+    if (!_pinching) {
+      if (_pinchPointers.length == 1) _panZoomedHorizontal(event.delta.dx);
+      return;
+    }
+    if (_pinchPointers.length != 2 || _pinchStartDistance < 1) return;
 
     final points = _pinchPointers.values.toList();
     final distance = (points[0] - points[1]).distance;
@@ -1590,7 +1618,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
     var tx = focal.dx - ratio * (_pinchStartFocal.dx - _pinchStartTranslation.dx);
     var ty = focal.dy - ratio * (_pinchStartFocal.dy - _pinchStartTranslation.dy);
-    final size = MediaQuery.sizeOf(context);
+    final size = _verticalViewportSize();
     tx = tx.clamp(size.width - size.width * scale, 0.0);
     ty = ty.clamp(size.height - size.height * scale, 0.0);
 
@@ -2706,6 +2734,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
           controller: _scrollController,
           thumbVisibility: true,
           child: Listener(
+            key: _verticalViewportKey,
             onPointerDown: _onPinchPointerDown,
             onPointerMove: _onPinchPointerMove,
             onPointerUp: _onPinchPointerUp,
