@@ -1,0 +1,300 @@
+name: Publish F-Droid repo
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release tag to publish, for example v1.9.8'
+        required: true
+
+# Pages deployments must never race each other.
+concurrency:
+  group: fdroid-repo
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    name: Build APKs and publish the repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Resolve release tag
+        id: release
+        env:
+          INPUT_TAG: ${{ inputs.release_tag }}
+        run: |
+          tag="${INPUT_TAG:-${GITHUB_REF_NAME}}"
+          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::F-Droid publishes stable tags only, got '$tag'. Beta builds stay on GitHub."
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout release
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.release.outputs.tag }}
+
+      - name: Read version
+        id: version
+        run: |
+          version=$(sed -n 's/^version: *\([0-9][^+]*\)+.*/\1/p' pubspec.yaml)
+          code=$(sed -n 's/^version: *[^+]*+\([0-9][0-9]*\).*/\1/p' pubspec.yaml)
+          if [[ -z "$version" || -z "$code" ]]; then
+            echo "::error::pubspec.yaml has no version in the form 1.2.3+45"
+            exit 1
+          fi
+          echo "name=$version" >> "$GITHUB_OUTPUT"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Gradle Cache
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
+
+      - name: Cache Cargo Registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+          key: cargo-registry-ubuntu-${{ hashFiles('rust/Cargo.lock') }}
+          restore-keys: |
+            cargo-registry-ubuntu-
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          flutter-version: '3.47.1'
+          cache: true
+
+      - name: Cache Android NDK
+        uses: actions/cache@v4
+        with:
+          path: /usr/local/lib/android/sdk/ndk/28.2.13676358
+          key: ndk-28.2.13676358-${{ runner.os }}
+
+      - name: Cache Cargokit Build Directory
+        uses: actions/cache@v4
+        with:
+          path: build/rust_lib_mangaloader
+          key: cargokit-android-${{ hashFiles('rust/Cargo.lock', 'rust_builder/**') }}
+          restore-keys: |
+            cargokit-android-
+
+      - name: Get Flutter Dependencies
+        run: flutter pub get
+
+      - name: Configure App Signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+        run: |
+          if [[ -z "$KEYSTORE_BASE64" ]]; then
+            echo "::error::RELEASE_KEYSTORE_BASE64 is missing. Repository builds must be signed with the same key as the GitHub releases, otherwise installed apps cannot update."
+            exit 1
+          fi
+          echo "$KEYSTORE_BASE64" | base64 --decode > android/app/mangaloader-release.jks
+          {
+            echo "storeFile=mangaloader-release.jks"
+            echo "storePassword=${STORE_PASSWORD:-mangaloader2026}"
+            echo "keyPassword=${KEY_PASSWORD:-mangaloader2026}"
+            echo "keyAlias=${KEY_ALIAS:-mangaloader}"
+          } > android/key.properties
+
+      - name: Drop In-App Updater Permission
+        run: sed -i '/REQUEST_INSTALL_PACKAGES/d' android/app/src/main/AndroidManifest.xml
+
+      - name: Build Store APKs
+        env:
+          VERSION_NAME: ${{ steps.version.outputs.name }}
+        run: |
+          flutter build apk --release --split-per-abi \
+            --dart-define=FDROID_BUILD=true \
+            --dart-define=APP_VERSION="$VERSION_NAME"
+
+      - name: Install fdroidserver
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install fdroidserver
+
+      - name: Restore Published Repository
+        run: |
+          repo_url="https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+          if git ls-remote --exit-code --heads "$repo_url" gh-pages >/dev/null 2>&1; then
+            git clone --depth 1 --branch gh-pages "$repo_url" published
+          else
+            git init -q published
+            git -C published remote add origin "$repo_url"
+            git -C published checkout -q -b gh-pages
+          fi
+          mkdir -p published/fdroid/repo published/fdroid/metadata
+          touch published/.nojekyll
+
+      - name: Add APKs and Metadata
+        env:
+          VERSION_NAME: ${{ steps.version.outputs.name }}
+        run: |
+          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk \
+             "published/fdroid/repo/mangaloader-${VERSION_NAME}-arm64-v8a.apk"
+          cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk \
+             "published/fdroid/repo/mangaloader-${VERSION_NAME}-armeabi-v7a.apk"
+          cp build/app/outputs/flutter-apk/app-x86_64-release.apk \
+             "published/fdroid/repo/mangaloader-${VERSION_NAME}-x86_64.apk"
+
+          cp fdroid/bshv.mangaloader.app.yml published/fdroid/metadata/
+          # Release-tracking fields stay in fdroiddata. A stale
+          # CurrentVersionCode would stop the client from offering updates.
+          python3 - "$PWD/published/fdroid/metadata/bshv.mangaloader.app.yml" <<'PY'
+          import sys
+          import yaml
+
+          path = sys.argv[1]
+          with open(path, encoding='utf-8') as handle:
+              data = yaml.safe_load(handle)
+          for key in ('Builds', 'AutoUpdateMode', 'UpdateCheckMode',
+                      'UpdateCheckData', 'CurrentVersion', 'CurrentVersionCode'):
+              data.pop(key, None)
+          with open(path, 'w', encoding='utf-8') as handle:
+              yaml.safe_dump(data, handle, allow_unicode=True, sort_keys=False)
+          PY
+          for locale in en-US ru-RU; do
+            mkdir -p "published/fdroid/metadata/bshv.mangaloader.app/$locale"
+            cp -R "fastlane/metadata/android/$locale/." \
+              "published/fdroid/metadata/bshv.mangaloader.app/$locale/"
+          done
+
+          mkdir -p published/fdroid/repo/icons
+          cp assets/icon_monet.png published/fdroid/repo/icons/icon.png
+
+      - name: Build Repository Index
+        env:
+          REPO_KEYSTORE_BASE64: ${{ secrets.FDROID_REPO_KEYSTORE_BASE64 }}
+          REPO_STORE_PASSWORD: ${{ secrets.FDROID_REPO_STORE_PASSWORD }}
+          REPO_KEY_PASSWORD: ${{ secrets.FDROID_REPO_KEY_PASSWORD }}
+          REPO_KEY_ALIAS: ${{ secrets.FDROID_REPO_KEY_ALIAS }}
+        run: |
+          if [[ -z "$REPO_KEYSTORE_BASE64" ]]; then
+            echo "::error::FDROID_REPO_KEYSTORE_BASE64 is missing. Generate the repository key once and back it up, see fdroid/README.md."
+            exit 1
+          fi
+          echo "$REPO_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/fdroid-repo.jks"
+
+          alias="${REPO_KEY_ALIAS:-fdroid}"
+          store_pass="${REPO_STORE_PASSWORD:-mangaloader2026}"
+          key_pass="${REPO_KEY_PASSWORD:-mangaloader2026}"
+          repo_name="${GITHUB_REPOSITORY#*/}"
+
+          cat > published/fdroid/config.yml <<EOF
+          repo_url: https://${GITHUB_REPOSITORY_OWNER}.github.io/${repo_name}/fdroid/repo
+          repo_name: Manga Loader
+          repo_description: >-
+            Official builds of Manga Loader, a manga reader with offline downloads
+            and a Rust core. Signed by the project maintainer.
+          archive_older: 0
+          keystore: ${RUNNER_TEMP}/fdroid-repo.jks
+          repo_keyalias: ${alias}
+          keystorepass: ${store_pass}
+          keypass: ${key_pass}
+          EOF
+          chmod 600 published/fdroid/config.yml
+
+          cd published/fdroid
+          fdroid update --create-metadata
+
+          test -f repo/index-v2.json
+          grep -q 'bshv.mangaloader.app' repo/index-v2.json
+
+      - name: Generate Landing Page
+        env:
+          REPO_STORE_PASSWORD: ${{ secrets.FDROID_REPO_STORE_PASSWORD }}
+          REPO_KEY_ALIAS: ${{ secrets.FDROID_REPO_KEY_ALIAS }}
+        run: |
+          host="${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}"
+          alias="${REPO_KEY_ALIAS:-fdroid}"
+          store_pass="${REPO_STORE_PASSWORD:-mangaloader2026}"
+
+          fingerprint=$(keytool -list -v \
+            -keystore "$RUNNER_TEMP/fdroid-repo.jks" \
+            -storepass "$store_pass" -alias "$alias" \
+            | sed -n 's/.*SHA256: //p' | tr -d ':' | tr '[:lower:]' '[:upper:]')
+
+          cat > published/fdroid/index.html <<EOF
+          <!doctype html>
+          <html lang="en">
+          <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <title>Manga Loader F-Droid repository</title>
+          <style>
+            :root { color-scheme: dark; }
+            body { margin: 0; min-height: 100vh; display: grid; place-items: center;
+                   background: #0b0b0d; color: #e8e6e1;
+                   font: 16px/1.5 ui-sans-serif, system-ui, sans-serif; }
+            main { width: min(38rem, 92vw); padding: 2.5rem; border: 1px solid #26262b;
+                   border-radius: 18px; background: #121215; }
+            h1 { margin: 0 0 .5rem; font-size: 1.5rem; letter-spacing: -.01em; }
+            p { margin: 0 0 1.25rem; color: #a7a49d; }
+            a { display: block; padding: .85rem 1rem; margin-bottom: .75rem;
+                border: 1px solid #2f2f36; border-radius: 12px; color: #e8e6e1;
+                text-decoration: none; transition: border-color .15s ease, background .15s ease; }
+            a:hover, a:focus-visible { border-color: #c9a227; background: #17171b; outline: none; }
+            code { display: block; margin-top: .35rem; color: #8f8b83; font-size: .8rem;
+                   word-break: break-all; font-family: ui-monospace, monospace; }
+          </style>
+          </head>
+          <body>
+          <main>
+            <h1>Manga Loader</h1>
+            <p>Official F-Droid repository. Add it to the F-Droid client to receive signed updates.</p>
+            <a href="fdroidrepos://${host}/fdroid/repo?fingerprint=${fingerprint}">
+              Add repository to F-Droid
+              <code>fdroidrepos://${host}/fdroid/repo</code>
+            </a>
+            <a href="https://${host}/fdroid/repo">
+              Repository URL for manual setup
+              <code>https://${host}/fdroid/repo</code>
+            </a>
+            <a href="https://github.com/${{ github.repository }}/releases">
+              GitHub releases
+              <code>APK, Windows and Linux builds</code>
+            </a>
+          </main>
+          </body>
+          </html>
+          EOF
+
+      - name: Publish
+        env:
+          VERSION_NAME: ${{ steps.version.outputs.name }}
+        run: |
+          # config.yml holds keystore passwords and must never reach the branch.
+          rm -f published/fdroid/config.yml
+          find published -name '*.jks' -delete
+
+          cd published
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore(fdroid): publish ${VERSION_NAME}"
+          git push origin HEAD:gh-pages

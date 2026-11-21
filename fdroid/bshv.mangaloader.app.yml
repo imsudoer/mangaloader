@@ -1,0 +1,81 @@
+# Metadata for the main F-Droid repository (gitlab.com/fdroid/fdroiddata).
+# Copy this file to metadata/bshv.mangaloader.app.yml in a fdroiddata checkout,
+# then open a merge request. See fdroid/README.md for the full procedure.
+#
+# The commit must be the tagged release commit, not a branch head. Update it
+# together with versionName/versionCode for every new release.
+
+Categories:
+  - Reading
+License: GPL-3.0-only
+AuthorName: imsudoer
+SourceCode: https://github.com/imsudoer/mangaloader
+IssueTracker: https://github.com/imsudoer/mangaloader/issues
+Changelog: https://github.com/imsudoer/mangaloader/blob/HEAD/CHANGELOG.md
+
+AutoName: Manga Loader
+
+RepoType: git
+Repo: https://github.com/imsudoer/mangaloader.git
+
+AntiFeatures:
+  NonFreeNet:
+    en-US: Reads and downloads content from MangaLib, a proprietary service
+    ru-RU: Читает и скачивает контент с MangaLib — проприетарного сервиса
+
+Builds:
+  - versionName: 1.9.8
+    versionCode: 72
+    commit: 02872342e098ac2c0e64e59878a06ad62e8b447c
+    srclibs:
+      - flutter@6655482ec06e547f90abf8ae7590466f4415978d
+    sudo:
+      - apt-get update
+      - apt-get install -y rustup
+    ndk: 28.2.13676358
+    output: build/app/outputs/flutter-apk/app-release.apk
+    rm:
+      - ios
+      - macos
+      - linux
+      - windows
+      - web
+    prebuild:
+      # The in-app updater is disabled by FDROID_BUILD, the permission has to go
+      # too: F-Droid does not accept apps that install APKs on their own.
+      - sed -i '/REQUEST_INSTALL_PACKAGES/d' android/app/src/main/AndroidManifest.xml
+      # Debian rustc ships no std for Android targets, so the toolchain comes
+      # from rustup. Keep it outside the source tree so the scanner skips it.
+      - export RUSTUP_HOME=/tmp/rustup CARGO_HOME=/tmp/cargo
+      - rustup default stable
+      - rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
+      # Build in a fixed path, the kernel snapshot embeds it.
+      - export repo=/tmp/build
+      - cd ..
+      - mv bshv.mangaloader.app $repo
+      - pushd $repo
+      - export PUB_CACHE=$(pwd)/.pub-cache
+      - $$flutter$$/bin/flutter config --no-analytics
+      - $$flutter$$/bin/flutter pub get --enforce-lockfile
+      - popd
+      - mv $repo bshv.mangaloader.app
+    scandelete:
+      # Dart packages are scanned for licenses, then removed before the build.
+      - .pub-cache
+    build:
+      - export RUSTUP_HOME=/tmp/rustup CARGO_HOME=/tmp/cargo PATH=/tmp/cargo/bin:$PATH
+      - export repo=/tmp/build
+      - cd ..
+      - mv bshv.mangaloader.app $repo
+      - pushd $repo
+      - export PUB_CACHE=$(pwd)/.pub-cache
+      - $$flutter$$/bin/flutter pub get --enforce-lockfile
+      - $$flutter$$/bin/flutter build apk --release --dart-define=FDROID_BUILD=true --dart-define=APP_VERSION=$$VERSION$$
+      - popd
+      - mv $repo bshv.mangaloader.app
+
+AutoUpdateMode: Version
+UpdateCheckMode: 'Tags ^v[0-9]+\.[0-9]+\.[0-9]+$'
+UpdateCheckData: pubspec.yaml|version:\s.+\+(\d+)|.|version:\s(.+)\+
+CurrentVersion: 1.9.8
+CurrentVersionCode: 72

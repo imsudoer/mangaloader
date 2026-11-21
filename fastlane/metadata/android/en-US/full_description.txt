@@ -1,0 +1,31 @@
+Manga Loader is an unofficial MangaLib client for Android. It reads chapters, downloads them for offline use and keeps the library in sync.
+
+Reader
+- Vertical webtoon strip and paged modes: right-to-left for manga, left-to-right for comics, one or two pages on wide screens.
+- Pinch zoom for the whole reader, one-finger panning, quick page jump and a chapter picker.
+- Image processing: edge sharpening, white-border cropping and optional upscaling.
+- Hands-free auto-scroll with adjustable speed.
+- Light, dark and pure black AMOLED themes.
+
+Downloads
+- A native Rust engine downloads chapters and packs them into standard CBZ archives.
+- Optional page compression, automatic removal of read chapters and cache cleanup.
+- Downloads keep running in the background and retry on connection drops.
+- Files stay readable in any CBZ-compatible app.
+
+Library
+- Sign in with a MangaLib account to sync reading, planned, completed, favorites and dropped lists.
+- Local history, reading statistics, streaks and an exportable recap card.
+- Custom lists, filters and full-text search.
+
+Updates and desktop
+- Notifications about new chapters of followed titles.
+- Windows and Linux builds with a desktop layout and keyboard shortcuts.
+
+Privacy
+- No ads, no analytics and no trackers.
+- The app talks only to MangaLib. Account cookies stay on the device.
+
+Manga Loader is free software under GPL-3.0. Source code: https://github.com/imsudoer/mangaloader
+
+Manga Loader is not affiliated with or endorsed by MangaLib. All manga and comic content is provided by MangaLib; the app only displays what the service returns. Support the official releases of the titles you read.

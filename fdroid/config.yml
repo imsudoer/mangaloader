@@ -1,0 +1,23 @@
+# Example configuration for the self-hosted repository.
+#
+# Do not put real passwords in this file: the publish workflow generates
+# config.yml from GitHub secrets. This copy exists so the keys and their
+# meaning stay documented in the repository.
+
+repo_url: https://imsudoer.github.io/mangaloader/fdroid/repo
+repo_name: Manga Loader
+repo_description: >-
+  Official builds of Manga Loader, a manga reader with offline downloads and a
+  Rust core. Signed by the project maintainer.
+archive_older: 0
+
+# Repository index signing key. The certificate fingerprint is shown to users
+# when they add the repository, so this key must never change.
+keystore: fdroid-repo.jks
+repo_keyalias: fdroid
+keystorepass: change-me
+keypass: change-me
+
+# Builds must be signed with the same key as the GitHub releases, otherwise
+# installed apps cannot update to the repository build.
+# That key is configured separately in android/key.properties.

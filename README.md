@@ -51,6 +51,12 @@ Compiled binaries for all supported platforms are available on the [Releases](ht
 
 In the application settings (*Settings -> Updates*), you can choose between the **Stable** channel (regular verified releases) and the **Beta/Dev** channel (rolling nightly builds).
 
+### F-Droid
+
+The project also maintains its own signed F-Droid repository. Add `https://imsudoer.github.io/mangaloader/fdroid/repo` in F-Droid under *Settings -> Repositories*, or open <https://imsudoer.github.io/mangaloader/fdroid/> on the device and use the one-tap link.
+
+F-Droid builds have the in-app updater disabled: the F-Droid client installs updates, and its APKs are signed with the project key so they upgrade over GitHub releases.
+
 ---
 
 ## Key Features

@@ -1,0 +1,4 @@
+Reader: pinch zooms the whole strip; scrolling and one-finger panning keep working, and the 100% button resets the view.
+Lists: chapters, library, downloads, history and home scroll with a glass scrollbar.
+Desktop: new shell with a sidebar, keyboard shortcuts, adaptive grids and a two-page title view.
+Downloads: gray tones survive upscaling.
