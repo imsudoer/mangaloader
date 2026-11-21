@@ -21,6 +21,9 @@ permissions:
 jobs:
   publish:
     name: Build APKs and publish the repository
+    # Beta tags stay on GitHub. Skipping the job keeps beta releases from
+    # painting the Actions tab red; stable tags have no hyphen.
+    if: github.event_name == 'workflow_dispatch' || !contains(github.ref_name, '-')
     runs-on: ubuntu-latest
     timeout-minutes: 90
 
