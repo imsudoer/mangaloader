@@ -168,6 +168,12 @@ class _ParsedVersion {
 }
 
 const bool isRuStoreBuild = bool.fromEnvironment('RUSTORE_BUILD', defaultValue: false);
+const bool isFdroidBuild = bool.fromEnvironment('FDROID_BUILD', defaultValue: false);
+
+/// Store builds must not install APKs by themselves. F-Droid owns the update
+/// flow, and in the main repository the APK is signed with F-Droid's key, so a
+/// GitHub APK cannot replace it anyway.
+const bool isStoreBuild = isRuStoreBuild || isFdroidBuild;
 
 class UpdateChecker {
   static String? _cachedCurrentVersion;
@@ -203,7 +209,7 @@ class UpdateChecker {
     String repo = defaultRepo,
     UpdateChannel channel = UpdateChannel.stable,
   }) async {
-    if (isRuStoreBuild) return null;
+    if (isStoreBuild) return null;
     try {
       final curVer = await getCurrentVersion();
       final client = HttpClient();
@@ -331,7 +337,7 @@ class UpdateChecker {
 
   /// Silently check for update and trigger notification once
   static Future<void> checkAppUpdateSilently({bool isRu = true}) async {
-    if (isRuStoreBuild) return;
+    if (isStoreBuild) return;
     try {
       // The background isolate has no Riverpod container, so the user preference is
       // read straight from the settings table.

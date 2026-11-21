@@ -964,7 +964,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
           // 7. Updates
           _buildSectionHeader(s.updates, Icons.system_update_rounded),
-          if (isRuStoreBuild)
+          if (isStoreBuild)
             Card(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),
@@ -973,11 +973,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               child: ListTile(
                 leading: const Icon(Icons.storefront_rounded, color: AppTokens.accent),
                 title: Text(
-                  s.versionWithStore(currentVersionStr),
+                  s.versionWithStore(currentVersionStr, fdroid: isFdroidBuild),
                   style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white),
                 ),
                 subtitle: Text(
-                  s.storeUpdatesNote,
+                  s.storeUpdatesNote(fdroid: isFdroidBuild),
                   style: const TextStyle(fontSize: 12, color: AppTokens.textPrimary),
                 ),
               ),

@@ -234,11 +234,13 @@ class SettingsStrings extends AppStrings {
 
   // Updates
   String get updates => isRu ? 'Обновления' : 'Updates';
-  String versionWithStore(String value) =>
-      isRu ? 'Версия: v$value (RuStore)' : 'Version: v$value (RuStore)';
-  String get storeUpdatesNote => isRu
-      ? 'Обновления приложения управляются через магазин RuStore'
-      : 'App updates are managed via RuStore';
+  String _storeName(bool fdroid) => fdroid ? 'F-Droid' : 'RuStore';
+  String versionWithStore(String value, {bool fdroid = false}) => isRu
+      ? 'Версия: v$value (${_storeName(fdroid)})'
+      : 'Version: v$value (${_storeName(fdroid)})';
+  String storeUpdatesNote({bool fdroid = false}) => isRu
+      ? 'Обновления приложения управляются через ${_storeName(fdroid)}'
+      : 'App updates are managed via ${_storeName(fdroid)}';
   String versionLabel(String value) =>
       isRu ? 'Версия: v$value' : 'Version: v$value';
   String downloading(String percent) =>
