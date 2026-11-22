@@ -2,7 +2,7 @@ name: mangaloader
 description: "Manga Loader"
 publish_to: 'none'
 
-version: 1.9.8+72
+version: 1.9.9-beta.1+73
 
 environment:
   sdk: '>=3.5.0 <4.0.0'

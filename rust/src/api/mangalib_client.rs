@@ -502,20 +502,32 @@ pub fn set_cookies(cookies: String) {
     lock_json_cache().entries.clear();
 }
 
+/// The media API rotates the cover host and some of those hosts answer 403 for
+/// networks the stable cover CDN still serves, so cover paths stay pinned to it.
+fn normalize_cover_url(raw: &str) -> String {
+    let value = raw.trim();
+    if value.is_empty() {
+        return String::new();
+    }
+    if value.starts_with('/') {
+        return format!("https://cover.cdnlibs.org{}", value);
+    }
+    if let Some((_, rest)) = value.split_once("://") {
+        let path_start = rest.find('/').unwrap_or(rest.len());
+        let host = &rest[..path_start];
+        if host.starts_with("cover.") && host != "cover.cdnlibs.org" {
+            return format!("https://cover.cdnlibs.org{}", &rest[path_start..]);
+        }
+    }
+    value.to_string()
+}
+
 fn parse_manga_item(item: &Value) -> MangaSearchResult {
     let cover_def = item.get("cover").and_then(|c| c.get("default")).and_then(|v| v.as_str()).unwrap_or("");
     let cover_thumb = item.get("cover").and_then(|c| c.get("thumbnail")).and_then(|v| v.as_str()).unwrap_or("");
-    
-    let cover_url = if cover_def.starts_with('/') {
-        format!("https://cover.cdnlibs.org{}", cover_def)
-    } else {
-        cover_def.to_string()
-    };
-    let cover_thumb_url = if cover_thumb.starts_with('/') {
-        format!("https://cover.cdnlibs.org{}", cover_thumb)
-    } else {
-        cover_thumb.to_string()
-    };
+
+    let cover_url = normalize_cover_url(cover_def);
+    let cover_thumb_url = normalize_cover_url(cover_thumb);
 
     let id = item.get("id").and_then(|v| v.as_i64()).unwrap_or(0);
     let slug = item.get("slug").and_then(|v| v.as_str()).unwrap_or("");
@@ -888,8 +900,12 @@ pub async fn get_manga_details(slug_url: String) -> Result<MangaDetails> {
         eng_name: data.get("eng_name").and_then(|v| v.as_str()).unwrap_or("").to_string(),
         slug: data.get("slug").and_then(|v| v.as_str()).unwrap_or("").to_string(),
         slug_url: data.get("slug_url").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-        cover_url: data.get("cover").and_then(|c| c.get("default")).and_then(|v| v.as_str()).unwrap_or("").to_string(),
-        cover_thumb_url: data.get("cover").and_then(|c| c.get("thumbnail")).and_then(|v| v.as_str()).unwrap_or("").to_string(),
+        cover_url: normalize_cover_url(
+            data.get("cover").and_then(|c| c.get("default")).and_then(|v| v.as_str()).unwrap_or(""),
+        ),
+        cover_thumb_url: normalize_cover_url(
+            data.get("cover").and_then(|c| c.get("thumbnail")).and_then(|v| v.as_str()).unwrap_or(""),
+        ),
         manga_type: data.get("type").and_then(|t| t.get("label")).and_then(|v| v.as_str()).unwrap_or("").to_string(),
         type_id: data.get("type").and_then(|t| t.get("id")).and_then(|v| v.as_i64()).unwrap_or(0),
         status: data.get("status").and_then(|s| s.get("label")).and_then(|v| v.as_str()).unwrap_or("").to_string(),
@@ -1297,7 +1313,12 @@ pub async fn get_collections(page: i64, _sort_by: String) -> Result<Vec<MangaCol
             let comments_count = c.get("comments_count").and_then(|v| v.as_i64()).unwrap_or(0);
             let votes_up = c.get("votes").and_then(|v| v.get("up")).and_then(|v| v.as_i64()).unwrap_or(0);
             let votes_down = c.get("votes").and_then(|v| v.get("down")).and_then(|v| v.as_i64()).unwrap_or(0);
-            let cover_url = c.get("cover").and_then(|v| v.get("default")).or_else(|| c.get("cover_url")).and_then(|v| v.as_str()).map(|s| s.to_string());
+            let cover_url = c
+                .get("cover")
+                .and_then(|v| v.get("default"))
+                .or_else(|| c.get("cover_url"))
+                .and_then(|v| v.as_str())
+                .map(normalize_cover_url);
             let user_id = c.get("user_id").and_then(|v| v.as_i64()).unwrap_or(0);
             let username = c.get("user").and_then(|v| v.get("username")).and_then(|v| v.as_str()).unwrap_or("").to_string();
             let user_avatar = c.get("user").and_then(|v| v.get("avatar")).and_then(|v| v.get("url")).and_then(|v| v.as_str()).unwrap_or("").to_string();
@@ -1826,6 +1847,27 @@ mod cookie_tests {
             .iter()
             .map(|(name, value)| (name.to_string(), value.to_string()))
             .collect()
+    }
+
+    #[test]
+    fn cover_urls_are_pinned_to_the_stable_cdn() {
+        assert_eq!(
+            normalize_cover_url("/uploads/cover/a.jpg"),
+            "https://cover.cdnlibs.org/uploads/cover/a.jpg"
+        );
+        assert_eq!(
+            normalize_cover_url("https://cover.cdnrulib.link/uploads/cover/a.jpg"),
+            "https://cover.cdnlibs.org/uploads/cover/a.jpg"
+        );
+        assert_eq!(
+            normalize_cover_url("https://cover.cdnlibs.org/uploads/cover/a.jpg"),
+            "https://cover.cdnlibs.org/uploads/cover/a.jpg"
+        );
+        assert_eq!(
+            normalize_cover_url("https://img3.cdnlibs.org/manga/a.jpg"),
+            "https://img3.cdnlibs.org/manga/a.jpg"
+        );
+        assert_eq!(normalize_cover_url(""), "");
     }
 
     #[test]
